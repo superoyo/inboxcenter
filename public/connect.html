@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>เชื่อมต่อเพจ — Facebook Inbox Center</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav class="navbar">
+    <span class="logo">📥 Facebook Inbox Center</span>
+    <a class="nav-link" href="index.html">กล่องข้อความรวม</a>
+    <a class="nav-link active" href="connect.html">เชื่อมต่อเพจ</a>
+    <span class="spacer"></span>
+    <button class="btn small" id="syncAllBtn">🔄 ดึง inbox ทุกเพจ</button>
+  </nav>
+
+  <div class="container" style="max-width: 720px;">
+    <div class="card">
+      <h2 style="margin-bottom: 6px;">เพิ่มเพจใหม่</h2>
+      <p class="muted" style="margin-bottom: 16px;">
+        วาง <strong>Access Token</strong> ได้ทั้งแบบ <strong>User token</strong> (ระบบจะแสดงรายชื่อเพจให้เลือก)
+        หรือ <strong>Page token</strong> (เชื่อมต่อทันที) — ต้องมีสิทธิ์ <code>pages_show_list</code> และ <code>pages_messaging</code>
+      </p>
+      <div style="display: flex; gap: 10px;">
+        <input type="password" id="tokenInput" placeholder="EAAG... (Access Token)">
+        <button class="btn" id="addBtn">เชื่อมต่อ</button>
+      </div>
+      <p id="addError" class="error-text" style="margin-top: 10px; display: none;"></p>
+
+      <!-- รายชื่อเพจให้เลือก (กรณีวาง User token) -->
+      <div id="pageSelect" style="display: none; margin-top: 16px;">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+          <strong>เลือกเพจที่ต้องการดึง inbox</strong>
+          <button class="btn small secondary" id="selectAllBtn">เลือกทั้งหมด</button>
+          <span class="muted" id="selectCount"></span>
+        </div>
+        <div id="pageSelectList" style="max-height: 320px; overflow-y: auto; border: 1px solid var(--border); border-radius: 10px;"></div>
+        <button class="btn" id="connectSelectedBtn" style="margin-top: 12px;">เชื่อมต่อเพจที่เลือก</button>
+      </div>
+
+      <details style="margin-top: 16px;">
+        <summary class="muted" style="cursor: pointer;">วิธีหา Page Access Token</summary>
+        <ol class="muted" style="margin: 10px 0 0 20px; line-height: 1.9;">
+          <li>เข้า <a href="https://developers.facebook.com/tools/explorer/" target="_blank">Graph API Explorer</a></li>
+          <li>เลือกแอปของคุณ แล้วเลือก <strong>Get Page Access Token</strong> จากเมนู User or Page</li>
+          <li>เพิ่มสิทธิ์ <code>pages_messaging</code>, <code>pages_read_engagement</code>, <code>pages_show_list</code></li>
+          <li>เลือกเพจที่ต้องการ แล้วคัดลอก token มาวางที่นี่</li>
+        </ol>
+      </details>
+    </div>
+
+    <h3 style="margin-top: 28px;">เพจที่เชื่อมต่อแล้ว</h3>
+    <div class="page-list" id="pageList">
+      <p class="muted">กำลังโหลด...</p>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+
+    function toast(msg) {
+      const t = $('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 3000);
+    }
+
+    function fmtTime(iso) {
+      if (!iso) return 'ยังไม่เคยดึง';
+      return new Date(iso).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' });
+    }
+
+    async function loadPages() {
+      const pages = await fetch('/api/pages').then((r) => r.json());
+      const list = $('pageList');
+      if (!pages.length) {
+        list.innerHTML = '<div class="card"><p class="muted">ยังไม่มีเพจที่เชื่อมต่อ — เพิ่มเพจแรกด้วย Page Access Token ด้านบน</p></div>';
+        return;
+      }
+      list.innerHTML = pages.map((p) => `
+        <div class="page-item">
+          ${p.pictureUrl
+            ? `<img class="avatar" src="${p.pictureUrl}" alt="">`
+            : `<div class="avatar-fallback">${(p.name || '?')[0]}</div>`}
+          <div class="info">
+            <div class="name">${p.name}</div>
+            <div class="muted">ID: ${p.id} · ดึงล่าสุด: ${fmtTime(p.lastSyncAt)}</div>
+          </div>
+          <span class="badge green">เชื่อมต่อแล้ว</span>
+          <button class="btn small secondary" onclick="syncPage('${p.id}', this)">🔄 ดึง inbox</button>
+          <button class="btn small danger" onclick="removePage('${p.id}', '${(p.name || '').replace(/'/g, "\\'")}')">ลบ</button>
+        </div>
+      `).join('');
+    }
+
+    let pendingUserToken = null;
+
+    function esc(s) {
+      return String(s ?? '').replace(/[&<>"']/g, (c) =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    async function addPage() {
+      const token = $('tokenInput').value.trim();
+      const errEl = $('addError');
+      errEl.style.display = 'none';
+      $('pageSelect').style.display = 'none';
+      if (!token) { errEl.textContent = 'กรุณาใส่ Access Token'; errEl.style.display = 'block'; return; }
+
+      const btn = $('addBtn');
+      btn.disabled = true; btn.textContent = 'กำลังตรวจสอบ...';
+      try {
+        const res = await fetch('/api/pages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ accessToken: token }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+
+        if (data.needsSelection) {
+          // User token: แสดงรายชื่อเพจให้เลือก
+          pendingUserToken = token;
+          renderPageSelect(data.pages);
+          return;
+        }
+
+        $('tokenInput').value = '';
+        toast(`เชื่อมต่อเพจ "${data.name}" สำเร็จ`);
+        await loadPages();
+        await fetch(`/api/pages/${data.id}/sync`, { method: 'POST' });
+        toast(`ดึง inbox ของ "${data.name}" เรียบร้อย`);
+        await loadPages();
+      } catch (err) {
+        errEl.textContent = err.message;
+        errEl.style.display = 'block';
+      } finally {
+        btn.disabled = false; btn.textContent = 'เชื่อมต่อ';
+      }
+    }
+
+    function renderPageSelect(pages) {
+      $('pageSelect').style.display = 'block';
+      $('pageSelectList').innerHTML = pages.map((p) => `
+        <label style="display: flex; align-items: center; gap: 10px; padding: 9px 12px; cursor: pointer; border-bottom: 1px solid var(--bg);">
+          <input type="checkbox" class="page-cb" value="${esc(p.id)}" ${p.alreadyConnected ? 'checked' : ''} style="width: auto;">
+          <span style="flex: 1;">${esc(p.name)}</span>
+          ${p.alreadyConnected ? '<span class="badge green">เชื่อมต่อแล้ว</span>' : ''}
+          <span class="muted">${esc(p.id)}</span>
+        </label>`).join('');
+      updateCount();
+      document.querySelectorAll('.page-cb').forEach((cb) => cb.addEventListener('change', updateCount));
+    }
+
+    function updateCount() {
+      const n = document.querySelectorAll('.page-cb:checked').length;
+      $('selectCount').textContent = `เลือกแล้ว ${n} เพจ`;
+    }
+
+    $('selectAllBtn').addEventListener('click', () => {
+      const cbs = document.querySelectorAll('.page-cb');
+      const allChecked = [...cbs].every((cb) => cb.checked);
+      cbs.forEach((cb) => (cb.checked = !allChecked));
+      updateCount();
+    });
+
+    $('connectSelectedBtn').addEventListener('click', async () => {
+      const ids = [...document.querySelectorAll('.page-cb:checked')].map((cb) => cb.value);
+      if (!ids.length) { toast('ยังไม่ได้เลือกเพจ'); return; }
+      const btn = $('connectSelectedBtn');
+      btn.disabled = true; btn.textContent = 'กำลังเชื่อมต่อ...';
+      try {
+        const res = await fetch('/api/pages/from-user-token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ accessToken: pendingUserToken, pageIds: ids }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        toast(`เชื่อมต่อแล้ว ${data.connected.length} เพจ กำลังดึง inbox...`);
+        $('pageSelect').style.display = 'none';
+        $('tokenInput').value = '';
+        pendingUserToken = null;
+        await loadPages();
+        await fetch('/api/sync-all', { method: 'POST' });
+        toast('ดึง inbox เรียบร้อย');
+        await loadPages();
+      } catch (err) {
+        toast(err.message);
+      } finally {
+        btn.disabled = false; btn.textContent = 'เชื่อมต่อเพจที่เลือก';
+      }
+    });
+
+    async function syncPage(id, btn) {
+      btn.disabled = true; btn.textContent = 'กำลังดึง...';
+      try {
+        const res = await fetch(`/api/pages/${id}/sync`, { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        toast(`ดึงสำเร็จ ${data.conversations} การสนทนา`);
+        await loadPages();
+      } catch (err) {
+        toast(err.message);
+        btn.disabled = false; btn.textContent = '🔄 ดึง inbox';
+      }
+    }
+
+    async function removePage(id, name) {
+      if (!confirm(`ลบเพจ "${name}" ออกจากระบบ? ข้อความที่ดึงมาแล้วของเพจนี้จะถูกลบด้วย`)) return;
+      await fetch(`/api/pages/${id}`, { method: 'DELETE' });
+      toast('ลบเพจแล้ว');
+      loadPages();
+    }
+
+    $('syncAllBtn').addEventListener('click', async () => {
+      const btn = $('syncAllBtn');
+      btn.disabled = true; btn.textContent = 'กำลังดึงทุกเพจ...';
+      const { results } = await fetch('/api/sync-all', { method: 'POST' }).then((r) => r.json());
+      const ok = results.filter((r) => r.ok).length;
+      const fail = results.filter((r) => !r.ok);
+      toast(fail.length ? `สำเร็จ ${ok} เพจ, ล้มเหลว ${fail.length} เพจ (${fail[0].error})` : `ดึงครบ ${ok} เพจ`);
+      btn.disabled = false; btn.textContent = '🔄 ดึง inbox ทุกเพจ';
+      loadPages();
+    });
+
+    $('addBtn').addEventListener('click', addPage);
+    $('tokenInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') addPage(); });
+
+    loadPages();
+  </script>
+</body>
+</html>

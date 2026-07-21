@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>กล่องข้อความรวม — Facebook Inbox Center</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav class="navbar">
+    <span class="logo">📥 Facebook Inbox Center</span>
+    <a class="nav-link active" href="index.html">กล่องข้อความรวม</a>
+    <a class="nav-link" href="connect.html">เชื่อมต่อเพจ</a>
+    <span class="spacer"></span>
+    <button class="btn small" id="syncAllBtn">🔄 ดึง inbox ทุกเพจ</button>
+  </nav>
+
+  <div class="inbox-layout" id="layout">
+    <!-- ซ้ายสุด: ปฏิทินสรุปจำนวน inbox รายวัน -->
+    <aside class="cal-panel">
+      <div class="cal-head">
+        <button class="cal-nav" id="calPrev">‹</button>
+        <span class="cal-title" id="calTitle"></span>
+        <button class="cal-nav" id="calNext">›</button>
+      </div>
+      <div class="cal-grid" id="calGrid"></div>
+      <button class="btn small secondary" id="calClear" style="margin: 12px 16px; display: none;">✕ แสดงทุกวัน</button>
+      <p class="muted" style="padding: 0 16px;">ตัวเลขใต้วันที่ = จำนวนการสนทนาที่มีข้อความในวันนั้น คลิกเพื่อกรอง</p>
+    </aside>
+
+    <!-- ซ้าย: รายการสนทนาจากทุกเพจ -->
+    <aside class="conv-panel">
+      <div class="panel-head">
+        <h2>กล่องข้อความรวม</h2>
+        <div class="filters">
+          <select id="pageFilter" style="flex: 1;">
+            <option value="">ทุกเพจ</option>
+          </select>
+          <input type="text" id="searchInput" placeholder="ค้นหาชื่อ / ข้อความ..." style="flex: 1.4;">
+        </div>
+      </div>
+      <div class="conv-list" id="convList">
+        <div class="empty-state"><span class="big">⏳</span>กำลังโหลด...</div>
+      </div>
+    </aside>
+
+    <!-- ขวา: ข้อความในสนทนาที่เลือก -->
+    <main class="thread-panel" id="threadPanel">
+      <div class="empty-state">
+        <span class="big">💬</span>
+        <div>เลือกการสนทนาจากด้านซ้ายเพื่อดูข้อความ</div>
+        <div class="muted">ข้อความจากทุกเพจจะมารวมอยู่ที่นี่</div>
+      </div>
+    </main>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    let conversations = [];
+    let activeConvId = null;
+    let calMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    let selectedDate = null; // 'YYYY-MM-DD' — กรองรายการสนทนาตามวันที่เลือกในปฏิทิน
+
+    function toast(msg) {
+      const t = $('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 3000);
+    }
+
+    function esc(s) {
+      return String(s ?? '').replace(/[&<>"']/g, (c) =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    function fmtTime(iso) {
+      const d = new Date(iso);
+      const now = new Date();
+      const sameDay = d.toDateString() === now.toDateString();
+      return sameDay
+        ? d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
+        : d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
+    }
+
+    function fmtFull(iso) {
+      return new Date(iso).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' });
+    }
+
+    // สีประจำตัวลูกค้า — hash จาก id/ชื่อ ให้แต่ละคนได้สีเดิมเสมอ
+    const AVATAR_COLORS = [
+      '#1877f2', '#e91e63', '#8e24aa', '#5e35b1', '#3949ab', '#00897b',
+      '#f4511e', '#6d4c41', '#546e7a', '#c2185b', '#2e7d32', '#ef6c00',
+    ];
+    function avatarColor(key) {
+      let h = 0;
+      for (const ch of String(key || '?')) h = (h * 31 + ch.codePointAt(0)) >>> 0;
+      return AVATAR_COLORS[h % AVATAR_COLORS.length];
+    }
+
+    // รูปโปรไฟล์จริง + fallback เป็นตัวอักษรบนพื้นสีประจำตัวเมื่อไม่มีรูปหรือรูปหมดอายุ
+    function avatarHtml(pic, name, key) {
+      const style = `background:${avatarColor(key || name)};${pic ? 'display:none;' : ''}`;
+      const fallback = `<div class="avatar-fallback" style="${style}">${esc((name || '?')[0])}</div>`;
+      if (!pic) return fallback;
+      return `<img class="avatar-img" src="${esc(pic)}" alt=""
+        onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">${fallback}`;
+    }
+
+    async function loadPagesFilter() {
+      const pages = await fetch('/api/pages').then((r) => r.json());
+      const sel = $('pageFilter');
+      const current = sel.value;
+      sel.innerHTML = '<option value="">ทุกเพจ (' + pages.length + ')</option>' +
+        pages.map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join('');
+      sel.value = current;
+      return pages.length;
+    }
+
+    async function loadConversations() {
+      const params = new URLSearchParams();
+      if ($('pageFilter').value) params.set('pageId', $('pageFilter').value);
+      if ($('searchInput').value.trim()) params.set('q', $('searchInput').value.trim());
+      conversations = await fetch('/api/conversations?' + params).then((r) => r.json());
+      renderCalendar();
+      renderConvList();
+    }
+
+    // ---------- ปฏิทิน ----------
+    function dateKey(d) {
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+
+    // นับจำนวน "การสนทนา" ที่มีข้อความอย่างน้อย 1 ข้อความในแต่ละวัน
+    function dailyCounts() {
+      const map = {};
+      for (const c of conversations) {
+        const days = new Set(c.messages.map((m) => dateKey(new Date(m.createdTime))));
+        for (const day of days) (map[day] = map[day] || new Set()).add(c.id);
+      }
+      return Object.fromEntries(Object.entries(map).map(([k, v]) => [k, v.size]));
+    }
+
+    function renderCalendar() {
+      const counts = dailyCounts();
+      $('calTitle').textContent = calMonth.toLocaleDateString('th-TH', { month: 'long', year: 'numeric' });
+
+      const firstDow = calMonth.getDay();
+      const daysInMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + 1, 0).getDate();
+      const todayKey = dateKey(new Date());
+
+      let html = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'].map((d) => `<div class="cal-dow">${d}</div>`).join('');
+      html += '<div class="cal-cell empty"></div>'.repeat(firstDow);
+      for (let day = 1; day <= daysInMonth; day++) {
+        const key = dateKey(new Date(calMonth.getFullYear(), calMonth.getMonth(), day));
+        const n = counts[key] || 0;
+        const cls = ['cal-cell', n ? 'has-count' : '', key === selectedDate ? 'selected' : '', key === todayKey ? 'today' : ''].join(' ');
+        html += `
+          <div class="${cls}" ${n ? `onclick="selectCalDate('${key}')"` : ''}>
+            <span class="cal-day">${day}</span>
+            ${n ? `<span class="cal-count">${n}</span>` : ''}
+          </div>`;
+      }
+      $('calGrid').innerHTML = html;
+      $('calClear').style.display = selectedDate ? 'inline-flex' : 'none';
+    }
+
+    function selectCalDate(key) {
+      selectedDate = selectedDate === key ? null : key; // คลิกซ้ำ = ยกเลิกกรอง
+      renderCalendar();
+      renderConvList();
+    }
+
+    $('calPrev').addEventListener('click', () => { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() - 1, 1); renderCalendar(); });
+    $('calNext').addEventListener('click', () => { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + 1, 1); renderCalendar(); });
+    $('calClear').addEventListener('click', () => { selectedDate = null; renderCalendar(); renderConvList(); });
+
+    // ---------- รายการสนทนา ----------
+    function visibleConversations() {
+      if (!selectedDate) return conversations;
+      return conversations.filter((c) =>
+        c.messages.some((m) => dateKey(new Date(m.createdTime)) === selectedDate));
+    }
+
+    function renderConvList() {
+      const list = $('convList');
+      const shown = visibleConversations();
+      if (selectedDate && !shown.length) {
+        list.innerHTML = `
+          <div class="empty-state">
+            <span class="big">📅</span>
+            <div>ไม่มีข้อความในวันที่เลือก</div>
+          </div>`;
+        return;
+      }
+      if (!shown.length) {
+        list.innerHTML = `
+          <div class="empty-state">
+            <span class="big">📭</span>
+            <div>ยังไม่มีข้อความ</div>
+            <div class="muted">ไปที่หน้า <a href="connect.html">เชื่อมต่อเพจ</a> เพื่อเพิ่มเพจและดึง inbox</div>
+          </div>`;
+        return;
+      }
+      list.innerHTML = shown.map((c) => {
+        const last = c.messages[c.messages.length - 1];
+        const preview = last
+          ? (last.isFromPage ? 'คุณ: ' : '') + (last.text || '📎 ไฟล์แนบ')
+          : 'ไม่มีข้อความ';
+        return `
+          <div class="conv-item ${c.id === activeConvId ? 'active' : ''}" onclick="openConv('${esc(c.id)}')">
+            ${avatarHtml(c.customerPic, c.customerName, c.customerId)}
+            <div class="conv-body">
+              <div class="top-row">
+                <span class="cust-name">${esc(c.customerName)}</span>
+                <span class="time">${fmtTime(c.updatedTime)}</span>
+              </div>
+              <div class="preview">${esc(preview)}</div>
+              <div class="page-tag">📄 ${esc(c.pageName)}</div>
+            </div>
+            ${c.unreadCount > 0 ? '<div class="unread-dot"></div>' : ''}
+          </div>`;
+      }).join('');
+    }
+
+    function openConv(id) {
+      activeConvId = id;
+      const c = conversations.find((x) => x.id === id);
+      if (!c) return;
+      renderConvList();
+      $('layout').classList.add('thread-open');
+
+      const panel = $('threadPanel');
+      panel.innerHTML = `
+        <div class="thread-head">
+          <button class="btn small secondary" onclick="closeThread()" style="display:none;" id="backBtn">←</button>
+          ${avatarHtml(c.customerPic, c.customerName, c.customerId)}
+          <div>
+            <div class="name">${esc(c.customerName)}</div>
+            <div class="muted">ผ่านเพจ: ${esc(c.pageName)}</div>
+          </div>
+        </div>
+        <div class="thread-messages" id="msgArea">
+          ${c.messages.map((m) => `
+            <div class="msg-row ${m.isFromPage ? 'from-page' : ''}">
+              <div class="bubble">
+                ${esc(m.text)}
+                ${m.attachments.map((a) => a.imageUrl
+                  ? `<img class="attach" src="${esc(a.imageUrl)}" alt="attachment">`
+                  : a.fileUrl ? `<div>📎 <a href="${esc(a.fileUrl)}" target="_blank">${esc(a.name || 'ไฟล์แนบ')}</a></div>` : ''
+                ).join('')}
+                <div class="meta">${esc(m.isFromPage ? c.pageName : m.fromName)} · ${fmtFull(m.createdTime)}</div>
+              </div>
+            </div>`).join('')}
+        </div>
+        <div class="reply-bar">
+          <input type="text" id="replyInput" placeholder="พิมพ์ข้อความตอบกลับในนาม ${esc(c.pageName)}..." autocomplete="off">
+          <button class="btn" id="replySendBtn">ส่ง</button>
+        </div>`;
+      if (window.innerWidth <= 800) $('backBtn').style.display = 'inline-flex';
+      const area = $('msgArea');
+      area.scrollTop = area.scrollHeight;
+
+      $('replySendBtn').addEventListener('click', () => sendReply(c.id));
+      $('replyInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendReply(c.id); });
+      $('replyInput').focus();
+    }
+
+    async function sendReply(convId) {
+      const input = $('replyInput');
+      const text = input.value.trim();
+      if (!text) return;
+      const btn = $('replySendBtn');
+      btn.disabled = true; input.disabled = true;
+      try {
+        const res = await fetch(`/api/conversations/${encodeURIComponent(convId)}/reply`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+
+        // เติมข้อความที่ส่งแล้วต่อท้ายแชททันที
+        const c = conversations.find((x) => x.id === convId);
+        if (c) { c.messages.push(data.message); c.updatedTime = data.message.createdTime; }
+        const area = $('msgArea');
+        area.insertAdjacentHTML('beforeend', `
+          <div class="msg-row from-page">
+            <div class="bubble">
+              ${esc(data.message.text)}
+              <div class="meta">${esc(data.message.fromName)} · ${fmtFull(data.message.createdTime)}</div>
+            </div>
+          </div>`);
+        area.scrollTop = area.scrollHeight;
+        input.value = '';
+        renderConvList();
+      } catch (err) {
+        toast(err.message);
+      } finally {
+        btn.disabled = false; input.disabled = false; input.focus();
+      }
+    }
+
+    function closeThread() {
+      $('layout').classList.remove('thread-open');
+      activeConvId = null;
+      renderConvList();
+    }
+
+    $('syncAllBtn').addEventListener('click', async () => {
+      const btn = $('syncAllBtn');
+      btn.disabled = true; btn.textContent = 'กำลังดึง...';
+      try {
+        const { results } = await fetch('/api/sync-all', { method: 'POST' }).then((r) => r.json());
+        const ok = results.filter((r) => r.ok).length;
+        const fail = results.filter((r) => !r.ok);
+        toast(results.length === 0
+          ? 'ยังไม่มีเพจในระบบ — ไปที่หน้าเชื่อมต่อเพจก่อน'
+          : fail.length ? `สำเร็จ ${ok} เพจ, ล้มเหลว ${fail.length} เพจ` : `ดึงครบ ${ok} เพจ`);
+        await loadConversations();
+      } finally {
+        btn.disabled = false; btn.textContent = '🔄 ดึง inbox ทุกเพจ';
+      }
+    });
+
+    $('pageFilter').addEventListener('change', loadConversations);
+    let searchTimer;
+    $('searchInput').addEventListener('input', () => {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(loadConversations, 300);
+    });
+
+    loadPagesFilter().then(loadConversations);
+    // รีเฟรชรายการอัตโนมัติทุก 60 วินาที
+    setInterval(loadConversations, 60000);
+  </script>
+</body>
+</html>

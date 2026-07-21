@@ -1,0 +1,12 @@
+{
+  "name": "facebook-inbox-center",
+  "version": "1.0.0",
+  "description": "ระบบดึงและรวม inbox จาก Facebook Pages ผ่าน Graph API",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0"
+  }
+}
