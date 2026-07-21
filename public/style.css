@@ -275,6 +275,63 @@ input:focus, textarea:focus, select:focus { outline: 2px solid var(--primary); b
 .bubble .meta { font-size: 11px; opacity: 0.7; margin-top: 4px; }
 .bubble img.attach { max-width: 240px; border-radius: 10px; display: block; margin-top: 6px; }
 
+/* ---------- Lightbox ---------- */
+.bubble img.attach { cursor: zoom-in; }
+.lightbox {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  cursor: zoom-out;
+}
+.lightbox.show { display: flex; }
+.lightbox img {
+  max-width: 92vw;
+  max-height: 92vh;
+  border-radius: 8px;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
+}
+
+/* ---------- Tags ---------- */
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  background: #fff3e0;
+  color: #e65100;
+  border-radius: 999px;
+  padding: 1px 8px;
+  margin: 3px 4px 0 0;
+}
+.tag-chip b { cursor: pointer; font-weight: 700; opacity: 0.7; }
+.tag-chip b:hover { opacity: 1; }
+.tag-add {
+  border: 1px dashed var(--border);
+  background: none;
+  border-radius: 999px;
+  font-size: 11px;
+  padding: 1px 8px;
+  cursor: pointer;
+  color: var(--muted);
+  margin-top: 3px;
+  font-family: inherit;
+}
+.tag-add:hover { background: var(--bg); }
+.tag-input {
+  width: 130px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 12px;
+  margin: 3px 0 0 4px;
+  font-family: inherit;
+}
+
 .reply-bar {
   display: flex;
   gap: 10px;

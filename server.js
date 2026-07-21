@@ -180,8 +180,19 @@ app.get('/api/conversations', async (req, res) => {
         c.messages.some((m) => m.text.toLowerCase().includes(needle))
     );
   }
+  const tagsMap = await store.getTags();
+  for (const c of convs) c.tags = tagsMap[c.id] || [];
   convs.sort((a, b) => new Date(b.updatedTime) - new Date(a.updatedTime));
   res.json(convs);
+});
+
+// ตั้งแท็กของการสนทนา (ส่งรายการเต็มมาแทนที่ของเดิม)
+app.put('/api/conversations/:convId/tags', async (req, res) => {
+  const { tags } = req.body || {};
+  if (!Array.isArray(tags)) return res.status(400).json({ error: 'tags ต้องเป็น array' });
+  const clean = [...new Set(tags.map((t) => String(t).trim().slice(0, 30)).filter(Boolean))].slice(0, 10);
+  await store.setTags(req.params.convId, clean);
+  res.json({ ok: true, tags: clean });
 });
 
 // ---------- Reply (ตอบกลับ inbox) ----------

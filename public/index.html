@@ -56,6 +56,11 @@
 
   <div class="toast" id="toast"></div>
 
+  <!-- คลิกรูปแนบเพื่อดูขนาดใหญ่ -->
+  <div class="lightbox" id="lightbox" onclick="this.classList.remove('show')">
+    <img id="lightboxImg" alt="">
+  </div>
+
   <script>
     const $ = (id) => document.getElementById(id);
     let conversations = [];
@@ -218,6 +223,9 @@
               </div>
               <div class="preview">${esc(preview)}</div>
               <div class="page-tag">📄 ${esc(c.pageName)}</div>
+              ${(c.tags && c.tags.length)
+                ? `<div>${c.tags.map((t) => `<span class="tag-chip">${esc(t)}</span>`).join('')}</div>`
+                : ''}
             </div>
             ${c.unreadCount > 0 ? '<div class="unread-dot"></div>' : ''}
           </div>`;
@@ -236,9 +244,10 @@
         <div class="thread-head">
           <button class="btn small secondary" onclick="closeThread()" style="display:none;" id="backBtn">←</button>
           ${avatarHtml(c.customerPic, c.customerName, c.customerId)}
-          <div>
+          <div style="flex: 1; min-width: 0;">
             <div class="name">${esc(c.customerName)}</div>
             <div class="muted">ผ่านเพจ: ${esc(c.pageName)}</div>
+            <div class="thread-tags" id="threadTags"></div>
           </div>
         </div>
         <div class="thread-messages" id="msgArea">
@@ -247,7 +256,7 @@
               <div class="bubble">
                 ${esc(m.text)}
                 ${m.attachments.map((a) => a.imageUrl
-                  ? `<img class="attach" src="${esc(a.imageUrl)}" alt="attachment">`
+                  ? `<img class="attach" src="${esc(a.imageUrl)}" alt="attachment" onclick="openLightbox(this.src)">`
                   : a.fileUrl ? `<div>📎 <a href="${esc(a.fileUrl)}" target="_blank">${esc(a.name || 'ไฟล์แนบ')}</a></div>` : ''
                 ).join('')}
                 <div class="meta">${esc(m.isFromPage ? c.pageName : m.fromName)} · ${fmtFull(m.createdTime)}</div>
@@ -259,6 +268,7 @@
           <button class="btn" id="replySendBtn">ส่ง</button>
         </div>`;
       if (window.innerWidth <= 800) $('backBtn').style.display = 'inline-flex';
+      renderThreadTags(c);
       const area = $('msgArea');
       area.scrollTop = area.scrollHeight;
 
@@ -300,6 +310,66 @@
         toast(err.message);
       } finally {
         btn.disabled = false; input.disabled = false; input.focus();
+      }
+    }
+
+    // ---------- Lightbox ----------
+    function openLightbox(src) {
+      $('lightboxImg').src = src;
+      $('lightbox').classList.add('show');
+    }
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') $('lightbox').classList.remove('show');
+    });
+
+    // ---------- Tags ----------
+    function renderThreadTags(c) {
+      const el = $('threadTags');
+      if (!el) return;
+      el.innerHTML =
+        (c.tags || []).map((t, i) =>
+          `<span class="tag-chip">${esc(t)}<b title="ลบแท็ก" onclick="removeTag('${esc(c.id)}', ${i})">×</b></span>`
+        ).join('') +
+        `<button class="tag-add" onclick="showTagInput()">🏷 เพิ่มแท็ก</button>
+         <input id="tagInput" class="tag-input" style="display:none;" placeholder="พิมพ์แล้วกด Enter" maxlength="30">`;
+      $('tagInput').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') addTag(c.id);
+        if (e.key === 'Escape') { e.target.style.display = 'none'; e.target.value = ''; }
+      });
+    }
+
+    function showTagInput() {
+      const inp = $('tagInput');
+      inp.style.display = 'inline-block';
+      inp.focus();
+    }
+
+    async function addTag(convId) {
+      const inp = $('tagInput');
+      const val = inp.value.trim();
+      if (!val) return;
+      const c = conversations.find((x) => x.id === convId);
+      await saveTags(convId, [...(c.tags || []), val]);
+    }
+
+    async function removeTag(convId, idx) {
+      const c = conversations.find((x) => x.id === convId);
+      await saveTags(convId, (c.tags || []).filter((_, i) => i !== idx));
+    }
+
+    async function saveTags(convId, tags) {
+      try {
+        const res = await fetch(`/api/conversations/${encodeURIComponent(convId)}/tags`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tags }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        const c = conversations.find((x) => x.id === convId);
+        if (c) { c.tags = data.tags; renderThreadTags(c); renderConvList(); }
+      } catch (err) {
+        toast(err.message || 'บันทึกแท็กไม่สำเร็จ');
       }
     }
 
