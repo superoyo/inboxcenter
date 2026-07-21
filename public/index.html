@@ -53,6 +53,9 @@
         <div class="muted">ข้อความจากทุกเพจจะมารวมอยู่ที่นี่</div>
       </div>
     </main>
+
+    <!-- ขวาสุด: สถิติของลูกค้าที่เลือก -->
+    <aside class="stats-panel" id="statsPanel"></aside>
   </div>
 
   <div class="toast" id="toast"></div>
@@ -301,6 +304,8 @@
         </div>`;
       if (window.innerWidth <= 800) $('backBtn').style.display = 'inline-flex';
       renderThreadTags(c);
+      renderStatsPanel(c);
+      $('layout').classList.add('stats-open');
       const area = $('msgArea');
       area.scrollTop = area.scrollHeight;
 
@@ -399,7 +404,7 @@
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
         const c = conversations.find((x) => x.id === convId);
-        if (c) { c.tags = data.tags; renderThreadTags(c); renderConvList(); }
+        if (c) { c.tags = data.tags; renderThreadTags(c); renderConvList(); renderStatsPanel(c); }
       } catch (err) {
         toast(err.message || 'บันทึกแท็กไม่สำเร็จ');
       }
@@ -407,8 +412,138 @@
 
     function closeThread() {
       $('layout').classList.remove('thread-open');
+      $('layout').classList.remove('stats-open');
       activeConvId = null;
       renderConvList();
+    }
+
+    // ---------- สถิติลูกค้า ----------
+    function fmtDur(ms) {
+      if (ms < 60e3) return Math.max(1, Math.round(ms / 1e3)) + ' วินาที';
+      if (ms < 3600e3) return Math.round(ms / 60e3) + ' นาที';
+      if (ms < 86400e3) return (ms / 3600e3).toFixed(1) + ' ชั่วโมง';
+      return (ms / 86400e3).toFixed(1) + ' วัน';
+    }
+
+    // ข้อความจากเพจที่ซ้ำกัน ≥3 ครั้งในเพจเดียวกัน = ข้อความอัตโนมัติ (bot)
+    function botReplyTexts(pageId) {
+      const counts = {};
+      for (const conv of conversations) {
+        if (conv.pageId !== pageId) continue;
+        for (const m of conv.messages) {
+          if (m.isFromPage && m.text) counts[m.text] = (counts[m.text] || 0) + 1;
+        }
+      }
+      return new Set(Object.entries(counts).filter(([, n]) => n >= 3).map(([t]) => t));
+    }
+
+    function renderStatsPanel(c) {
+      const cust = c.messages.filter((m) => !m.isFromPage);
+
+      // 1) ติดต่อครั้งแรก
+      const firstMsg = cust[0] || c.messages[0];
+      let firstHtml = '<span class="muted">—</span>';
+      if (firstMsg) {
+        const t = new Date(firstMsg.createdTime);
+        const daysAgo = Math.floor((Date.now() - t) / 86400e3);
+        firstHtml = `${t.toLocaleDateString('th-TH', { dateStyle: 'medium' })}<br>
+          <span class="muted">${daysAgo === 0 ? 'วันนี้' : daysAgo + ' วันที่แล้ว'}</span>`;
+      }
+
+      // 2) กราฟช่วงเวลาที่ทักเข้ามา (0-24 น.)
+      const hours = Array(24).fill(0);
+      cust.forEach((m) => hours[new Date(m.createdTime).getHours()]++);
+      const maxH = Math.max(...hours, 1);
+      const peakHour = hours.indexOf(Math.max(...hours));
+      const hourChart = `
+        <div class="hour-chart">
+          ${hours.map((h, i) => `
+            <div class="hour-bar${h === maxH && h > 0 ? ' peak' : ''}" style="height:${h ? Math.max(8, Math.round(h / maxH * 100)) : 2}%"
+              title="${String(i).padStart(2, '0')}:00 น. — ${h} ข้อความ"></div>`).join('')}
+        </div>
+        <div class="hour-axis"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></div>
+        ${cust.length ? `<div class="muted" style="margin-top:4px;">ถามบ่อยช่วง ${String(peakHour).padStart(2, '0')}:00–${String(peakHour + 1).padStart(2, '0')}:00 น.</div>` : ''}`;
+
+      // 3) ความถี่ในการติดต่อ
+      const days = [...new Set(cust.map((m) => dateKey(new Date(m.createdTime))))].sort();
+      let freqHtml = '<span class="muted">ติดต่อครั้งเดียว</span>';
+      if (days.length >= 2) {
+        const span = (new Date(days[days.length - 1]) - new Date(days[0])) / 86400e3;
+        freqHtml = `เฉลี่ยทุก ${Math.max(1, Math.round(span / (days.length - 1)))} วัน<br>
+          <span class="muted">ติดต่อมา ${days.length} วัน (${cust.length} ข้อความ)</span>`;
+      }
+
+      // 4-5) เวลาตอบกลับ แยกคน / bot
+      const botSet = botReplyTexts(c.pageId);
+      const human = [], bot = [];
+      let pending = null;
+      for (const m of c.messages) {
+        if (!m.isFromPage) {
+          if (pending === null) pending = new Date(m.createdTime);
+        } else if (pending !== null) {
+          const d = new Date(m.createdTime) - pending;
+          (m.text && botSet.has(m.text) ? bot : human).push(d);
+          pending = null;
+        }
+      }
+      const avg = (a) => a.reduce((s, x) => s + x, 0) / a.length;
+      const humanHtml = human.length
+        ? `เฉลี่ย ${fmtDur(avg(human))}<br><span class="muted">ตอบ ${human.length} ครั้ง (เร็วสุด ${fmtDur(Math.min(...human))})</span>`
+        : '<span class="muted">ยังไม่มีการตอบด้วยคน</span>';
+      const botHtml = bot.length
+        ? `เฉลี่ย ${fmtDur(avg(bot))}<br><span class="muted">ตอบ ${bot.length} ครั้ง (ข้อความซ้ำอัตโนมัติ)</span>`
+        : '<span class="muted">ไม่พบการตอบด้วย bot</span>';
+
+      $('statsPanel').innerHTML = `
+        <div class="stats-head">
+          <span>📊 สถิติลูกค้า</span>
+          <button class="btn small secondary" onclick="$('layout').classList.remove('stats-open')">✕</button>
+        </div>
+        <div class="stats-body">
+          <div class="stats-cust">
+            ${avatarHtml(c.customerPic, c.customerName, c.customerId)}
+            <div>
+              <div style="font-weight:700;">${esc(c.customerName)}</div>
+              <div class="muted">${esc(c.pageName)}</div>
+            </div>
+          </div>
+
+          <div class="stat-block"><div class="stat-label">🕐 ติดต่อครั้งแรก</div><div>${firstHtml}</div></div>
+          <div class="stat-block"><div class="stat-label">📈 ช่วงเวลาที่ทักเข้ามา</div>${hourChart}</div>
+          <div class="stat-block"><div class="stat-label">🔁 ความถี่ในการติดต่อ</div><div>${freqHtml}</div></div>
+          <div class="stat-block"><div class="stat-label">🙋 การตอบด้วยคน</div><div>${humanHtml}</div></div>
+          <div class="stat-block"><div class="stat-label">🤖 การตอบด้วย bot</div><div>${botHtml}</div></div>
+
+          <div class="stat-block">
+            <div class="stat-label">🏷 แท็ก</div>
+            <div>${(c.tags || []).map((t) => `<span class="tag-chip">${esc(t)}</span>`).join('') || '<span class="muted">ยังไม่มีแท็ก — เพิ่มได้ที่หัวแชท</span>'}</div>
+          </div>
+
+          <div class="stat-block">
+            <div class="stat-label">📝 โน้ต (Remark)</div>
+            <textarea id="remarkInput" rows="4" placeholder="บันทึกโน้ตเกี่ยวกับลูกค้าคนนี้...">${esc(c.remark || '')}</textarea>
+            <button class="btn small" style="margin-top:8px;" onclick="saveRemark('${esc(c.id)}')">บันทึกโน้ต</button>
+          </div>
+
+          <p class="muted" style="font-size:11px;">* คำนวณจากประวัติ ${c.messages.length} ข้อความล่าสุดที่ดึงมา</p>
+        </div>`;
+    }
+
+    async function saveRemark(convId) {
+      try {
+        const res = await fetch(`/api/conversations/${encodeURIComponent(convId)}/remark`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ remark: $('remarkInput').value }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        const c = conversations.find((x) => x.id === convId);
+        if (c) c.remark = data.remark;
+        toast('บันทึกโน้ตแล้ว');
+      } catch (err) {
+        toast(err.message || 'บันทึกโน้ตไม่สำเร็จ');
+      }
     }
 
     $('syncAllBtn').addEventListener('click', async () => {

@@ -409,13 +409,79 @@ input:focus, textarea:focus, select:focus { outline: 2px solid var(--primary); b
 }
 .toast.show { opacity: 1; }
 
+/* ---------- Stats panel (คอลัมน์ขวาสุด) ---------- */
+.stats-panel {
+  border-left: 1px solid var(--border);
+  overflow-y: auto;
+  display: none;
+  background: var(--card);
+}
+.inbox-layout.stats-open { grid-template-columns: 290px 340px 1fr 320px; }
+.inbox-layout.stats-open .stats-panel { display: block; }
+
+.stats-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 700;
+  position: sticky;
+  top: 0;
+  background: var(--card);
+}
+.stats-body { padding: 14px 16px; display: flex; flex-direction: column; gap: 16px; }
+.stats-cust { display: flex; align-items: center; gap: 10px; }
+.stat-block { border-bottom: 1px solid var(--bg); padding-bottom: 14px; font-size: 14px; }
+.stat-block:last-of-type { border-bottom: none; }
+.stat-label { font-size: 12px; font-weight: 700; color: var(--muted); margin-bottom: 6px; }
+.stat-block textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  resize: vertical;
+}
+
+/* กราฟช่วงเวลา 00-24 น. */
+.hour-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 64px;
+  background: var(--bg);
+  border-radius: 8px;
+  padding: 6px 6px 0;
+}
+.hour-bar {
+  flex: 1;
+  background: #a8c7f0;
+  border-radius: 2px 2px 0 0;
+  min-height: 2px;
+}
+.hour-bar.peak { background: var(--primary); }
+.hour-axis {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--muted);
+  padding: 2px 4px 0;
+}
+
+@media (max-width: 1250px) {
+  .inbox-layout.stats-open { grid-template-columns: 290px 340px 1fr; }
+  .inbox-layout.stats-open .stats-panel { display: none; }
+}
+
 @media (max-width: 1100px) {
-  .inbox-layout { grid-template-columns: 360px 1fr; }
+  .inbox-layout, .inbox-layout.stats-open { grid-template-columns: 360px 1fr; }
   .cal-panel { display: none; }
 }
 
 @media (max-width: 800px) {
-  .inbox-layout { grid-template-columns: 1fr; }
+  .inbox-layout, .inbox-layout.stats-open { grid-template-columns: 1fr; }
   .thread-panel { display: none; }
   .inbox-layout.thread-open .conv-panel { display: none; }
   .inbox-layout.thread-open .thread-panel { display: flex; }

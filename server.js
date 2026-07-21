@@ -180,10 +180,22 @@ app.get('/api/conversations', async (req, res) => {
         c.messages.some((m) => m.text.toLowerCase().includes(needle))
     );
   }
-  const tagsMap = await store.getTags();
-  for (const c of convs) c.tags = tagsMap[c.id] || [];
+  const [tagsMap, remarksMap] = await Promise.all([store.getTags(), store.getRemarks()]);
+  for (const c of convs) {
+    c.tags = tagsMap[c.id] || [];
+    c.remark = remarksMap[c.id] || '';
+  }
   convs.sort((a, b) => new Date(b.updatedTime) - new Date(a.updatedTime));
   res.json(convs);
+});
+
+// บันทึกโน้ต (remark) ของการสนทนา
+app.put('/api/conversations/:convId/remark', async (req, res) => {
+  const { remark } = req.body || {};
+  if (typeof remark !== 'string') return res.status(400).json({ error: 'remark ต้องเป็นข้อความ' });
+  const clean = remark.trim().slice(0, 2000);
+  await store.setRemark(req.params.convId, clean);
+  res.json({ ok: true, remark: clean });
 });
 
 // ตั้งแท็กของการสนทนา (ส่งรายการเต็มมาแทนที่ของเดิม)
