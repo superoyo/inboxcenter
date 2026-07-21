@@ -310,7 +310,9 @@ input:focus, textarea:focus, select:focus { outline: 2px solid var(--primary); b
   word-wrap: break-word;
 }
 .msg-row.from-page .bubble { background: var(--primary); color: #fff; border-color: var(--primary); }
-.bubble .meta { font-size: 11px; opacity: 0.7; margin-top: 4px; }
+.bubble .meta { font-size: 11px; opacity: 0.75; margin-top: 4px; }
+.bubble .meta-time { font-size: 14px; font-weight: 700; opacity: 1; }
+.bubble .meta-latency { font-size: 11px; font-style: italic; }
 .bubble img.attach { max-width: 240px; border-radius: 10px; display: block; margin-top: 6px; }
 
 /* ---------- Lightbox ---------- */

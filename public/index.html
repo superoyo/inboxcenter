@@ -286,7 +286,15 @@
           </div>
         </div>
         <div class="thread-messages" id="msgArea">
-          ${c.messages.map((m) => `
+          ${(() => {
+            // จับเวลาตอบ: ข้อความแรกของเพจหลังลูกค้าถาม จะแสดงว่าตอบช้าไปเท่าไหร่
+            let lastAsk = null, answered = true;
+            return c.messages.map((m) => {
+              let latency = '';
+              const t = new Date(m.createdTime);
+              if (!m.isFromPage) { lastAsk = t; answered = false; }
+              else if (!answered && lastAsk) { latency = `(ตอบหลังถาม ${fmtDur(t - lastAsk)})`; answered = true; }
+              return `
             <div class="msg-row ${m.isFromPage ? 'from-page' : ''}">
               <div class="bubble">
                 ${esc(m.text)}
@@ -294,9 +302,15 @@
                   ? `<img class="attach" src="${esc(a.imageUrl)}" alt="attachment" onclick="openLightbox(this.src)">`
                   : a.fileUrl ? `<div>📎 <a href="${esc(a.fileUrl)}" target="_blank">${esc(a.name || 'ไฟล์แนบ')}</a></div>` : ''
                 ).join('')}
-                <div class="meta">${esc(m.isFromPage ? c.pageName : m.fromName)} · ${fmtFull(m.createdTime)}</div>
+                <div class="meta">
+                  ${esc(m.isFromPage ? c.pageName : m.fromName)} · ${t.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })}
+                  <span class="meta-time">${t.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.</span>
+                  ${latency ? `<span class="meta-latency">${latency}</span>` : ''}
+                </div>
               </div>
-            </div>`).join('')}
+            </div>`;
+            }).join('');
+          })()}
         </div>
         <div class="reply-bar">
           <input type="text" id="replyInput" placeholder="พิมพ์ข้อความตอบกลับในนาม ${esc(c.pageName)}..." autocomplete="off">
