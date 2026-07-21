@@ -45,10 +45,24 @@ node seed-demo.js
 | GET | `/api/conversations?pageId=&q=` | การสนทนาทุกเพจ (กรอง/ค้นหาได้) |
 | GET | `/api/messages?pageId=&limit=` | ข้อความทั้งหมดแบบ flat เรียงใหม่ล่าสุดก่อน |
 
-## โครงสร้างข้อมูล
+## การเก็บข้อมูล
 
-- `data/pages.json` — เพจที่เชื่อมต่อ + access token (**อย่า commit ไฟล์นี้ขึ้น git**)
-- `data/conversations.json` — ข้อความที่ดึงมาแล้ว แยกตามเพจ
+ระบบเลือก storage backend อัตโนมัติจาก environment:
+
+| สภาพแวดล้อม | Backend |
+|---|---|
+| มี `DATABASE_URL` (เช่นบน Railway) | **PostgreSQL** — ตาราง `pages`, `conversations` (JSONB), `profile_pics` สร้างให้อัตโนมัติตอน start |
+| ไม่มี (รันในเครื่อง) | ไฟล์ JSON ใน `data/` (**อย่า commit ขึ้น git** — มี access token) |
+
+ตัวแปรเสริม: `DATABASE_SSL=true` ถ้าเชื่อม Postgres ผ่าน public proxy จากนอก Railway
+
+## Deploy บน Railway
+
+1. เข้า [railway.app](https://railway.app) → **New Project** → **Deploy from GitHub repo** → เลือก repo นี้
+2. ในโปรเจกต์เดียวกัน กด **+ New** → **Database** → **Add PostgreSQL**
+3. ที่ service ของแอป → แท็บ **Variables** → **Add Variable Reference** → เลือก `DATABASE_URL` จาก Postgres (ค่าจะเป็น `${{Postgres.DATABASE_URL}}`)
+4. แท็บ **Settings** → **Networking** → **Generate Domain** เพื่อรับ URL สาธารณะ
+5. เปิด URL → ไปหน้า "เชื่อมต่อเพจ" → วาง token ได้เลย (ข้อมูลเก็บใน Postgres ไม่หายเมื่อ redeploy)
 
 ## ข้อจำกัด
 

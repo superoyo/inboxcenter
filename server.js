@@ -12,8 +12,8 @@ app.use(express.static(path.join(__dirname, 'public')));
 // ---------- Pages ----------
 
 // รายชื่อเพจที่เชื่อมต่อแล้ว (ไม่ส่ง token กลับไปหน้าเว็บ)
-app.get('/api/pages', (req, res) => {
-  const pages = store.getPages().map(({ accessToken, ...p }) => p);
+app.get('/api/pages', async (req, res) => {
+  const pages = (await store.getPages()).map(({ accessToken, ...p }) => p);
   res.json(pages);
 });
 
@@ -31,7 +31,7 @@ app.post('/api/pages', async (req, res) => {
   try {
     const userPages = await fb.getUserPages(token);
     if (userPages.length > 0) {
-      const connectedIds = new Set(store.getPages().map((p) => p.id));
+      const connectedIds = new Set((await store.getPages()).map((p) => p.id));
       return res.json({
         needsSelection: true,
         pages: userPages.map((p) => ({
@@ -49,7 +49,7 @@ app.post('/api/pages', async (req, res) => {
   // Page token: ตรวจกับ /me โดยตรง
   try {
     const info = await fb.getPageInfo(token);
-    const page = store.savePage({
+    const page = await store.savePage({
       id: info.id,
       name: info.name,
       pictureUrl: info.picture?.data?.url || '',
@@ -78,7 +78,7 @@ app.post('/api/pages/from-user-token', async (req, res) => {
     const connected = [];
     for (const p of userPages) {
       if (!wanted.has(p.id) || !p.access_token) continue;
-      store.savePage({
+      await store.savePage({
         id: p.id,
         name: p.name,
         pictureUrl: p.picture?.data?.url || '',
@@ -94,8 +94,8 @@ app.post('/api/pages/from-user-token', async (req, res) => {
   }
 });
 
-app.delete('/api/pages/:id', (req, res) => {
-  store.deletePage(req.params.id);
+app.delete('/api/pages/:id', async (req, res) => {
+  await store.deletePage(req.params.id);
   res.json({ ok: true });
 });
 
@@ -111,7 +111,7 @@ async function syncPage(page) {
   const conversations = raw.map((c) => fb.normalizeConversation(c, page));
 
   // ดึงรูปโปรไฟล์ลูกค้า — เฉพาะคนที่ยังไม่มีใน cache หรือ cache เก่าแล้ว
-  const cache = store.getPicCache();
+  const cache = await store.getPicCache();
   const now = Date.now();
   const needFetch = [...new Set(conversations.map((c) => c.customerId).filter(Boolean))]
     .filter((id) => {
@@ -123,19 +123,23 @@ async function syncPage(page) {
   if (needFetch.length) {
     const pics = await fb.fetchProfilePics(needFetch, page.accessToken);
     const fetchedAt = new Date().toISOString();
-    for (const [id, url] of Object.entries(pics)) cache[id] = { url, fetchedAt };
-    store.savePicCache(cache);
+    const updates = {};
+    for (const [id, url] of Object.entries(pics)) {
+      updates[id] = { url, fetchedAt };
+      cache[id] = updates[id];
+    }
+    await store.savePics(updates);
   }
   for (const c of conversations) c.customerPic = cache[c.customerId]?.url || '';
 
-  store.saveConversations(page.id, conversations);
-  store.savePage({ ...page, lastSyncAt: new Date().toISOString() });
+  await store.saveConversations(page.id, conversations);
+  await store.savePage({ ...page, lastSyncAt: new Date().toISOString() });
   return conversations.length;
 }
 
 // ดึง inbox ของเพจเดียว
 app.post('/api/pages/:id/sync', async (req, res) => {
-  const page = store.getPages().find((p) => p.id === req.params.id);
+  const page = (await store.getPages()).find((p) => p.id === req.params.id);
   if (!page) return res.status(404).json({ error: 'ไม่พบเพจนี้ในระบบ' });
   try {
     const count = await syncPage(page);
@@ -147,7 +151,7 @@ app.post('/api/pages/:id/sync', async (req, res) => {
 
 // ดึง inbox ทุกเพจพร้อมกัน
 app.post('/api/sync-all', async (req, res) => {
-  const pages = store.getPages();
+  const pages = await store.getPages();
   const results = await Promise.all(
     pages.map(async (page) => {
       try {
@@ -164,9 +168,9 @@ app.post('/api/sync-all', async (req, res) => {
 // ---------- Unified inbox ----------
 
 // รายการ conversation จากทุกเพจ เรียงตามเวลาอัปเดตล่าสุด
-app.get('/api/conversations', (req, res) => {
+app.get('/api/conversations', async (req, res) => {
   const { pageId, q } = req.query;
-  let convs = store.getAllConversations();
+  let convs = await store.getAllConversations();
   if (pageId) convs = convs.filter((c) => c.pageId === pageId);
   if (q) {
     const needle = String(q).toLowerCase();
@@ -198,9 +202,9 @@ app.post('/api/conversations/:convId/reply', async (req, res) => {
   if (!text || !String(text).trim()) {
     return res.status(400).json({ error: 'กรุณาพิมพ์ข้อความ' });
   }
-  const conv = store.getAllConversations().find((c) => c.id === req.params.convId);
+  const conv = (await store.getAllConversations()).find((c) => c.id === req.params.convId);
   if (!conv) return res.status(404).json({ error: 'ไม่พบการสนทนานี้' });
-  const page = store.getPages().find((p) => p.id === conv.pageId);
+  const page = (await store.getPages()).find((p) => p.id === conv.pageId);
   if (!page) return res.status(404).json({ error: 'ไม่พบเพจของการสนทนานี้' });
   if (!conv.customerId) return res.status(400).json({ error: 'ไม่ทราบตัวตนลูกค้าในการสนทนานี้' });
 
@@ -217,12 +221,12 @@ app.post('/api/conversations/:convId/reply', async (req, res) => {
       createdTime: new Date().toISOString(),
       attachments: [],
     };
-    const convs = store.getConversationsForPage(page.id);
+    const convs = await store.getConversationsForPage(page.id);
     const target = convs.find((c) => c.id === conv.id);
     if (target) {
       target.messages.push(message);
       target.updatedTime = message.createdTime;
-      store.saveConversations(page.id, convs);
+      await store.saveConversation(target);
     }
     res.json({ ok: true, message });
   } catch (err) {
@@ -231,9 +235,9 @@ app.post('/api/conversations/:convId/reply', async (req, res) => {
 });
 
 // ข้อความทั้งหมดจากทุกเพจ (flat) เรียงใหม่ล่าสุดก่อน
-app.get('/api/messages', (req, res) => {
+app.get('/api/messages', async (req, res) => {
   const { pageId, limit = 200 } = req.query;
-  let convs = store.getAllConversations();
+  let convs = await store.getAllConversations();
   if (pageId) convs = convs.filter((c) => c.pageId === pageId);
   const messages = convs
     .flatMap((c) =>
@@ -250,6 +254,14 @@ app.get('/api/messages', (req, res) => {
   res.json(messages);
 });
 
-app.listen(PORT, () => {
-  console.log(`Facebook Inbox Center running at http://localhost:${PORT}`);
-});
+store.init()
+  .then(() => {
+    app.listen(PORT, () => {
+      const backend = process.env.DATABASE_URL ? 'PostgreSQL' : 'JSON files (data/)';
+      console.log(`Facebook Inbox Center running at http://localhost:${PORT} [storage: ${backend}]`);
+    });
+  })
+  .catch((err) => {
+    console.error('Storage init failed:', err.message);
+    process.exit(1);
+  });
