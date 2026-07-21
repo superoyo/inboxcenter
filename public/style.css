@@ -154,6 +154,44 @@ input:focus, textarea:focus, select:focus { outline: 2px solid var(--primary); b
   border-right: 1px solid var(--border);
   overflow-y: auto;
 }
+
+/* ---------- Page list (เหนือปฏิทิน) ---------- */
+.page-list-panel {
+  border-bottom: 1px solid var(--border);
+  padding: 10px 8px;
+  max-height: 42vh;
+  overflow-y: auto;
+}
+.page-list-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text);
+}
+.page-list-item:hover { background: var(--bg); }
+.page-list-item.active { background: #e7f0fe; color: var(--primary); font-weight: 600; }
+.page-list-item span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.page-avatar, .page-avatar-fallback {
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* จอกว้าง: ใช้รายการเพจแทน dropdown */
+@media (min-width: 1101px) {
+  #pageFilter { display: none; }
+}
 .cal-head {
   display: flex;
   align-items: center;

@@ -16,8 +16,9 @@
   </nav>
 
   <div class="inbox-layout" id="layout">
-    <!-- ซ้ายสุด: ปฏิทินสรุปจำนวน inbox รายวัน -->
+    <!-- ซ้ายสุด: เลือกเพจ + ปฏิทินสรุปจำนวน inbox รายวัน -->
     <aside class="cal-panel">
+      <div class="page-list-panel" id="pageListPanel"></div>
       <div class="cal-head">
         <button class="cal-nav" id="calPrev">‹</button>
         <span class="cal-title" id="calTitle"></span>
@@ -67,6 +68,8 @@
     let activeConvId = null;
     let calMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
     let selectedDate = null; // 'YYYY-MM-DD' — กรองรายการสนทนาตามวันที่เลือกในปฏิทิน
+    let pages = [];
+    let selectedPageId = ''; // '' = ทุกเพจ
 
     function toast(msg) {
       const t = $('toast');
@@ -114,18 +117,47 @@
     }
 
     async function loadPagesFilter() {
-      const pages = await fetch('/api/pages').then((r) => r.json());
+      pages = await fetch('/api/pages').then((r) => r.json());
+      // dropdown สำรองสำหรับจอแคบ (ปฏิทิน/รายการเพจถูกซ่อน)
       const sel = $('pageFilter');
-      const current = sel.value;
       sel.innerHTML = '<option value="">ทุกเพจ (' + pages.length + ')</option>' +
         pages.map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join('');
-      sel.value = current;
+      sel.value = selectedPageId;
+      renderPageListPanel();
       return pages.length;
+    }
+
+    // รูปโปรไฟล์เพจ + fallback ตัวอักษร
+    function pageAvatarHtml(p) {
+      const fallback = `<div class="page-avatar-fallback" style="background:${avatarColor(p.id)};${p.pictureUrl ? 'display:none;' : ''}">${esc((p.name || '?')[0])}</div>`;
+      if (!p.pictureUrl) return fallback;
+      return `<img class="page-avatar" src="${esc(p.pictureUrl)}" alt=""
+        onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">${fallback}`;
+    }
+
+    function renderPageListPanel() {
+      $('pageListPanel').innerHTML = `
+        <div class="page-list-item ${!selectedPageId ? 'active' : ''}" onclick="selectPage('')">
+          <div class="page-avatar-fallback" style="background:var(--primary);">∀</div>
+          <span>ทุกเพจ (${pages.length})</span>
+        </div>` +
+        pages.map((p) => `
+          <div class="page-list-item ${selectedPageId === p.id ? 'active' : ''}" onclick="selectPage('${esc(p.id)}')">
+            ${pageAvatarHtml(p)}
+            <span>${esc(p.name)}</span>
+          </div>`).join('');
+    }
+
+    function selectPage(id) {
+      selectedPageId = id;
+      $('pageFilter').value = id;
+      renderPageListPanel();
+      loadConversations();
     }
 
     async function loadConversations() {
       const params = new URLSearchParams();
-      if ($('pageFilter').value) params.set('pageId', $('pageFilter').value);
+      if (selectedPageId) params.set('pageId', selectedPageId);
       if ($('searchInput').value.trim()) params.set('q', $('searchInput').value.trim());
       conversations = await fetch('/api/conversations?' + params).then((r) => r.json());
       renderCalendar();
@@ -395,7 +427,7 @@
       }
     });
 
-    $('pageFilter').addEventListener('change', loadConversations);
+    $('pageFilter').addEventListener('change', (e) => selectPage(e.target.value));
     let searchTimer;
     $('searchInput').addEventListener('input', () => {
       clearTimeout(searchTimer);
