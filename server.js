@@ -106,8 +106,17 @@ app.delete('/api/pages/:id', async (req, res) => {
 const PIC_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const PIC_RETRY_MS = 24 * 60 * 60 * 1000;
 
+// เผื่อเวลาซ้อนกัน 15 นาที กันข้อความหล่นหายช่วงรอยต่อของการ sync
+const SYNC_OVERLAP_MS = 15 * 60 * 1000;
+
 async function syncPage(page) {
-  const raw = await fb.getConversations(page.id, page.accessToken);
+  // เพจที่เคย sync แล้ว → ดึงเฉพาะห้องที่ขยับหลังรอบก่อน (incremental)
+  const isFullSync = !page.lastSyncAt;
+  const since = isFullSync
+    ? null
+    : new Date(new Date(page.lastSyncAt).getTime() - SYNC_OVERLAP_MS).toISOString();
+
+  const raw = await fb.getConversations(page.id, page.accessToken, { since });
   const conversations = raw.map((c) => fb.normalizeConversation(c, page));
 
   // ดึงรูปโปรไฟล์ลูกค้า — เฉพาะคนที่ยังไม่มีใน cache หรือ cache เก่าแล้ว
@@ -132,10 +141,60 @@ async function syncPage(page) {
   }
   for (const c of conversations) c.customerPic = cache[c.customerId]?.url || '';
 
-  await store.saveConversations(page.id, conversations);
+  if (isFullSync) await store.saveConversations(page.id, conversations);
+  else await store.upsertConversations(page.id, conversations);
   await store.savePage({ ...page, lastSyncAt: new Date().toISOString() });
   return conversations.length;
 }
+
+// ---------- Auto refresh ทุก 1 ชั่วโมง ----------
+const AUTO_REFRESH_MS = 60 * 60 * 1000;
+const syncStatus = { lastRefreshAt: null, lastResults: [], running: false };
+let nextRefreshAt = Date.now() + AUTO_REFRESH_MS;
+
+async function syncAllPages() {
+  if (syncStatus.running) return syncStatus.lastResults;
+  syncStatus.running = true;
+  try {
+    const pages = await store.getPages();
+    const results = await Promise.all(
+      pages.map(async (page) => {
+        try {
+          const count = await syncPage(page);
+          return { pageId: page.id, pageName: page.name, ok: true, conversations: count };
+        } catch (err) {
+          return { pageId: page.id, pageName: page.name, ok: false, error: err.message };
+        }
+      })
+    );
+    syncStatus.lastRefreshAt = new Date().toISOString();
+    syncStatus.lastResults = results;
+    return results;
+  } finally {
+    syncStatus.running = false;
+  }
+}
+
+setInterval(() => {
+  nextRefreshAt = Date.now() + AUTO_REFRESH_MS;
+  syncAllPages()
+    .then((r) => console.log(`[auto-refresh] sync ${r.filter((x) => x.ok).length}/${r.length} เพจ, ห้องที่อัปเดต ${r.reduce((s, x) => s + (x.conversations || 0), 0)}`))
+    .catch((err) => console.error('[auto-refresh] failed:', err.message));
+}, AUTO_REFRESH_MS);
+
+// สถานะการ sync — เวลาอัปเดตล่าสุด + รอบถัดไป
+app.get('/api/sync-status', async (req, res) => {
+  // fallback หลัง restart: ใช้ lastSyncAt ล่าสุดของเพจ (เก็บถาวรใน storage)
+  const pages = await store.getPages();
+  const lastPageSync = pages.map((p) => p.lastSyncAt).filter(Boolean).sort().pop() || null;
+  res.json({
+    lastRefreshAt: syncStatus.lastRefreshAt || lastPageSync,
+    nextRefreshAt: new Date(nextRefreshAt).toISOString(),
+    running: syncStatus.running,
+    autoRefreshMinutes: AUTO_REFRESH_MS / 60000,
+    lastResults: syncStatus.lastResults,
+  });
+});
 
 // ดึง inbox ของเพจเดียว
 app.post('/api/pages/:id/sync', async (req, res) => {
@@ -149,20 +208,10 @@ app.post('/api/pages/:id/sync', async (req, res) => {
   }
 });
 
-// ดึง inbox ทุกเพจพร้อมกัน
+// ดึง inbox ทุกเพจพร้อมกัน (manual refresh — ใช้ตัวเดียวกับ auto-refresh)
 app.post('/api/sync-all', async (req, res) => {
-  const pages = await store.getPages();
-  const results = await Promise.all(
-    pages.map(async (page) => {
-      try {
-        const count = await syncPage(page);
-        return { pageId: page.id, pageName: page.name, ok: true, conversations: count };
-      } catch (err) {
-        return { pageId: page.id, pageName: page.name, ok: false, error: err.message };
-      }
-    })
-  );
-  res.json({ results });
+  const results = await syncAllPages();
+  res.json({ results, lastRefreshAt: syncStatus.lastRefreshAt });
 });
 
 // ---------- Unified inbox ----------

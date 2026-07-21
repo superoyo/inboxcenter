@@ -12,6 +12,7 @@
     <a class="nav-link active" href="index.html">กล่องข้อความรวม</a>
     <a class="nav-link" href="connect.html">เชื่อมต่อเพจ</a>
     <span class="spacer"></span>
+    <span class="muted" id="syncStatusLabel" style="font-size: 12px; margin-right: 10px;"></span>
     <button class="btn small" id="syncAllBtn">🔄 ดึง inbox ทุกเพจ</button>
   </nav>
 
@@ -560,6 +561,20 @@
       }
     }
 
+    // สถานะการ refresh: อัปเดตล่าสุดเมื่อไหร่ + รอบอัตโนมัติถัดไป
+    async function loadSyncStatus() {
+      try {
+        const s = await fetch('/api/sync-status').then((r) => r.json());
+        const el = $('syncStatusLabel');
+        if (s.running) { el.textContent = '⏳ กำลังดึงข้อมูล...'; return; }
+        const fmt = (iso) => new Date(iso).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+        el.textContent = s.lastRefreshAt
+          ? `อัปเดตล่าสุด ${fmt(s.lastRefreshAt)} น. · รอบถัดไป ${fmt(s.nextRefreshAt)} น.`
+          : `ยังไม่เคยดึงข้อมูล · รอบอัตโนมัติ ${fmt(s.nextRefreshAt)} น.`;
+        el.title = `ระบบดึงข้อมูลใหม่อัตโนมัติทุก ${s.autoRefreshMinutes} นาที (เฉพาะส่วนที่เพิ่มเติม)`;
+      } catch { /* เงียบไว้ ไม่ให้รบกวนหน้าจอ */ }
+    }
+
     $('syncAllBtn').addEventListener('click', async () => {
       const btn = $('syncAllBtn');
       btn.disabled = true; btn.textContent = 'กำลังดึง...';
@@ -567,10 +582,12 @@
         const { results } = await fetch('/api/sync-all', { method: 'POST' }).then((r) => r.json());
         const ok = results.filter((r) => r.ok).length;
         const fail = results.filter((r) => !r.ok);
+        const updated = results.reduce((s, r) => s + (r.conversations || 0), 0);
         toast(results.length === 0
           ? 'ยังไม่มีเพจในระบบ — ไปที่หน้าเชื่อมต่อเพจก่อน'
-          : fail.length ? `สำเร็จ ${ok} เพจ, ล้มเหลว ${fail.length} เพจ` : `ดึงครบ ${ok} เพจ`);
+          : fail.length ? `สำเร็จ ${ok} เพจ, ล้มเหลว ${fail.length} เพจ` : `ดึงครบ ${ok} เพจ — มีความเคลื่อนไหว ${updated} ห้อง`);
         await loadConversations();
+        await loadSyncStatus();
       } finally {
         btn.disabled = false; btn.textContent = '🔄 ดึง inbox ทุกเพจ';
       }
@@ -584,8 +601,9 @@
     });
 
     loadPagesFilter().then(loadConversations);
-    // รีเฟรชรายการอัตโนมัติทุก 60 วินาที
-    setInterval(loadConversations, 60000);
+    loadSyncStatus();
+    // รีเฟรชรายการ + สถานะอัตโนมัติทุก 60 วินาที (ข้อมูลจาก storage ในเครื่อง server)
+    setInterval(() => { loadConversations(); loadSyncStatus(); }, 60000);
   </script>
 </body>
 </html>
