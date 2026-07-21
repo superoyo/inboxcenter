@@ -303,8 +303,8 @@
                   : a.fileUrl ? `<div>📎 <a href="${esc(a.fileUrl)}" target="_blank">${esc(a.name || 'ไฟล์แนบ')}</a></div>` : ''
                 ).join('')}
                 <div class="meta">
-                  ${esc(m.isFromPage ? c.pageName : m.fromName)} · ${t.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })}
                   <span class="meta-time">${t.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.</span>
+                  · ${esc(m.isFromPage ? c.pageName : m.fromName)} · ${t.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })}
                   ${latency ? `<span class="meta-latency">${latency}</span>` : ''}
                 </div>
               </div>
