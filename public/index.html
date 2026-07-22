@@ -20,7 +20,18 @@
     <!-- ซ้ายสุด: เลือกเพจ + ปฏิทินสรุปจำนวน inbox รายวัน -->
     <aside class="cal-panel">
       <div class="page-list-panel">
-        <input type="text" id="pageSearchInput" class="page-search" placeholder="🔍 ค้นหาเพจ..." autocomplete="off">
+        <div class="page-search-row">
+          <input type="text" id="pageSearchInput" class="page-search" placeholder="🔍 ค้นหาเพจ..." autocomplete="off">
+          <div class="page-sort">
+            <button class="page-sort-btn" id="pageSortBtn" title="เรียงลำดับเพจ" aria-label="เรียงลำดับเพจ">⇅</button>
+            <div class="page-sort-menu" id="pageSortMenu">
+              <div class="page-sort-head">เรียงลำดับเพจตาม</div>
+              <div class="page-sort-opt" data-sort="today">🔥 ข้อความใหม่วันนี้มากสุด</div>
+              <div class="page-sort-opt" data-sort="name">🔤 ชื่อ A–Z</div>
+              <div class="page-sort-opt" data-sort="connected">🕐 ตามลำดับที่เพิ่มเพจ</div>
+            </div>
+          </div>
+        </div>
         <div class="page-list-items" id="pageListItems"></div>
       </div>
       <div class="cal-head">
@@ -101,6 +112,8 @@
     let selectedDate = null; // 'YYYY-MM-DD' — กรองรายการสนทนาตามวันที่เลือกในปฏิทิน
     let pages = [];
     let selectedPageId = ''; // '' = ทุกเพจ
+    // ลำดับการแสดงเพจ: 'connected' (เชื่อมต่อล่าสุดอยู่บน = ค่าเริ่มต้น) | 'name' (A–Z) | 'today' (ข้อความใหม่วันนี้มากสุด)
+    let pageSort = localStorage.getItem('pageSort') || 'connected';
 
     // ห้องปัจจุบันสำหรับแก้ tag/remark/status: ใช้ข้อมูลห้องที่เปิดอยู่ (มีข้อความเต็ม) ถ้าตรง id
     // ไม่งั้นใช้สรุปในรายการ
@@ -224,9 +237,32 @@
         onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">${fallback}`;
     }
 
+    // เรียงเฉพาะ "รายการเพจ" — แถว "ทุกเพจ" ปักหมุดบนสุดเสมอ (เรนเดอร์แยกก่อน map)
+    function sortedPages(list) {
+      const arr = [...list];
+      if (pageSort === 'name') {
+        arr.sort((a, b) => a.name.localeCompare(b.name, 'th'));
+      } else if (pageSort === 'today') {
+        // ข้อความใหม่วันนี้มาก→น้อย; เท่ากันเรียงตามชื่อ
+        arr.sort((a, b) => (b.todayNewMessages || 0) - (a.todayNewMessages || 0) || a.name.localeCompare(b.name, 'th'));
+      } else {
+        // 'connected' — เชื่อมต่อล่าสุดอยู่บน (ใหม่→เก่า)
+        arr.sort((a, b) => new Date(b.connectedAt || 0) - new Date(a.connectedAt || 0));
+      }
+      return arr;
+    }
+
+    // ไฮไลต์ปุ่ม + ตัวเลือกที่เลือกอยู่
+    function updateSortUI() {
+      $('pageSortBtn').classList.toggle('active-sort', pageSort !== 'connected');
+      document.querySelectorAll('.page-sort-opt').forEach((el) =>
+        el.classList.toggle('selected', el.dataset.sort === pageSort));
+    }
+
     function renderPageListPanel() {
       const q = ($('pageSearchInput').value || '').trim().toLowerCase();
-      const shown = q ? pages.filter((p) => p.name.toLowerCase().includes(q)) : pages;
+      const filtered = q ? pages.filter((p) => p.name.toLowerCase().includes(q)) : pages;
+      const shown = sortedPages(filtered);
       const totalToday = pages.reduce((s, p) => s + (p.todayNewMessages || 0), 0);
       const badge = (n) => n > 0 ? `<span class="today-badge" title="ข้อความใหม่จากลูกค้าวันนี้ ${n} ข้อความ">${n}</span>` : '';
       $('pageListItems').innerHTML = `
@@ -245,6 +281,27 @@
     }
 
     $('pageSearchInput').addEventListener('input', renderPageListPanel);
+
+    // เปิด/ปิดเมนูเรียงลำดับ
+    $('pageSortBtn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      $('pageSortMenu').classList.toggle('open');
+    });
+    // เลือกวิธีเรียง → จำค่าไว้ (localStorage) แล้วเรนเดอร์ใหม่
+    document.querySelectorAll('.page-sort-opt').forEach((el) => {
+      el.addEventListener('click', () => {
+        pageSort = el.dataset.sort;
+        localStorage.setItem('pageSort', pageSort);
+        $('pageSortMenu').classList.remove('open');
+        updateSortUI();
+        renderPageListPanel();
+      });
+    });
+    // คลิกที่อื่นเพื่อปิดเมนู
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.page-sort')) $('pageSortMenu').classList.remove('open');
+    });
+    updateSortUI();
 
     function selectPage(id) {
       selectedPageId = id;

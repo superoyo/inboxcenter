@@ -163,16 +163,64 @@ input:focus, textarea:focus, select:focus { outline: 2px solid var(--primary); b
   display: flex;
   flex-direction: column;
 }
+.page-search-row { display: flex; gap: 6px; margin-bottom: 6px; flex-shrink: 0; }
 .page-search {
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 6px 10px;
   font-size: 13px;
   font-family: inherit;
-  margin-bottom: 6px;
-  flex-shrink: 0;
+  flex: 1;
+  min-width: 0;
 }
 .page-search:focus { outline: 2px solid var(--primary); border-color: transparent; }
+
+/* ปุ่มเรียงลำดับเพจ + เมนู */
+.page-sort { position: relative; flex-shrink: 0; }
+.page-sort-btn {
+  height: 100%;
+  border: 1px solid var(--border);
+  background: var(--card);
+  border-radius: 8px;
+  padding: 0 11px;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--muted);
+}
+.page-sort-btn:hover { background: var(--bg); color: var(--text); }
+.page-sort-btn.active-sort { border-color: var(--primary); color: var(--primary); }
+.page-sort-menu {
+  display: none;
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 20;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+  min-width: 220px;
+}
+.page-sort-menu.open { display: block; }
+.page-sort-head {
+  padding: 8px 12px 4px;
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 600;
+}
+.page-sort-opt {
+  padding: 9px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.page-sort-opt:hover { background: var(--bg); }
+.page-sort-opt.selected { color: var(--primary); font-weight: 600; background: #e7f0fe; }
 .page-list-items { overflow-y: auto; }
 .page-list-item {
   display: flex;
