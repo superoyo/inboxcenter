@@ -25,8 +25,37 @@
     .an-header { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 18px; }
     .an-header h1 { font-size: 22px; }
     .an-header .sub { color: var(--muted); font-size: 13px; }
-    .an-header select {
-      width: auto; min-width: 220px; font-weight: 600;
+
+    /* dropdown เลือกเพจแบบมีโลโก้ */
+    .pg-dd { position: relative; min-width: 250px; }
+    .pg-dd-btn {
+      display: flex; align-items: center; gap: 9px;
+      width: 100%; padding: 9px 12px;
+      background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+      font-size: 14px; font-weight: 600; font-family: inherit; color: var(--text);
+      cursor: pointer;
+    }
+    .pg-dd-btn:hover { background: var(--bg); }
+    .pg-dd-btn .caret { margin-left: auto; color: var(--muted); font-size: 11px; }
+    .pg-dd-menu {
+      display: none;
+      position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 100;
+      background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+      box-shadow: 0 8px 26px rgba(0, 0, 0, 0.16);
+      max-height: 55vh; overflow-y: auto; padding: 5px;
+    }
+    .pg-dd-menu.open { display: block; }
+    .pg-dd-item {
+      display: flex; align-items: center; gap: 9px;
+      padding: 8px 10px; border-radius: 8px; cursor: pointer; font-size: 13.5px;
+    }
+    .pg-dd-item:hover { background: var(--bg); }
+    .pg-dd-item.active { background: #e7f0fe; color: var(--primary); font-weight: 600; }
+    .pg-dd-item span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .pg-ava, .pg-ava-fb {
+      width: 24px; height: 24px; border-radius: 50%; object-fit: cover; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; font-size: 12px; font-weight: 700;
     }
     .an-grid { display: grid; gap: 14px; }
     .cards-4 { grid-template-columns: repeat(4, 1fr); }
@@ -106,7 +135,14 @@
 
   <div class="an-wrap viz">
     <div class="an-header">
-      <select id="pageSelect"><option value="">🌐 ทุกเพจ (ภาพรวม)</option></select>
+      <div class="pg-dd" id="pgDd">
+        <button class="pg-dd-btn" id="pgDdBtn">
+          <span id="pgDdAvaWrap" style="display: flex;"><span class="pg-ava-fb" style="background: var(--primary);">🌐</span></span>
+          <span id="pgDdLabel">ทุกเพจ (ภาพรวม)</span>
+          <span class="caret">▼</span>
+        </button>
+        <div class="pg-dd-menu" id="pgDdMenu"></div>
+      </div>
       <div>
         <h1>Inbox Performance</h1>
         <div class="sub" id="scopeSub">ภาพรวมทุกเพจ · ข้อมูลจากประวัติที่ sync ล่าสุด</div>
@@ -197,21 +233,75 @@
     }
     function hideTip() { $('vizTip').style.display = 'none'; }
 
-    // ---------- โหลดข้อมูล ----------
-    async function loadPages() {
-      const pages = await fetch('/api/pages?tz=' + TZ).then((r) => r.json());
-      $('pageSelect').innerHTML = '<option value="">🌐 ทุกเพจ (ภาพรวม)</option>' +
-        pages.map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join('');
+    // ---------- dropdown เลือกเพจ (โลโก้ + เรียงตามตัวอักษร) ----------
+    let pages = [];
+    let selectedPageId = '';
+    let selectedPageName = 'ทุกเพจ (ภาพรวม)';
+
+    // สีประจำเพจสำหรับ fallback เมื่อไม่มีโลโก้ (hash เดียวกับหน้ากล่องข้อความ)
+    const AVATAR_COLORS = [
+      '#1877f2', '#e91e63', '#8e24aa', '#5e35b1', '#3949ab', '#00897b',
+      '#f4511e', '#6d4c41', '#546e7a', '#c2185b', '#2e7d32', '#ef6c00',
+    ];
+    function avatarColor(key) {
+      let h = 0;
+      for (const ch of String(key || '?')) h = (h * 31 + ch.codePointAt(0)) >>> 0;
+      return AVATAR_COLORS[h % AVATAR_COLORS.length];
     }
 
+    function pgAvatarHtml(p) {
+      const fallback = `<span class="pg-ava-fb" style="background:${avatarColor(p.id)};${p.pictureUrl ? 'display:none;' : ''}">${esc((p.name || '?')[0])}</span>`;
+      if (!p.pictureUrl) return fallback;
+      return `<img class="pg-ava" src="${esc(p.pictureUrl)}" alt=""
+        onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">${fallback}`;
+    }
+
+    async function loadPages() {
+      pages = await fetch('/api/pages?tz=' + TZ).then((r) => r.json());
+      pages.sort((a, b) => a.name.localeCompare(b.name, 'th')); // เรียงตามตัวอักษร
+      renderPgMenu();
+    }
+
+    function renderPgMenu() {
+      $('pgDdMenu').innerHTML = `
+        <div class="pg-dd-item ${!selectedPageId ? 'active' : ''}" onclick="selectAnalyticsPage('', 'ทุกเพจ (ภาพรวม)')">
+          <span class="pg-ava-fb" style="background: var(--primary);">🌐</span>
+          <span>ทุกเพจ (ภาพรวม)</span>
+        </div>` +
+        pages.map((p) => `
+          <div class="pg-dd-item ${selectedPageId === p.id ? 'active' : ''}" onclick="selectAnalyticsPage('${esc(p.id)}', '${esc(p.name)}')">
+            ${pgAvatarHtml(p)}
+            <span>${esc(p.name)}</span>
+          </div>`).join('');
+    }
+
+    function selectAnalyticsPage(id, name) {
+      selectedPageId = id;
+      selectedPageName = name;
+      $('pgDdLabel').textContent = name;
+      const p = pages.find((x) => x.id === id);
+      $('pgDdAvaWrap').innerHTML = id && p
+        ? pgAvatarHtml(p)
+        : '<span class="pg-ava-fb" style="background: var(--primary);">🌐</span>';
+      $('pgDdMenu').classList.remove('open');
+      renderPgMenu();
+      loadAnalytics();
+    }
+
+    $('pgDdBtn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      $('pgDdMenu').classList.toggle('open');
+    });
+    document.addEventListener('click', () => $('pgDdMenu').classList.remove('open'));
+
+    // ---------- โหลดข้อมูล ----------
     async function loadAnalytics() {
-      const pageId = $('pageSelect').value;
+      const pageId = selectedPageId;
       const params = new URLSearchParams({ tz: TZ });
       if (pageId) params.set('pageId', pageId);
       const a = await fetch('/api/analytics?' + params).then((r) => r.json());
 
-      const pageName = pageId ? $('pageSelect').selectedOptions[0].textContent : '';
-      $('scopeSub').textContent = (pageId ? `เพจ: ${pageName}` : 'ภาพรวมทุกเพจ') + ' · ข้อมูลจากประวัติที่ sync ล่าสุด';
+      $('scopeSub').textContent = (pageId ? `เพจ: ${selectedPageName}` : 'ภาพรวมทุกเพจ') + ' · ข้อมูลจากประวัติที่ sync ล่าสุด';
       $('genAt').textContent = 'คำนวณเมื่อ ' + new Date(a.generatedAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.';
 
       renderStatCards(a);
@@ -378,7 +468,6 @@
           </tr>`).join('');
     }
 
-    $('pageSelect').addEventListener('change', loadAnalytics);
     $('reloadBtn').addEventListener('click', loadAnalytics);
     loadPages().then(loadAnalytics);
     setInterval(loadAnalytics, 60000);
