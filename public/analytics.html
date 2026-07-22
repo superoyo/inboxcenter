@@ -195,7 +195,7 @@
       <div class="an-card">
         <h3>⏳ ห้องที่ยังไม่ได้ตอบ แยกตามเวลารอ</h3>
         <div id="agingChart"></div>
-        <div class="foot">ห้องที่ข้อความล่าสุดเป็นของลูกค้า — เกิน 24 ชม. จะส่งข้อความปกติไม่ได้แล้ว (กฎ Facebook)</div>
+        <div class="foot">ห้องที่ข้อความล่าสุดของลูกค้าอยู่ในช่วงที่เลือกและยังไม่ได้ตอบ — เกิน 24 ชม. จะส่งข้อความปกติไม่ได้แล้ว (กฎ Facebook)</div>
       </div>
       <div class="an-card">
         <h3>🚦 สถานะความเร่งด่วนของทุกห้อง</h3>
@@ -400,7 +400,7 @@
           ${deltaHtml}
           <div class="stat-value">${a.totals.periodIn.toLocaleString()}</div>
           <div class="stat-label">ข้อความลูกค้า · ${esc(currentPeriodLabel)}</div>
-          <div class="foot">รวมทุกห้อง ${a.totals.conversations.toLocaleString()} การสนทนา</div>
+          <div class="foot">ห้องที่เคลื่อนไหว ${a.totals.activeRooms.toLocaleString()} จากทั้งหมด ${a.totals.conversations.toLocaleString()} ห้อง</div>
         </div>
         <div class="an-card">
           <div class="stat-value">${fmtDur(a.response.avgHumanMs)}</div>
@@ -482,7 +482,7 @@
       });
       $('hourFoot').textContent = Math.max(...hourly) > 0
         ? `พีคช่วง ${String(peak).padStart(2, '0')}:00–${String(peak + 1).padStart(2, '0')}:00 น. — ใช้จัดเวรแอดมินให้ตรงช่วงลูกค้าทัก`
-        : 'ยังไม่มีข้อความเข้าในช่วง 30 วัน';
+        : 'ยังไม่มีข้อความเข้าในช่วงที่เลือก';
     }
 
     // ---------- aging ห้องรอตอบ (ordinal ramp) ----------

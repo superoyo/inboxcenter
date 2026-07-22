@@ -422,9 +422,9 @@ app.get('/api/analytics', async (req, res) => {
   const hourly = Array(24).fill(0); // ข้อความเข้า แยกรายชั่วโมง (เฉพาะช่วงที่เลือก)
   let periodIn = 0, prevIn = 0;
   const humanDeltas = [], botDeltas = [];
-  const waiting = [];               // ห้องที่ข้อความล่าสุดเป็นของลูกค้า (ยังไม่ได้ตอบ) — สถานะปัจจุบัน
+  const waiting = [];               // ห้องที่ข้อความล่าสุดของลูกค้าอยู่ในช่วงที่เลือก และยังไม่ได้ตอบ
   const urgencyCount = { red: 0, yellow: 0, green: 0 };
-  let answered = 0, botOnlyRooms = 0, roomsWithReply = 0;
+  let activeRooms = 0, answered = 0, botOnlyRooms = 0, roomsWithReply = 0;
   const perPage = {};               // pageId -> ตัวเลขต่อเพจ (โหมดภาพรวม)
 
   for (const c of convs) {
@@ -432,12 +432,13 @@ app.get('/api/analytics', async (req, res) => {
       pageId: c.pageId, pageName: c.pageName,
       periodIn: 0, waiting: 0, over24h: 0, red: 0, humanDeltas: [],
     });
-    let pending = null, hasHuman = false, hasBot = false, lastCust = null;
+    let pending = null, hasHumanP = false, hasBotP = false, lastCust = null, activeInPeriod = false;
     const lastMsg = c.messages[c.messages.length - 1];
 
     for (const m of c.messages) {
       const t = new Date(m.createdTime).getTime();
       const k = dayKey(t);
+      if (inPeriod(k)) activeInPeriod = true;
       if (!m.isFromPage) {
         lastCust = m;
         if (inPeriod(k)) {
@@ -452,7 +453,7 @@ app.get('/api/analytics', async (req, res) => {
       } else {
         if (inPeriod(k)) (daily[k] = daily[k] || { in: 0, out: 0 }).out++;
         const bot = isBot(c.pageId, m.text);
-        if (bot) hasBot = true; else hasHuman = true;
+        if (inPeriod(k)) { if (bot) hasBotP = true; else hasHumanP = true; }
         if (pending !== null) {
           // นับเวลาตอบเฉพาะการตอบที่เกิดในช่วงที่เลือก
           if (inPeriod(k)) {
@@ -465,11 +466,17 @@ app.get('/api/analytics', async (req, res) => {
       }
     }
 
+    // ตัวชี้วัดระดับห้อง: นับเฉพาะห้องที่มีความเคลื่อนไหวในช่วงที่เลือก
+    if (!activeInPeriod) continue;
+    activeRooms++;
+
     const level = statusMap[c.id] || urgency.classify(lastCust ? lastCust.text : '');
     urgencyCount[level]++;
     if (level === 'red') pp.red++;
 
-    if (lastMsg && !lastMsg.isFromPage) {
+    // รอตอบ = ข้อความล่าสุดของห้องเป็นของลูกค้า และอยู่ในช่วงที่เลือก
+    const lastMsgKey = lastMsg ? dayKey(new Date(lastMsg.createdTime).getTime()) : null;
+    if (lastMsg && !lastMsg.isFromPage && inPeriod(lastMsgKey)) {
       const waitedMs = now - new Date(lastMsg.createdTime).getTime();
       waiting.push({
         id: c.id, customerName: c.customerName, pageName: c.pageName,
@@ -477,10 +484,10 @@ app.get('/api/analytics', async (req, res) => {
       });
       pp.waiting++;
       if (waitedMs > 24 * HOUR) pp.over24h++;
-    } else if (lastMsg) {
+    } else {
       answered++;
     }
-    if (hasBot || hasHuman) { roomsWithReply++; if (hasBot && !hasHuman) botOnlyRooms++; }
+    if (hasBotP || hasHumanP) { roomsWithReply++; if (hasBotP && !hasHumanP) botOnlyRooms++; }
   }
 
   // ไทม์ไลน์ครบทุกวันในช่วงที่เลือก (เติมวันว่างด้วย 0)
@@ -511,9 +518,10 @@ app.get('/api/analytics', async (req, res) => {
     period: { from: fromKey, to: toKey, days: nDays },
     totals: {
       conversations: convs.length,
+      activeRooms,
       periodIn,
       prevIn,
-      answeredPct: convs.length ? answered / convs.length : null,
+      answeredPct: activeRooms ? answered / activeRooms : null,
     },
     response: {
       avgHumanMs: avg(humanDeltas),
