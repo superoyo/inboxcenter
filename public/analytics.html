@@ -61,6 +61,62 @@
     /* ตัวเลือกช่วงเวลา */
     .period-select { width: auto; font-weight: 600; font-size: 13px; padding: 8px 10px; cursor: pointer; }
     #customRange input[type="date"] { width: auto; font-size: 13px; padding: 7px 9px; }
+
+    /* การ์ดที่คลิกได้ */
+    .an-card.clickable { cursor: pointer; transition: box-shadow 0.15s; }
+    .an-card.clickable:hover { box-shadow: 0 4px 16px rgba(0, 0, 0, 0.10); border-color: var(--primary); }
+
+    /* ---------- Panel ตอบห้องค้าง (สไลด์จากขวา) ---------- */
+    .wp {
+      position: fixed; top: 56px; right: 0; bottom: 0;
+      width: min(900px, 96vw);
+      background: var(--card); border-left: 1px solid var(--border);
+      box-shadow: -8px 0 30px rgba(0, 0, 0, 0.18);
+      display: flex; flex-direction: column; z-index: 80;
+      transform: translateX(105%); transition: transform 0.25s ease;
+    }
+    .wp.open { transform: none; }
+    .wp-head {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      padding: 12px 16px; border-bottom: 1px solid var(--border); font-weight: 700;
+    }
+    .wp-body { display: grid; grid-template-columns: 300px 1fr; flex: 1; min-height: 0; }
+    .wp-list { border-right: 1px solid var(--border); overflow-y: auto; }
+    .wp-item { padding: 10px 12px; border-bottom: 1px solid var(--bg); cursor: pointer; font-size: 13px; }
+    .wp-item:hover { background: var(--bg); }
+    .wp-item.active { background: #e7f0fe; }
+    .wp-item .top { display: flex; align-items: center; gap: 6px; }
+    .wp-item .nm { font-weight: 700; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .wp-item .wt { color: var(--st-critical); font-weight: 700; font-size: 12px; flex-shrink: 0; }
+    .wp-item .tx { color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 2px; }
+    .wp-item .pg { color: var(--ink-mute); font-size: 11px; margin-top: 1px; }
+    .wp-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+
+    .wp-chat { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+    .wp-chat-head { padding: 10px 16px; border-bottom: 1px solid var(--border); }
+    .wp-chat-head .nm { font-weight: 700; }
+    .wp-msgs { flex: 1; overflow-y: auto; padding: 16px; background: var(--bg); display: flex; flex-direction: column; gap: 8px; }
+    .wp-row { display: flex; }
+    .wp-row.me { justify-content: flex-end; }
+    .wp-bubble {
+      max-width: 72%; padding: 8px 13px; border-radius: 16px; font-size: 13.5px; line-height: 1.5;
+      background: var(--card); border: 1px solid var(--border); word-wrap: break-word; white-space: pre-wrap;
+    }
+    .wp-row.me .wp-bubble { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .wp-bubble .mt { font-size: 11px; opacity: 0.72; margin-top: 3px; }
+    .wp-bubble img { max-width: 200px; border-radius: 8px; display: block; margin-top: 5px; }
+    .wp-reply { display: flex; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--border); }
+    .wp-reply input { flex: 1; border-radius: 18px; }
+    .wp-empty { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--ink-mute); font-size: 14px; }
+
+    .an-toast {
+      position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%);
+      background: var(--ink-1); color: #fff; padding: 9px 18px; border-radius: 10px;
+      font-size: 13px; z-index: 400; opacity: 0; transition: opacity 0.25s; pointer-events: none;
+    }
+    .an-toast.show { opacity: 1; }
+
+    @media (max-width: 800px) { .wp-body { grid-template-columns: 1fr; } .wp-chat { display: none; } .wp.chat-open .wp-list { display: none; } .wp.chat-open .wp-chat { display: flex; } }
     .an-grid { display: grid; gap: 14px; }
     .cards-4 { grid-template-columns: repeat(4, 1fr); }
     .cols-2 { grid-template-columns: 1.4fr 1fr; }
@@ -218,6 +274,21 @@
   </div>
 
   <div class="viz-tooltip" id="vizTip"></div>
+  <div class="an-toast" id="anToast"></div>
+
+  <!-- Panel ตอบห้องที่ยังไม่ได้ตอบ (สไลด์จากขวา) -->
+  <div class="wp" id="waitingPanel">
+    <div class="wp-head">
+      <span id="wpTitle">⏳ ห้องที่ยังไม่ได้ตอบ</span>
+      <button class="btn small secondary" onclick="closeWaitingPanel()">✕</button>
+    </div>
+    <div class="wp-body">
+      <div class="wp-list" id="wpList"></div>
+      <div class="wp-chat" id="wpChat">
+        <div class="wp-empty">เลือกห้องจากด้านซ้ายเพื่อดูแชทและตอบ</div>
+      </div>
+    </div>
+  </div>
 
   <script>
     const $ = (id) => document.getElementById(id);
@@ -378,6 +449,7 @@
       $('hourTitle').textContent = `🕐 ช่วงเวลาที่ลูกค้าทัก · ${currentPeriodLabel}`;
       $('genAt').textContent = 'คำนวณเมื่อ ' + new Date(a.generatedAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.';
 
+      lastAnalytics = a;
       renderStatCards(a);
       renderDailyChart(a.days);
       renderHourChart(a.hourly);
@@ -412,9 +484,9 @@
           <div class="stat-label">SLA: คนตอบภายใน 1 ชม.</div>
           <div class="progress"><div style="width:${Math.round((sla || 0) * 100)}%; background:${sla != null && sla < 0.5 ? 'var(--st-critical)' : 'var(--st-good)'}"></div></div>
         </div>
-        <div class="an-card">
+        <div class="an-card clickable" onclick="openWaitingPanel()" title="คลิกเพื่อเปิดรายการห้องค้างและตอบแชทได้ทันที">
           <div class="stat-value" style="color:${a.waiting.total ? 'var(--ink-1)' : 'var(--delta-good)'}">${a.waiting.total.toLocaleString()}</div>
-          <div class="stat-label">ห้องที่ยังไม่ได้ตอบ</div>
+          <div class="stat-label">ห้องที่ยังไม่ได้ตอบ <span class="muted" style="font-size:11px;">(คลิกเพื่อตอบ ↗)</span></div>
           <div class="foot">${over24 ? `<span style="color:var(--st-critical); font-weight:700;">⛔ ค้างเกิน 24 ชม. ${over24} ห้อง</span>` : '✓ ไม่มีห้องค้างเกิน 24 ชม.'} · ตอบแล้ว ${fmtPct(a.totals.answeredPct)}</div>
         </div>`;
     }
@@ -517,7 +589,7 @@
       }
       const icon = { red: '🔴', yellow: '🟡', green: '🟢' };
       $('alertList').innerHTML = alerts.map((w) => `
-        <div class="alert-row" onclick="location.href='index.html'">
+        <div class="alert-row" onclick="openWaitingPanel('${esc(w.id)}')" title="คลิกเพื่อเปิดแชทและตอบ">
           <span class="ic">${icon[w.level]}</span>
           <div style="min-width:0;">
             <div class="who">${esc(w.customerName)} <span class="muted" style="font-weight:400;">· ${esc(w.pageName)}</span></div>
@@ -542,6 +614,118 @@
             <td class="${p.red ? 'warn' : ''}">${p.red.toLocaleString()}</td>
             <td>${fmtDur(p.avgHumanMs)}</td>
           </tr>`).join('');
+    }
+
+    // ---------- Panel ตอบห้องค้าง ----------
+    let lastAnalytics = null;
+    let wpActiveId = null;
+
+    function anToast(msg) {
+      const t = $('anToast');
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 3200);
+    }
+
+    function openWaitingPanel(selectId) {
+      const rooms = (lastAnalytics && lastAnalytics.waiting.rooms) || [];
+      $('wpTitle').textContent = `⏳ ห้องที่ยังไม่ได้ตอบ (${rooms.length}) · ${currentPeriodLabel}`;
+      renderWpList(rooms);
+      $('waitingPanel').classList.add('open');
+      if (selectId) selectWaitingRoom(selectId);
+    }
+
+    function closeWaitingPanel() {
+      $('waitingPanel').classList.remove('open');
+      $('waitingPanel').classList.remove('chat-open');
+    }
+
+    function renderWpList(rooms) {
+      const dot = { red: 'var(--st-critical)', yellow: 'var(--st-warning)', green: 'var(--st-good)' };
+      $('wpList').innerHTML = rooms.length ? rooms.map((w) => `
+        <div class="wp-item ${w.id === wpActiveId ? 'active' : ''}" onclick="selectWaitingRoom('${esc(w.id)}')">
+          <div class="top">
+            <span class="wp-dot" style="background:${dot[w.level]};"></span>
+            <span class="nm">${esc(w.customerName)}</span>
+            <span class="wt">${fmtDur(w.waitedMs)}</span>
+          </div>
+          <div class="tx">${esc(w.lastText)}</div>
+          <div class="pg">📄 ${esc(w.pageName)}</div>
+        </div>`).join('')
+      : '<div class="muted" style="padding: 14px;">✓ ไม่มีห้องค้างตอบในช่วงนี้</div>';
+    }
+
+    async function selectWaitingRoom(convId) {
+      wpActiveId = convId;
+      renderWpList((lastAnalytics && lastAnalytics.waiting.rooms) || []);
+      $('waitingPanel').classList.add('chat-open');
+      $('wpChat').innerHTML = '<div class="wp-empty">⏳ กำลังโหลดแชท...</div>';
+      try {
+        const t = await fetch(`/api/conversations/${encodeURIComponent(convId)}/thread`).then((r) => r.json());
+        if (t.error) throw new Error(t.error);
+        $('wpChat').innerHTML = `
+          <div class="wp-chat-head">
+            <div class="nm">${esc(t.customerName)}</div>
+            <div class="muted" style="font-size: 12px;">ผ่านเพจ: ${esc(t.pageName)}</div>
+          </div>
+          <div class="wp-msgs" id="wpMsgs">
+            ${t.messages.map((m) => `
+              <div class="wp-row ${m.isFromPage ? 'me' : ''}">
+                <div class="wp-bubble">
+                  ${esc(m.text)}
+                  ${(m.attachments || []).map((at) => at.imageUrl ? `<img src="${esc(at.imageUrl)}" alt="">` : '').join('')}
+                  <div class="mt">${new Date(m.createdTime).toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} น.</div>
+                </div>
+              </div>`).join('')}
+          </div>
+          <div class="wp-reply">
+            <input type="text" id="wpReplyInput" placeholder="พิมพ์ตอบในนาม ${esc(t.pageName)}..." autocomplete="off">
+            <button class="btn" id="wpReplyBtn">ส่ง</button>
+          </div>`;
+        const area = $('wpMsgs');
+        area.scrollTop = area.scrollHeight;
+        $('wpReplyBtn').addEventListener('click', () => sendWaitingReply(convId, t.pageName));
+        $('wpReplyInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendWaitingReply(convId, t.pageName); });
+        $('wpReplyInput').focus();
+      } catch (err) {
+        $('wpChat').innerHTML = `<div class="wp-empty">โหลดแชทไม่สำเร็จ: ${esc(err.message)}</div>`;
+      }
+    }
+
+    async function sendWaitingReply(convId, pageName) {
+      const input = $('wpReplyInput');
+      const text = input.value.trim();
+      if (!text) return;
+      const btn = $('wpReplyBtn');
+      btn.disabled = true; input.disabled = true;
+      try {
+        const res = await fetch(`/api/conversations/${encodeURIComponent(convId)}/reply`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        $('wpMsgs').insertAdjacentHTML('beforeend', `
+          <div class="wp-row me"><div class="wp-bubble">${esc(text)}
+            <div class="mt">${new Date().toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} น.</div>
+          </div></div>`);
+        $('wpMsgs').scrollTop = $('wpMsgs').scrollHeight;
+        input.value = '';
+        anToast('ส่งข้อความแล้ว ✓ — ห้องนี้ถูกนำออกจากรายการค้างตอบ');
+        // ตอบแล้ว → เอาออกจากรายการค้าง + อัปเดตตัวเลขบนการ์ด
+        if (lastAnalytics) {
+          lastAnalytics.waiting.rooms = lastAnalytics.waiting.rooms.filter((w) => w.id !== convId);
+          lastAnalytics.waiting.total = Math.max(0, lastAnalytics.waiting.total - 1);
+          renderWpList(lastAnalytics.waiting.rooms);
+          $('wpTitle').textContent = `⏳ ห้องที่ยังไม่ได้ตอบ (${lastAnalytics.waiting.rooms.length}) · ${currentPeriodLabel}`;
+          renderStatCards(lastAnalytics);
+        }
+      } catch (err) {
+        anToast('❌ ' + (err.message || 'ส่งไม่สำเร็จ'));
+      } finally {
+        btn.disabled = false; input.disabled = false; input.focus();
+      }
     }
 
     $('reloadBtn').addEventListener('click', loadAnalytics);

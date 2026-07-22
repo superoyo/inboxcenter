@@ -508,9 +508,8 @@ app.get('/api/analytics', async (req, res) => {
 
   // ห้องเสี่ยงที่ต้องรีบจัดการ: แดงก่อน แล้วไล่ตามเวลารอนานสุด
   const rank = { red: 0, yellow: 1, green: 2 };
-  const alerts = [...waiting]
-    .sort((a, b) => rank[a.level] - rank[b.level] || b.waitedMs - a.waitedMs)
-    .slice(0, 10);
+  const sortedWaiting = [...waiting].sort((a, b) => rank[a.level] - rank[b.level] || b.waitedMs - a.waitedMs);
+  const alerts = sortedWaiting.slice(0, 10);
 
   res.json({
     generatedAt: new Date(now).toISOString(),
@@ -533,7 +532,12 @@ app.get('/api/analytics', async (req, res) => {
       botOnlyRooms,
       roomsWithReply,
     },
-    waiting: { total: waiting.length, agingBuckets, over24h: agingBuckets[3].count },
+    waiting: {
+      total: waiting.length,
+      agingBuckets,
+      over24h: agingBuckets[3].count,
+      rooms: sortedWaiting.slice(0, 300), // รายการเต็มสำหรับ panel ตอบแชท (จำกัด 300)
+    },
     urgency: urgencyCount,
     days,
     hourly,
