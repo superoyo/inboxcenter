@@ -91,12 +91,23 @@
 
   <script>
     const $ = (id) => document.getElementById(id);
-    let conversations = [];
+    const PAGE_SIZE = 50; // โหลดห้องแชททีละ 50 ห้อง แล้วค่อยโหลดเพิ่มเมื่อเลื่อนถึงล่าง
+    let conversations = []; // "สรุป" ห้องแชทที่โหลดมาแล้ว (ไม่มีข้อความเต็ม)
+    let activeThread = null; // ห้องที่เปิดอยู่ พร้อมข้อความเต็ม (โหลดตอนเปิด)
     let activeConvId = null;
+    let listState = { offset: 0, total: 0, hasMore: false, loading: false };
+    let calCounts = {}; // { 'YYYY-MM-DD': จำนวนห้อง } จาก server
     let calMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
     let selectedDate = null; // 'YYYY-MM-DD' — กรองรายการสนทนาตามวันที่เลือกในปฏิทิน
     let pages = [];
     let selectedPageId = ''; // '' = ทุกเพจ
+
+    // ห้องปัจจุบันสำหรับแก้ tag/remark/status: ใช้ข้อมูลห้องที่เปิดอยู่ (มีข้อความเต็ม) ถ้าตรง id
+    // ไม่งั้นใช้สรุปในรายการ
+    function curConv(id) {
+      if (activeThread && activeThread.id === id) return activeThread;
+      return conversations.find((c) => c.id === id);
+    }
 
     function toast(msg) {
       const t = $('toast');
@@ -141,8 +152,10 @@
     };
 
     // ค่าอัตโนมัติจากคำสำคัญ (ไม่สน override)
+    // สรุปห้องมี field lastCustomerText มาให้แล้ว; ห้องที่เปิด (มี messages) คำนวณสด
     function classifyUrgencyAuto(c) {
-      const t = lastCustomerText(c).toLowerCase();
+      const raw = c.lastCustomerText != null ? c.lastCustomerText : lastCustomerText(c);
+      const t = raw.toLowerCase();
       if (t && URGENCY_RED.some((k) => t.includes(k))) return { level: 'red', label: 'ต้องรีบดำเนินการ — พบคำตำหนิ/เร่งด่วน' };
       if (t && URGENCY_YELLOW.some((k) => t.includes(k))) return { level: 'yellow', label: 'ควรติดตาม — ลูกค้าทวงถาม/ติดปัญหา' };
       return { level: 'green', label: 'ทั่วไป' };
@@ -240,13 +253,74 @@
       loadConversations();
     }
 
+    // รวม query ปัจจุบัน (เพจ/ค้นหา/วันที่/timezone) + พารามิเตอร์เพิ่มเติม
+    function convQuery(extra) {
+      const p = new URLSearchParams();
+      if (selectedPageId) p.set('pageId', selectedPageId);
+      const q = $('searchInput').value.trim();
+      if (q) p.set('q', q);
+      if (selectedDate) p.set('date', selectedDate);
+      p.set('tz', -new Date().getTimezoneOffset());
+      for (const k in (extra || {})) p.set(k, extra[k]);
+      return p;
+    }
+
+    // โหลดหน้าแรก (รีเซ็ต) — เรียกตอนเปลี่ยนเพจ/ค้นหา/เลือกวัน
     async function loadConversations() {
-      const params = new URLSearchParams();
-      if (selectedPageId) params.set('pageId', selectedPageId);
-      if ($('searchInput').value.trim()) params.set('q', $('searchInput').value.trim());
-      conversations = await fetch('/api/conversations?' + params).then((r) => r.json());
+      listState = { offset: 0, total: 0, hasMore: false, loading: true };
+      $('convList').innerHTML = '<div class="empty-state"><span class="big">⏳</span>กำลังโหลด...</div>';
+      try {
+        const data = await fetch('/api/conversations?' + convQuery({ limit: PAGE_SIZE, offset: 0 })).then((r) => r.json());
+        conversations = data.items;
+        listState.total = data.total;
+        listState.hasMore = data.hasMore;
+        listState.offset = data.items.length;
+        renderConvList();
+      } finally {
+        listState.loading = false;
+      }
+      loadCalendar();
+    }
+
+    // โหลดห้องถัดไปอีก 50 ต่อท้าย (ตอนเลื่อนถึงล่าง)
+    async function loadMoreConversations() {
+      if (listState.loading || !listState.hasMore) return;
+      listState.loading = true;
+      renderConvList(true); // อัปเดต footer เป็น "กำลังโหลด..."
+      try {
+        const data = await fetch('/api/conversations?' + convQuery({ limit: PAGE_SIZE, offset: listState.offset })).then((r) => r.json());
+        conversations = conversations.concat(data.items);
+        listState.total = data.total;
+        listState.hasMore = data.hasMore;
+        listState.offset = conversations.length;
+        renderConvList(true);
+      } finally {
+        listState.loading = false;
+      }
+    }
+
+    // รีเฟรชเงียบ ๆ (auto 60 วิ) — โหลดเท่าที่โหลดไว้ ไม่เด้ง scroll ไม่ขึ้นกล่อง "กำลังโหลด"
+    async function refreshConversations() {
+      if (listState.loading) return;
+      const data = await fetch('/api/conversations?' + convQuery({ limit: Math.max(PAGE_SIZE, conversations.length), offset: 0 })).then((r) => r.json());
+      conversations = data.items;
+      listState.total = data.total;
+      listState.hasMore = data.hasMore;
+      listState.offset = data.items.length;
+      renderConvList(true);
+    }
+
+    // โหลดจำนวนห้องรายวัน (ปฏิทิน) จาก server
+    async function loadCalendar() {
+      const p = new URLSearchParams();
+      if (selectedPageId) p.set('pageId', selectedPageId);
+      const q = $('searchInput').value.trim();
+      if (q) p.set('q', q);
+      p.set('tz', -new Date().getTimezoneOffset());
+      try {
+        calCounts = await fetch('/api/calendar?' + p).then((r) => r.json());
+      } catch { calCounts = {}; }
       renderCalendar();
-      renderConvList();
     }
 
     // ---------- ปฏิทิน ----------
@@ -254,18 +328,8 @@
       return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
     }
 
-    // นับจำนวน "การสนทนา" ที่มีข้อความอย่างน้อย 1 ข้อความในแต่ละวัน
-    function dailyCounts() {
-      const map = {};
-      for (const c of conversations) {
-        const days = new Set(c.messages.map((m) => dateKey(new Date(m.createdTime))));
-        for (const day of days) (map[day] = map[day] || new Set()).add(c.id);
-      }
-      return Object.fromEntries(Object.entries(map).map(([k, v]) => [k, v.size]));
-    }
-
     function renderCalendar() {
-      const counts = dailyCounts();
+      const counts = calCounts; // มาจาก server ครอบคลุมทุกห้อง ไม่ใช่แค่ 50 ห้องที่โหลด
       $('calTitle').textContent = calMonth.toLocaleDateString('th-TH', { month: 'long', year: 'numeric' });
 
       const firstDow = calMonth.getDay();
@@ -291,33 +355,39 @@
     function selectCalDate(key) {
       selectedDate = selectedDate === key ? null : key; // คลิกซ้ำ = ยกเลิกกรอง
       renderCalendar();
-      renderConvList();
+      loadConversations(); // กรองตามวันที่ฝั่ง server แล้วโหลดใหม่
     }
 
     $('calPrev').addEventListener('click', () => { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() - 1, 1); renderCalendar(); });
     $('calNext').addEventListener('click', () => { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + 1, 1); renderCalendar(); });
-    $('calClear').addEventListener('click', () => { selectedDate = null; renderCalendar(); renderConvList(); });
+    $('calClear').addEventListener('click', () => { selectedDate = null; renderCalendar(); loadConversations(); });
 
     // ---------- รายการสนทนา ----------
-    function visibleConversations() {
-      if (!selectedDate) return conversations;
-      return conversations.filter((c) =>
-        c.messages.some((m) => dateKey(new Date(m.createdTime)) === selectedDate));
+    // แถบท้ายรายการ: ปุ่มโหลดเพิ่ม / กำลังโหลด / แสดงครบแล้ว
+    function loadMoreFooter() {
+      if (listState.loading && conversations.length) {
+        return '<div class="load-more muted">กำลังโหลดเพิ่ม...</div>';
+      }
+      if (listState.hasMore) {
+        return `<div class="load-more" onclick="loadMoreConversations()">⬇ โหลดเพิ่ม (${conversations.length}/${listState.total})</div>`;
+      }
+      if (listState.total > PAGE_SIZE) {
+        return `<div class="load-more muted">แสดงครบ ${listState.total} รายการแล้ว</div>`;
+      }
+      return '';
     }
 
-    function renderConvList() {
+    function renderConvList(preserveScroll) {
       const list = $('convList');
-      const shown = visibleConversations();
-      if (selectedDate && !shown.length) {
-        list.innerHTML = `
+      const st = list.scrollTop;
+      if (!conversations.length) {
+        list.innerHTML = selectedDate
+          ? `
           <div class="empty-state">
             <span class="big">📅</span>
             <div>ไม่มีข้อความในวันที่เลือก</div>
-          </div>`;
-        return;
-      }
-      if (!shown.length) {
-        list.innerHTML = `
+          </div>`
+          : `
           <div class="empty-state">
             <span class="big">📭</span>
             <div>ยังไม่มีข้อความ</div>
@@ -325,10 +395,9 @@
           </div>`;
         return;
       }
-      list.innerHTML = shown.map((c) => {
-        const last = c.messages[c.messages.length - 1];
-        const preview = last
-          ? (last.isFromPage ? 'คุณ: ' : '') + (last.text || '📎 ไฟล์แนบ')
+      list.innerHTML = conversations.map((c) => {
+        const preview = c.preview
+          ? (c.preview.isFromPage ? 'คุณ: ' : '') + (c.preview.text || '📎 ไฟล์แนบ')
           : 'ไม่มีข้อความ';
         const urgency = classifyUrgency(c);
         return `
@@ -348,17 +417,47 @@
             </div>
             ${c.unreadCount > 0 ? '<div class="unread-dot"></div>' : ''}
           </div>`;
-      }).join('');
+      }).join('') + loadMoreFooter();
+      if (preserveScroll) list.scrollTop = st;
     }
 
-    function openConv(id) {
-      activeConvId = id;
-      const c = conversations.find((x) => x.id === id);
-      if (!c) return;
-      renderConvList();
-      $('layout').classList.add('thread-open');
+    // เลื่อนรายการถึงใกล้ล่าง → โหลดเพิ่มอัตโนมัติ
+    $('convList').addEventListener('scroll', () => {
+      const el = $('convList');
+      if (el.scrollTop + el.clientHeight >= el.scrollHeight - 200) loadMoreConversations();
+    });
 
+    async function openConv(id) {
+      activeConvId = id;
+      const summary = conversations.find((x) => x.id === id);
+      renderConvList(true);
+      $('layout').classList.add('thread-open');
+      $('layout').classList.add('stats-open');
+
+      // โหลดข้อความเต็มเฉพาะห้องนี้ (ไม่ได้ยัดมากับรายการตั้งแต่แรก)
       const panel = $('threadPanel');
+      panel.innerHTML = '<div class="empty-state"><span class="big">⏳</span><div>กำลังโหลดข้อความ...</div></div>';
+      $('statsPanel').innerHTML = '';
+
+      let c;
+      try {
+        c = await fetch('/api/conversations/' + encodeURIComponent(id) + '/thread').then((r) => r.json());
+        if (c && c.error) throw new Error(c.error);
+      } catch (err) {
+        if (activeConvId === id) {
+          panel.innerHTML = '<div class="empty-state"><span class="big">⚠️</span><div>โหลดข้อความไม่สำเร็จ</div><div class="muted">' + esc(err.message || '') + '</div></div>';
+        }
+        return;
+      }
+      if (activeConvId !== id) return; // ผู้ใช้เปลี่ยนห้องระหว่างโหลด — ทิ้งผลเก่า
+
+      // เก็บข้อความล่าสุดของลูกค้าไว้ ให้จัดระดับความเร่งด่วนของห้องที่เปิดถูกต้อง
+      c.lastCustomerText = (summary && summary.lastCustomerText) || (() => {
+        for (let i = c.messages.length - 1; i >= 0; i--) if (!c.messages[i].isFromPage) return c.messages[i].text || '';
+        return '';
+      })();
+      activeThread = c;
+
       panel.innerHTML = `
         <div class="thread-head">
           <button class="btn small secondary" onclick="closeThread()" style="display:none;" id="backBtn">←</button>
@@ -427,7 +526,7 @@
     }
 
     async function openSavedRepliesPanel(convId) {
-      const c = conversations.find((x) => x.id === convId);
+      const c = curConv(convId);
       if (!c) return;
       const panel = $('srPanel');
       if (panel.classList.contains('open') && srState.pageId === c.pageId) { closeSavedRepliesPanel(); return; }
@@ -567,8 +666,8 @@
 
     // เก็บข้อความที่เพจเคยตอบในแชท เป็นคำตอบสำเร็จรูปของเพจนั้น
     async function saveBubbleAsReply(convId, msgIndex) {
-      const c = conversations.find((x) => x.id === convId);
-      const m = c && c.messages[msgIndex];
+      const c = curConv(convId);
+      const m = c && c.messages && c.messages[msgIndex];
       if (!m || !m.text) return;
       try {
         const res = await fetch(`/api/pages/${encodeURIComponent(c.pageId)}/saved-replies`, {
@@ -605,9 +704,18 @@
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
 
-        // เติมข้อความที่ส่งแล้วต่อท้ายแชททันที
-        const c = conversations.find((x) => x.id === convId);
-        if (c) { c.messages.push(data.message); c.updatedTime = data.message.createdTime; }
+        // เติมข้อความที่ส่งแล้วต่อท้ายแชท (ห้องที่เปิดอยู่) ทันที
+        if (activeThread && activeThread.id === convId) {
+          activeThread.messages.push(data.message);
+          activeThread.updatedTime = data.message.createdTime;
+        }
+        // อัปเดตสรุปในรายการ: ข้อความล่าสุด + เวลา แล้วดันขึ้นบนสุด
+        const s = conversations.find((x) => x.id === convId);
+        if (s) {
+          s.preview = { text: data.message.text, isFromPage: true };
+          s.updatedTime = data.message.createdTime;
+          conversations.sort((a, b) => new Date(b.updatedTime) - new Date(a.updatedTime));
+        }
         const area = $('msgArea');
         area.insertAdjacentHTML('beforeend', `
           <div class="msg-row from-page">
@@ -618,7 +726,7 @@
           </div>`);
         area.scrollTop = area.scrollHeight;
         input.value = '';
-        renderConvList();
+        renderConvList(true);
       } catch (err) {
         toast(err.message);
       } finally {
@@ -649,12 +757,12 @@
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
-        const c = conversations.find((x) => x.id === convId);
-        if (c) {
-          c.statusOverride = data.status;
-          renderStatusPicker(c);
-          renderConvList();
-        }
+        const s = conversations.find((x) => x.id === convId);
+        if (s) s.statusOverride = data.status;
+        if (activeThread && activeThread.id === convId) activeThread.statusOverride = data.status;
+        const cur = curConv(convId);
+        if (cur) renderStatusPicker(cur);
+        renderConvList(true);
         toast(status ? `เปลี่ยนสถานะเป็น "${URGENCY_LABELS[status]}" แล้ว` : 'กลับไปใช้สถานะอัตโนมัติแล้ว');
       } catch (err) {
         toast(err.message || 'เปลี่ยนสถานะไม่สำเร็จ');
@@ -696,13 +804,13 @@
       const inp = $('tagInput');
       const val = inp.value.trim();
       if (!val) return;
-      const c = conversations.find((x) => x.id === convId);
-      await saveTags(convId, [...(c.tags || []), val]);
+      const c = curConv(convId);
+      await saveTags(convId, [...((c && c.tags) || []), val]);
     }
 
     async function removeTag(convId, idx) {
-      const c = conversations.find((x) => x.id === convId);
-      await saveTags(convId, (c.tags || []).filter((_, i) => i !== idx));
+      const c = curConv(convId);
+      await saveTags(convId, ((c && c.tags) || []).filter((_, i) => i !== idx));
     }
 
     async function saveTags(convId, tags) {
@@ -714,8 +822,14 @@
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
-        const c = conversations.find((x) => x.id === convId);
-        if (c) { c.tags = data.tags; renderThreadTags(c); renderConvList(); renderStatsPanel(c); }
+        const s = conversations.find((x) => x.id === convId);
+        if (s) s.tags = data.tags;
+        if (activeThread && activeThread.id === convId) {
+          activeThread.tags = data.tags;
+          renderThreadTags(activeThread);
+          renderStatsPanel(activeThread);
+        }
+        renderConvList(true);
       } catch (err) {
         toast(err.message || 'บันทึกแท็กไม่สำเร็จ');
       }
@@ -725,7 +839,8 @@
       $('layout').classList.remove('thread-open');
       $('layout').classList.remove('stats-open');
       activeConvId = null;
-      renderConvList();
+      activeThread = null;
+      renderConvList(true);
     }
 
     // ---------- สถิติลูกค้า ----------
@@ -734,18 +849,6 @@
       if (ms < 3600e3) return Math.round(ms / 60e3) + ' นาที';
       if (ms < 86400e3) return (ms / 3600e3).toFixed(1) + ' ชั่วโมง';
       return (ms / 86400e3).toFixed(1) + ' วัน';
-    }
-
-    // ข้อความจากเพจที่ซ้ำกัน ≥3 ครั้งในเพจเดียวกัน = ข้อความอัตโนมัติ (bot)
-    function botReplyTexts(pageId) {
-      const counts = {};
-      for (const conv of conversations) {
-        if (conv.pageId !== pageId) continue;
-        for (const m of conv.messages) {
-          if (m.isFromPage && m.text) counts[m.text] = (counts[m.text] || 0) + 1;
-        }
-      }
-      return new Set(Object.entries(counts).filter(([, n]) => n >= 3).map(([t]) => t));
     }
 
     function renderStatsPanel(c) {
@@ -784,8 +887,8 @@
           <span class="muted">ติดต่อมา ${days.length} วัน (${cust.length} ข้อความ)</span>`;
       }
 
-      // 4-5) เวลาตอบกลับ แยกคน / bot
-      const botSet = botReplyTexts(c.pageId);
+      // 4-5) เวลาตอบกลับ แยกคน / bot (botTexts คำนวณจากฝั่ง server ครอบคลุมทั้งเพจ)
+      const botSet = new Set(c.botTexts || []);
       const human = [], bot = [];
       let pending = null;
       for (const m of c.messages) {
@@ -849,8 +952,9 @@
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
-        const c = conversations.find((x) => x.id === convId);
-        if (c) c.remark = data.remark;
+        const s = conversations.find((x) => x.id === convId);
+        if (s) s.remark = data.remark;
+        if (activeThread && activeThread.id === convId) activeThread.remark = data.remark;
         toast('บันทึกโน้ตแล้ว');
       } catch (err) {
         toast(err.message || 'บันทึกโน้ตไม่สำเร็จ');
@@ -899,7 +1003,8 @@
     loadPagesFilter().then(loadConversations);
     loadSyncStatus();
     // รีเฟรชรายการ + สถานะ + ตัวเลขข้อความใหม่ อัตโนมัติทุก 60 วินาที
-    setInterval(() => { loadConversations(); loadSyncStatus(); loadPagesFilter(); }, 60000);
+    // ใช้ refreshConversations (โหลดเงียบ ไม่เด้ง scroll ไม่ขึ้นกล่อง "กำลังโหลด")
+    setInterval(() => { refreshConversations(); loadCalendar(); loadSyncStatus(); loadPagesFilter(); }, 60000);
   </script>
 </body>
 </html>

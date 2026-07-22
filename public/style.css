@@ -290,6 +290,20 @@ input:focus, textarea:focus, select:focus { outline: 2px solid var(--primary); b
 .conv-panel .filters { display: flex; gap: 8px; }
 .conv-list { overflow-y: auto; flex: 1; }
 
+/* แถบท้ายรายการ: ปุ่มโหลดเพิ่ม / กำลังโหลด / แสดงครบแล้ว */
+.load-more {
+  text-align: center;
+  padding: 14px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--primary);
+  cursor: pointer;
+  border-top: 1px solid var(--border);
+}
+.load-more:hover { background: var(--bg); }
+.load-more.muted { color: var(--muted); font-weight: 400; cursor: default; }
+.load-more.muted:hover { background: transparent; }
+
 .conv-item {
   display: flex;
   gap: 12px;

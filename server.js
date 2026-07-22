@@ -9,6 +9,51 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
+// ---------- Helpers ----------
+
+// สร้างฟังก์ชันแปลง timestamp → 'YYYY-MM-DD' ตามเวลาท้องถิ่นของผู้ใช้
+// tzMin = offset (นาที) จาก UTC ที่ฝั่งหน้าเว็บส่งมา (ไทย = 420)
+function dayKeyFactory(tzMin) {
+  const offsetMs = (Number.isFinite(tzMin) ? tzMin : 0) * 60000;
+  return (time) => new Date(new Date(time).getTime() + offsetMs).toISOString().slice(0, 10);
+}
+
+// ข้อความล่าสุดของ "ลูกค้า" (ไม่ใช่เพจ) — ใช้จัดระดับความเร่งด่วนฝั่งหน้าเว็บ
+function lastCustomerText(messages) {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (!messages[i].isFromPage) return messages[i].text || '';
+  }
+  return '';
+}
+
+// ย่อ conversation ให้เหลือเฉพาะข้อมูลที่ "รายการห้องแชท" ต้องใช้ — ตัด messages ทั้งก้อนออก
+// (ข้อความเต็มโหลดทีหลังผ่าน /api/conversations/:id/thread เมื่อผู้ใช้เปิดห้อง)
+function toSummary(c) {
+  const messages = c.messages || [];
+  const last = messages[messages.length - 1];
+  return {
+    id: c.id,
+    pageId: c.pageId,
+    pageName: c.pageName,
+    customerId: c.customerId,
+    customerName: c.customerName,
+    customerPic: c.customerPic || '',
+    updatedTime: c.updatedTime,
+    unreadCount: c.unreadCount || 0,
+    messageCount: messages.length,
+    preview: last ? { text: last.text || '', isFromPage: !!last.isFromPage } : null,
+    lastCustomerText: lastCustomerText(messages),
+  };
+}
+
+// กรองด้วยคำค้น (ชื่อลูกค้า หรือข้อความในห้อง)
+function matchesQuery(c, needle) {
+  return (
+    c.customerName.toLowerCase().includes(needle) ||
+    c.messages.some((m) => (m.text || '').toLowerCase().includes(needle))
+  );
+}
+
 // ---------- Pages ----------
 
 // รายชื่อเพจที่เชื่อมต่อแล้ว (ไม่ส่ง token กลับไปหน้าเว็บ)
@@ -16,9 +61,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.get('/api/pages', async (req, res) => {
   const pages = (await store.getPages()).map(({ accessToken, ...p }) => p);
 
-  const tzMin = parseInt(req.query.tz, 10);
-  const offsetMs = (Number.isFinite(tzMin) ? tzMin : 0) * 60000;
-  const localDayKey = (time) => new Date(new Date(time).getTime() + offsetMs).toISOString().slice(0, 10);
+  const localDayKey = dayKeyFactory(parseInt(req.query.tz, 10));
   const todayKey = localDayKey(Date.now());
 
   const counts = {};
@@ -231,29 +274,87 @@ app.post('/api/sync-all', async (req, res) => {
 
 // ---------- Unified inbox ----------
 
-// รายการ conversation จากทุกเพจ เรียงตามเวลาอัปเดตล่าสุด
+// รายการห้องแชท (สรุป ไม่รวมข้อความเต็ม) — แบ่งหน้าทีละ limit ห้อง
+// query: pageId, q (ค้นหา), date (YYYY-MM-DD กรองตามวัน), limit (default 50), offset, tz
+// ตอบ: { items, total, hasMore } — items เป็นสรุปห้องที่ตัด messages ออกแล้ว payload จึงเล็กมาก
 app.get('/api/conversations', async (req, res) => {
-  const { pageId, q } = req.query;
-  let convs = await store.getAllConversations();
-  if (pageId) convs = convs.filter((c) => c.pageId === pageId);
+  const { pageId, q, date } = req.query;
+  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 200);
+  const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+  const dayKey = dayKeyFactory(parseInt(req.query.tz, 10));
+
+  // ดึงเฉพาะเพจที่เลือก (ใช้ index ใน Postgres) — เร็วกว่าดึงทุกเพจมา filter ทีหลังมาก
+  let convs = pageId ? await store.getConversationsForPage(pageId) : await store.getAllConversations();
   if (q) {
     const needle = String(q).toLowerCase();
-    convs = convs.filter(
-      (c) =>
-        c.customerName.toLowerCase().includes(needle) ||
-        c.messages.some((m) => m.text.toLowerCase().includes(needle))
-    );
+    convs = convs.filter((c) => matchesQuery(c, needle));
   }
+  if (date) {
+    convs = convs.filter((c) => c.messages.some((m) => dayKey(m.createdTime) === date));
+  }
+  convs.sort((a, b) => new Date(b.updatedTime) - new Date(a.updatedTime));
+
+  const total = convs.length;
+  const pageItems = convs.slice(offset, offset + limit);
+
   const [tagsMap, remarksMap, statusMap] = await Promise.all([
     store.getTags(), store.getRemarks(), store.getStatuses(),
   ]);
-  for (const c of convs) {
-    c.tags = tagsMap[c.id] || [];
-    c.remark = remarksMap[c.id] || '';
-    c.statusOverride = statusMap[c.id] || '';
+  const items = pageItems.map((c) => {
+    const s = toSummary(c);
+    s.tags = tagsMap[c.id] || [];
+    s.remark = remarksMap[c.id] || '';
+    s.statusOverride = statusMap[c.id] || '';
+    return s;
+  });
+  res.json({ items, total, hasMore: offset + items.length < total });
+});
+
+// จำนวนห้องที่มีข้อความในแต่ละวัน (สำหรับปฏิทิน) — คิดจากห้องทั้งหมดที่ผ่านตัวกรอง pageId/q
+// (แยกจากรายการแบ่งหน้า เพราะปฏิทินต้องนับทุกห้อง ไม่ใช่แค่ 50 ห้องแรก)
+app.get('/api/calendar', async (req, res) => {
+  const { pageId, q } = req.query;
+  const dayKey = dayKeyFactory(parseInt(req.query.tz, 10));
+  let convs = pageId ? await store.getConversationsForPage(pageId) : await store.getAllConversations();
+  if (q) {
+    const needle = String(q).toLowerCase();
+    convs = convs.filter((c) => matchesQuery(c, needle));
   }
-  convs.sort((a, b) => new Date(b.updatedTime) - new Date(a.updatedTime));
-  res.json(convs);
+  const map = {}; // day -> Set(conversationId)
+  for (const c of convs) {
+    for (const day of new Set(c.messages.map((m) => dayKey(m.createdTime)))) {
+      (map[day] = map[day] || new Set()).add(c.id);
+    }
+  }
+  res.json(Object.fromEntries(Object.entries(map).map(([k, v]) => [k, v.size])));
+});
+
+// ข้อความเต็มของห้องเดียว — โหลดตอนผู้ใช้เปิดห้อง
+// แนบ botTexts (ข้อความเพจที่ซ้ำ ≥3 ครั้งทั้งเพจ = ข้อความอัตโนมัติ) ให้ฝั่งหน้าเว็บใช้แยกสถิติ bot/คน
+app.get('/api/conversations/:id/thread', async (req, res) => {
+  const conv = await store.getConversation(req.params.id);
+  if (!conv) return res.status(404).json({ error: 'ไม่พบการสนทนานี้' });
+
+  const [tagsMap, remarksMap, statusMap, pageConvs] = await Promise.all([
+    store.getTags(), store.getRemarks(), store.getStatuses(),
+    store.getConversationsForPage(conv.pageId),
+  ]);
+
+  const counts = {};
+  for (const c of pageConvs) {
+    for (const m of c.messages) {
+      if (m.isFromPage && m.text) counts[m.text] = (counts[m.text] || 0) + 1;
+    }
+  }
+  const botTexts = Object.entries(counts).filter(([, n]) => n >= 3).map(([t]) => t);
+
+  res.json({
+    ...conv,
+    tags: tagsMap[conv.id] || [],
+    remark: remarksMap[conv.id] || '',
+    statusOverride: statusMap[conv.id] || '',
+    botTexts,
+  });
 });
 
 // ---------- Saved replies (คำตอบสำเร็จรูป แยกตามเพจ) ----------
