@@ -262,8 +262,14 @@ app.get('/api/pages/:pageId/saved-replies', async (req, res) => {
   res.json(await store.getSavedReplies(req.params.pageId));
 });
 
+// แท็กหมวดหมู่: สูงสุด 5 แท็กต่อคำตอบ แท็กละไม่เกิน 20 ตัวอักษร
+function cleanReplyTags(tags) {
+  if (!Array.isArray(tags)) return [];
+  return [...new Set(tags.map((t) => String(t).trim().slice(0, 20)).filter(Boolean))].slice(0, 5);
+}
+
 app.post('/api/pages/:pageId/saved-replies', async (req, res) => {
-  const { text } = req.body || {};
+  const { text, tags } = req.body || {};
   const clean = String(text || '').trim().slice(0, 1000);
   if (!clean) return res.status(400).json({ error: 'กรุณาใส่ข้อความคำตอบ' });
 
@@ -275,10 +281,25 @@ app.post('/api/pages/:pageId/saved-replies', async (req, res) => {
   const entry = {
     id: 'sr_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
     text: clean,
+    tags: cleanReplyTags(tags),
     createdAt: new Date().toISOString(),
   };
   await store.addSavedReply(req.params.pageId, entry);
   res.json(entry);
+});
+
+// แก้ไขคำตอบ/แท็กหมวดหมู่
+app.put('/api/pages/:pageId/saved-replies/:replyId', async (req, res) => {
+  const fields = {};
+  if (req.body && req.body.tags !== undefined) fields.tags = cleanReplyTags(req.body.tags);
+  if (req.body && req.body.text !== undefined) {
+    const t = String(req.body.text).trim().slice(0, 1000);
+    if (!t) return res.status(400).json({ error: 'ข้อความคำตอบห้ามว่าง' });
+    fields.text = t;
+  }
+  const updated = await store.updateSavedReply(req.params.pageId, req.params.replyId, fields);
+  if (!updated) return res.status(404).json({ error: 'ไม่พบคำตอบนี้' });
+  res.json(updated);
 });
 
 app.delete('/api/pages/:pageId/saved-replies/:replyId', async (req, res) => {

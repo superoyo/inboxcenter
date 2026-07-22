@@ -69,6 +69,26 @@
     <img id="lightboxImg" alt="">
   </div>
 
+  <!-- Panel คำตอบสำเร็จรูป (สไลด์จากขวา) -->
+  <div class="sr-panel" id="srPanel">
+    <div class="sr-head">
+      <span id="srTitle">💬 คำตอบสำเร็จรูป</span>
+      <button class="btn small secondary" onclick="closeSavedRepliesPanel()">✕</button>
+    </div>
+    <div class="sr-controls">
+      <input type="text" id="srSearch" placeholder="🔍 ค้นหาจากคำตอบ หรือแท็ก..." autocomplete="off">
+      <div class="sr-tagbar" id="srTagbar"></div>
+    </div>
+    <div class="sr-list" id="srList"></div>
+    <div class="sr-addform">
+      <textarea id="srNewText" rows="2" placeholder="พิมพ์คำตอบใหม่ที่ต้องการเก็บไว้..."></textarea>
+      <div style="display: flex; gap: 8px;">
+        <input type="text" id="srNewTags" placeholder="แท็กหมวดหมู่ (คั่นด้วย , )" autocomplete="off">
+        <button class="btn small" onclick="addSavedReplyFromInput()">+ เพิ่ม</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     const $ = (id) => document.getElementById(id);
     let conversations = [];
@@ -378,7 +398,6 @@
             }).join('');
           })()}
         </div>
-        <div class="saved-replies-pop" id="savedRepliesPop" style="display:none;"></div>
         <div class="reply-bar">
           <button class="btn small secondary" id="savedReplyBtn" title="คำตอบสำเร็จรูปของเพจนี้">💬</button>
           <input type="text" id="replyInput" placeholder="พิมพ์ข้อความตอบกลับในนาม ${esc(c.pageName)}..." autocomplete="off">
@@ -394,79 +413,157 @@
 
       $('replySendBtn').addEventListener('click', () => sendReply(c.id));
       $('replyInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendReply(c.id); });
-      $('savedReplyBtn').addEventListener('click', () => toggleSavedReplies(c.id));
+      $('savedReplyBtn').addEventListener('click', () => openSavedRepliesPanel(c.id));
       $('replyInput').focus();
     }
 
-    // ---------- Saved replies (คำตอบสำเร็จรูป แยกตามเพจ) ----------
+    // ---------- Saved replies (panel สไลด์จากขวา + แท็กหมวดหมู่ + ค้นหา) ----------
     const savedRepliesCache = {};
+    const srState = { pageId: null, pageName: '', search: '', tagFilter: '' };
 
     async function fetchSavedReplies(pageId) {
       savedRepliesCache[pageId] = await fetch(`/api/pages/${encodeURIComponent(pageId)}/saved-replies`).then((r) => r.json());
       return savedRepliesCache[pageId];
     }
 
-    async function toggleSavedReplies(convId) {
-      const pop = $('savedRepliesPop');
-      if (pop.style.display !== 'none') { pop.style.display = 'none'; return; }
-      await renderSavedRepliesPop(convId);
-      pop.style.display = 'flex';
-    }
-
-    async function renderSavedRepliesPop(convId) {
+    async function openSavedRepliesPanel(convId) {
       const c = conversations.find((x) => x.id === convId);
       if (!c) return;
-      const list = await fetchSavedReplies(c.pageId);
-      $('savedRepliesPop').innerHTML = `
-        <div class="srp-head">
-          <span>💬 คำตอบสำเร็จรูป — ${esc(c.pageName)}</span>
-          <button class="btn small secondary" onclick="$('savedRepliesPop').style.display='none'">✕</button>
-        </div>
-        <div class="srp-list">
-          ${list.length ? list.map((r) => `
-            <div class="srp-item">
-              <span class="srp-text" title="คลิกเพื่อใช้คำตอบนี้" onclick="useSavedReply('${esc(r.id)}', '${esc(c.pageId)}')">${esc(r.text)}</span>
-              <b title="ลบคำตอบนี้" onclick="removeSavedReply('${esc(c.pageId)}', '${esc(r.id)}', '${esc(convId)}')">×</b>
-            </div>`).join('')
-          : '<div class="muted" style="padding: 12px;">ยังไม่มีคำตอบสำเร็จรูปของเพจนี้<br>เพิ่มด้านล่าง หรือกด 💾 ท้ายข้อความที่เพจเคยตอบในแชท</div>'}
-        </div>
-        <div class="srp-add">
-          <textarea id="newSavedReplyText" rows="2" placeholder="พิมพ์คำตอบใหม่ที่ต้องการเก็บไว้..."></textarea>
-          <button class="btn small" onclick="addSavedReplyFromInput('${esc(c.pageId)}', '${esc(convId)}')">+ เพิ่ม</button>
-        </div>`;
+      const panel = $('srPanel');
+      if (panel.classList.contains('open') && srState.pageId === c.pageId) { closeSavedRepliesPanel(); return; }
+      srState.pageId = c.pageId;
+      srState.pageName = c.pageName;
+      srState.search = '';
+      srState.tagFilter = '';
+      $('srSearch').value = '';
+      $('srTitle').textContent = '💬 คำตอบสำเร็จรูป — ' + c.pageName;
+      await fetchSavedReplies(c.pageId);
+      renderSRTagbar();
+      renderSRList();
+      panel.classList.add('open');
     }
 
-    function useSavedReply(replyId, pageId) {
-      const r = (savedRepliesCache[pageId] || []).find((x) => x.id === replyId);
+    function closeSavedRepliesPanel() {
+      $('srPanel').classList.remove('open');
+    }
+
+    // แถบแท็กทั้งหมดของเพจ — คลิกเพื่อกรองตามหมวด
+    function renderSRTagbar() {
+      const tags = [...new Set((savedRepliesCache[srState.pageId] || []).flatMap((r) => r.tags || []))];
+      $('srTagbar').innerHTML = tags.length
+        ? tags.map((t) => `<span class="sr-tag ${srState.tagFilter === t ? 'active' : ''}" onclick="srToggleTagFilter('${esc(t)}')">🏷 ${esc(t)}</span>`).join('')
+        : '<span class="muted" style="font-size:12px;">ยังไม่มีแท็กหมวดหมู่ — เพิ่มได้ที่ปุ่ม "+ แท็ก" ใต้แต่ละคำตอบ</span>';
+    }
+
+    function srToggleTagFilter(t) {
+      srState.tagFilter = srState.tagFilter === t ? '' : t;
+      renderSRTagbar();
+      renderSRList();
+    }
+
+    function srFiltered() {
+      const q = srState.search.toLowerCase();
+      return (savedRepliesCache[srState.pageId] || []).filter((r) => {
+        if (srState.tagFilter && !(r.tags || []).includes(srState.tagFilter)) return false;
+        if (q && !(r.text.toLowerCase().includes(q) || (r.tags || []).some((t) => t.toLowerCase().includes(q)))) return false;
+        return true;
+      });
+    }
+
+    function renderSRList() {
+      const list = srFiltered();
+      const total = (savedRepliesCache[srState.pageId] || []).length;
+      $('srList').innerHTML = list.length ? list.map((r) => `
+        <div class="srp-item">
+          <div style="flex:1; min-width:0;">
+            <div class="srp-text" title="คลิกเพื่อใช้คำตอบนี้" onclick="useSavedReply('${esc(r.id)}')">${esc(r.text)}</div>
+            <div class="srp-tags">
+              ${(r.tags || []).map((t, i) => `<span class="tag-chip">${esc(t)}<b onclick="srRemoveTag('${esc(r.id)}', ${i})">×</b></span>`).join('')}
+              <button class="tag-add" onclick="srShowTagInput('${esc(r.id)}')">+ แท็ก</button>
+              <input class="tag-input" id="srTagInput-${esc(r.id)}" style="display:none;" placeholder="พิมพ์แล้ว Enter" maxlength="20"
+                onkeydown="if(event.key==='Enter')srAddTag('${esc(r.id)}');if(event.key==='Escape'){this.style.display='none';this.value='';}">
+            </div>
+          </div>
+          <b class="srp-del" title="ลบคำตอบนี้" onclick="removeSavedReply('${esc(r.id)}')">×</b>
+        </div>`).join('')
+      : `<div class="muted" style="padding: 14px;">${total
+          ? 'ไม่พบคำตอบที่ตรงกับการค้นหา/แท็กที่เลือก'
+          : 'ยังไม่มีคำตอบสำเร็จรูปของเพจนี้<br>เพิ่มด้านล่าง หรือกด 💾 ท้ายข้อความที่เพจเคยตอบในแชท'}</div>`;
+    }
+
+    function useSavedReply(replyId) {
+      const r = (savedRepliesCache[srState.pageId] || []).find((x) => x.id === replyId);
       if (!r) return;
-      $('replyInput').value = r.text;
-      $('savedRepliesPop').style.display = 'none';
-      $('replyInput').focus();
+      const input = $('replyInput');
+      if (input) { input.value = r.text; input.focus(); }
+      closeSavedRepliesPanel();
     }
 
-    async function addSavedReplyFromInput(pageId, convId) {
-      const text = $('newSavedReplyText').value.trim();
+    async function srSaveTags(replyId, tags) {
+      await fetch(`/api/pages/${encodeURIComponent(srState.pageId)}/saved-replies/${encodeURIComponent(replyId)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tags }),
+      });
+      await fetchSavedReplies(srState.pageId);
+      renderSRTagbar();
+      renderSRList();
+    }
+
+    function srShowTagInput(replyId) {
+      const el = $('srTagInput-' + replyId);
+      el.style.display = 'inline-block';
+      el.focus();
+    }
+
+    async function srAddTag(replyId) {
+      const el = $('srTagInput-' + replyId);
+      const val = el.value.trim();
+      if (!val) return;
+      const r = (savedRepliesCache[srState.pageId] || []).find((x) => x.id === replyId);
+      await srSaveTags(replyId, [...(r.tags || []), val]);
+    }
+
+    async function srRemoveTag(replyId, idx) {
+      const r = (savedRepliesCache[srState.pageId] || []).find((x) => x.id === replyId);
+      await srSaveTags(replyId, (r.tags || []).filter((_, i) => i !== idx));
+    }
+
+    async function addSavedReplyFromInput() {
+      const text = $('srNewText').value.trim();
       if (!text) return;
+      const tags = $('srNewTags').value.split(',').map((t) => t.trim()).filter(Boolean);
       try {
-        const res = await fetch(`/api/pages/${encodeURIComponent(pageId)}/saved-replies`, {
+        const res = await fetch(`/api/pages/${encodeURIComponent(srState.pageId)}/saved-replies`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text }),
+          body: JSON.stringify({ text, tags }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
         toast(data.duplicated ? 'มีคำตอบนี้อยู่แล้ว' : 'เพิ่มคำตอบสำเร็จรูปแล้ว');
-        await renderSavedRepliesPop(convId);
+        $('srNewText').value = '';
+        $('srNewTags').value = '';
+        await fetchSavedReplies(srState.pageId);
+        renderSRTagbar();
+        renderSRList();
       } catch (err) {
         toast(err.message || 'เพิ่มคำตอบไม่สำเร็จ');
       }
     }
 
-    async function removeSavedReply(pageId, replyId, convId) {
-      await fetch(`/api/pages/${encodeURIComponent(pageId)}/saved-replies/${encodeURIComponent(replyId)}`, { method: 'DELETE' });
+    async function removeSavedReply(replyId) {
+      await fetch(`/api/pages/${encodeURIComponent(srState.pageId)}/saved-replies/${encodeURIComponent(replyId)}`, { method: 'DELETE' });
       toast('ลบคำตอบแล้ว');
-      await renderSavedRepliesPop(convId);
+      await fetchSavedReplies(srState.pageId);
+      renderSRTagbar();
+      renderSRList();
     }
+
+    $('srSearch').addEventListener('input', (e) => {
+      srState.search = e.target.value.trim();
+      renderSRList();
+    });
 
     // เก็บข้อความที่เพจเคยตอบในแชท เป็นคำตอบสำเร็จรูปของเพจนั้น
     async function saveBubbleAsReply(convId, msgIndex) {
@@ -482,6 +579,12 @@
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
         toast(data.duplicated ? 'ข้อความนี้ถูกบันทึกไว้แล้ว' : 'บันทึกเป็นคำตอบสำเร็จรูปแล้ว 💾');
+        // ถ้า panel เปิดอยู่และเป็นเพจเดียวกัน รีเฟรชรายการให้เห็นทันที
+        if ($('srPanel').classList.contains('open') && srState.pageId === c.pageId) {
+          await fetchSavedReplies(c.pageId);
+          renderSRTagbar();
+          renderSRList();
+        }
       } catch (err) {
         toast(err.message || 'บันทึกไม่สำเร็จ');
       }

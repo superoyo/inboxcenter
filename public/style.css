@@ -423,52 +423,73 @@ input:focus, textarea:focus, select:focus { outline: 2px solid var(--primary); b
 }
 .reply-bar input { flex: 1; border-radius: 20px; }
 
-/* ---------- Saved replies popover ---------- */
-.saved-replies-pop {
-  position: absolute;
-  bottom: 66px;
-  left: 16px;
-  right: 16px;
-  max-height: 46vh;
+/* ---------- Saved replies: panel สไลด์จากขวา ---------- */
+.sr-panel {
+  position: fixed;
+  top: 56px;
+  right: 0;
+  bottom: 0;
+  width: 400px;
+  max-width: 92vw;
   background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.18);
+  border-left: 1px solid var(--border);
+  box-shadow: -8px 0 30px rgba(0, 0, 0, 0.15);
   display: flex;
   flex-direction: column;
-  z-index: 20;
+  z-index: 60;
+  transform: translateX(105%);
+  transition: transform 0.25s ease;
 }
-.srp-head {
+.sr-panel.open { transform: none; }
+.sr-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 14px;
+  gap: 8px;
+  padding: 12px 16px;
   border-bottom: 1px solid var(--border);
   font-weight: 700;
-  font-size: 14px;
+  font-size: 15px;
 }
-.srp-list { overflow-y: auto; flex: 1; }
+.sr-head span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sr-controls { padding: 10px 14px; border-bottom: 1px solid var(--border); }
+.sr-controls input { font-size: 13px; padding: 8px 12px; }
+.sr-tagbar { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.sr-tag {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--muted);
+  cursor: pointer;
+  border: 1px solid var(--border);
+}
+.sr-tag:hover { color: var(--text); }
+.sr-tag.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+.sr-list { overflow-y: auto; flex: 1; }
 .srp-item {
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  padding: 9px 14px;
+  padding: 10px 14px;
   border-bottom: 1px solid var(--bg);
   font-size: 13px;
 }
 .srp-item:hover { background: var(--bg); }
-.srp-text { flex: 1; cursor: pointer; white-space: pre-wrap; word-break: break-word; }
-.srp-item b { cursor: pointer; color: var(--muted); font-size: 15px; }
-.srp-item b:hover { color: var(--red); }
-.srp-add {
+.srp-text { cursor: pointer; white-space: pre-wrap; word-break: break-word; }
+.srp-text:hover { color: var(--primary); }
+.srp-tags { margin-top: 4px; display: flex; flex-wrap: wrap; align-items: center; gap: 2px; }
+.srp-del { cursor: pointer; color: var(--muted); font-size: 16px; flex-shrink: 0; }
+.srp-del:hover { color: var(--red); }
+.sr-addform {
   display: flex;
+  flex-direction: column;
   gap: 8px;
-  padding: 10px 14px;
+  padding: 12px 14px;
   border-top: 1px solid var(--border);
-  align-items: flex-end;
 }
-.srp-add textarea {
-  flex: 1;
+.sr-addform textarea {
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 8px 10px;
@@ -476,6 +497,7 @@ input:focus, textarea:focus, select:focus { outline: 2px solid var(--primary); b
   font-family: inherit;
   resize: none;
 }
+.sr-addform input { font-size: 13px; padding: 7px 10px; }
 
 /* ปุ่ม 💾 ท้ายข้อความของเพจ */
 .save-reply-icon { cursor: pointer; opacity: 0.55; margin-left: 4px; }
