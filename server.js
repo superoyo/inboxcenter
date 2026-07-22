@@ -480,6 +480,7 @@ app.get('/api/analytics', async (req, res) => {
       const waitedMs = now - new Date(lastMsg.createdTime).getTime();
       waiting.push({
         id: c.id, customerName: c.customerName, pageName: c.pageName,
+        customerId: c.customerId, customerPic: c.customerPic || '',
         waitedMs, level, lastText: (lastMsg.text || '📎 ไฟล์แนบ').slice(0, 90),
       });
       pp.waiting++;

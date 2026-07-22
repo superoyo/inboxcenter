@@ -69,7 +69,7 @@
     /* ---------- Panel ตอบห้องค้าง (สไลด์จากขวา) ---------- */
     .wp {
       position: fixed; top: 56px; right: 0; bottom: 0;
-      width: min(900px, 96vw);
+      width: min(980px, 96vw);
       background: var(--card); border-left: 1px solid var(--border);
       box-shadow: -8px 0 30px rgba(0, 0, 0, 0.18);
       display: flex; flex-direction: column; z-index: 80;
@@ -80,33 +80,11 @@
       display: flex; align-items: center; justify-content: space-between; gap: 8px;
       padding: 12px 16px; border-bottom: 1px solid var(--border); font-weight: 700;
     }
-    .wp-body { display: grid; grid-template-columns: 300px 1fr; flex: 1; min-height: 0; }
+    /* โครง 2 คอลัมน์ — หน้าตารายการ/แชทใช้ class ชุดเดียวกับหน้ากล่องข้อความรวม (style.css) */
+    .wp-body { display: grid; grid-template-columns: 340px 1fr; flex: 1; min-height: 0; }
     .wp-list { border-right: 1px solid var(--border); overflow-y: auto; }
-    .wp-item { padding: 10px 12px; border-bottom: 1px solid var(--bg); cursor: pointer; font-size: 13px; }
-    .wp-item:hover { background: var(--bg); }
-    .wp-item.active { background: #e7f0fe; }
-    .wp-item .top { display: flex; align-items: center; gap: 6px; }
-    .wp-item .nm { font-weight: 700; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .wp-item .wt { color: var(--st-critical); font-weight: 700; font-size: 12px; flex-shrink: 0; }
-    .wp-item .tx { color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 2px; }
-    .wp-item .pg { color: var(--ink-mute); font-size: 11px; margin-top: 1px; }
-    .wp-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
-
     .wp-chat { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
-    .wp-chat-head { padding: 10px 16px; border-bottom: 1px solid var(--border); }
-    .wp-chat-head .nm { font-weight: 700; }
-    .wp-msgs { flex: 1; overflow-y: auto; padding: 16px; background: var(--bg); display: flex; flex-direction: column; gap: 8px; }
-    .wp-row { display: flex; }
-    .wp-row.me { justify-content: flex-end; }
-    .wp-bubble {
-      max-width: 72%; padding: 8px 13px; border-radius: 16px; font-size: 13.5px; line-height: 1.5;
-      background: var(--card); border: 1px solid var(--border); word-wrap: break-word; white-space: pre-wrap;
-    }
-    .wp-row.me .wp-bubble { background: var(--primary); color: #fff; border-color: var(--primary); }
-    .wp-bubble .mt { font-size: 11px; opacity: 0.72; margin-top: 3px; }
-    .wp-bubble img { max-width: 200px; border-radius: 8px; display: block; margin-top: 5px; }
-    .wp-reply { display: flex; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--border); }
-    .wp-reply input { flex: 1; border-radius: 18px; }
+    .wp .time { font-weight: 700; }
     .wp-empty { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--ink-mute); font-size: 14px; }
 
     .an-toast {
@@ -640,17 +618,27 @@
       $('waitingPanel').classList.remove('chat-open');
     }
 
+    // avatar ลูกค้าแบบเดียวกับหน้ากล่องข้อความรวม (รูปจริง + fallback วงกลมสี)
+    function custAvatarHtml(pic, name, key) {
+      const fallback = `<div class="avatar-fallback" style="background:${avatarColor(key || name)};${pic ? 'display:none;' : ''}">${esc((name || '?')[0])}</div>`;
+      if (!pic) return fallback;
+      return `<img class="avatar-img" src="${esc(pic)}" alt=""
+        onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">${fallback}`;
+    }
+
     function renderWpList(rooms) {
-      const dot = { red: 'var(--st-critical)', yellow: 'var(--st-warning)', green: 'var(--st-good)' };
       $('wpList').innerHTML = rooms.length ? rooms.map((w) => `
-        <div class="wp-item ${w.id === wpActiveId ? 'active' : ''}" onclick="selectWaitingRoom('${esc(w.id)}')">
-          <div class="top">
-            <span class="wp-dot" style="background:${dot[w.level]};"></span>
-            <span class="nm">${esc(w.customerName)}</span>
-            <span class="wt">${fmtDur(w.waitedMs)}</span>
+        <div class="conv-item ${w.id === wpActiveId ? 'active' : ''}" onclick="selectWaitingRoom('${esc(w.id)}')">
+          ${custAvatarHtml(w.customerPic, w.customerName, w.customerId)}
+          <div class="conv-body">
+            <div class="top-row">
+              <span class="urgency u-${w.level}"></span>
+              <span class="cust-name">${esc(w.customerName)}</span>
+              <span class="time" style="${w.waitedMs > 86400e3 ? 'color:var(--st-critical);' : ''}">${fmtDur(w.waitedMs)}</span>
+            </div>
+            <div class="preview">${esc(w.lastText)}</div>
+            <div class="page-tag">📄 ${esc(w.pageName)}</div>
           </div>
-          <div class="tx">${esc(w.lastText)}</div>
-          <div class="pg">📄 ${esc(w.pageName)}</div>
         </div>`).join('')
       : '<div class="muted" style="padding: 14px;">✓ ไม่มีห้องค้างตอบในช่วงนี้</div>';
     }
@@ -663,23 +651,40 @@
       try {
         const t = await fetch(`/api/conversations/${encodeURIComponent(convId)}/thread`).then((r) => r.json());
         if (t.error) throw new Error(t.error);
-        $('wpChat').innerHTML = `
-          <div class="wp-chat-head">
-            <div class="nm">${esc(t.customerName)}</div>
-            <div class="muted" style="font-size: 12px;">ผ่านเพจ: ${esc(t.pageName)}</div>
-          </div>
-          <div class="wp-msgs" id="wpMsgs">
-            ${t.messages.map((m) => `
-              <div class="wp-row ${m.isFromPage ? 'me' : ''}">
-                <div class="wp-bubble">
-                  ${esc(m.text)}
-                  ${(m.attachments || []).map((at) => at.imageUrl ? `<img src="${esc(at.imageUrl)}" alt="">` : '').join('')}
-                  <div class="mt">${new Date(m.createdTime).toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} น.</div>
+
+        // bubble แบบเดียวกับหน้ารวม: เวลาใหญ่หน้าสุด + วงเล็บตอบหลังถาม
+        let lastAsk = null, answeredFlag = true;
+        const msgsHtml = t.messages.map((m) => {
+          const tt = new Date(m.createdTime);
+          let latency = '';
+          if (!m.isFromPage) { lastAsk = tt; answeredFlag = false; }
+          else if (!answeredFlag && lastAsk) { latency = `(ตอบหลังถาม ${fmtDur(tt - lastAsk)})`; answeredFlag = true; }
+          return `
+            <div class="msg-row ${m.isFromPage ? 'from-page' : ''}">
+              <div class="bubble">
+                ${esc(m.text)}
+                ${(m.attachments || []).map((at) => at.imageUrl
+                  ? `<img class="attach" src="${esc(at.imageUrl)}" alt="" onclick="window.open(this.src)">` : '').join('')}
+                <div class="meta">
+                  <span class="meta-time">${tt.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.</span>
+                  · ${esc(m.isFromPage ? t.pageName : (m.fromName || t.customerName))} · ${tt.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })}
+                  ${latency ? `<span class="meta-latency">${latency}</span>` : ''}
                 </div>
-              </div>`).join('')}
+              </div>
+            </div>`;
+        }).join('');
+
+        $('wpChat').innerHTML = `
+          <div class="thread-head">
+            ${custAvatarHtml(t.customerPic, t.customerName, t.customerId)}
+            <div style="flex: 1; min-width: 0;">
+              <div class="name">${esc(t.customerName)}</div>
+              <div class="muted">ผ่านเพจ: ${esc(t.pageName)}</div>
+            </div>
           </div>
-          <div class="wp-reply">
-            <input type="text" id="wpReplyInput" placeholder="พิมพ์ตอบในนาม ${esc(t.pageName)}..." autocomplete="off">
+          <div class="thread-messages" id="wpMsgs">${msgsHtml}</div>
+          <div class="reply-bar">
+            <input type="text" id="wpReplyInput" placeholder="พิมพ์ข้อความตอบกลับในนาม ${esc(t.pageName)}..." autocomplete="off">
             <button class="btn" id="wpReplyBtn">ส่ง</button>
           </div>`;
         const area = $('wpMsgs');
@@ -707,8 +712,11 @@
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
         $('wpMsgs').insertAdjacentHTML('beforeend', `
-          <div class="wp-row me"><div class="wp-bubble">${esc(text)}
-            <div class="mt">${new Date().toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} น.</div>
+          <div class="msg-row from-page"><div class="bubble">${esc(text)}
+            <div class="meta">
+              <span class="meta-time">${new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.</span>
+              · ${esc(pageName)} · ${new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })}
+            </div>
           </div></div>`);
         $('wpMsgs').scrollTop = $('wpMsgs').scrollHeight;
         input.value = '';
