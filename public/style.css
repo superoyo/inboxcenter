@@ -362,8 +362,8 @@ input:focus, textarea:focus, select:focus { outline: 2px solid var(--primary); b
 .conv-item:hover { background: var(--bg); }
 .conv-item.active { background: #e7f0fe; }
 .conv-item .conv-body { flex: 1; min-width: 0; }
-.conv-item .top-row { display: flex; justify-content: space-between; gap: 8px; }
-.conv-item .cust-name { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.conv-item .top-row { display: flex; align-items: center; gap: 8px; }
+.conv-item .cust-name { flex: 1; font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .urgency {
   width: 22px;
   height: 9px;
