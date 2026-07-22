@@ -194,6 +194,9 @@
         <option value="thisWeek">📅 สัปดาห์นี้</option>
         <option value="thisMonth" selected>📅 เดือนนี้</option>
         <option value="lastMonth">📅 เดือนก่อนหน้านี้</option>
+        <option value="last3m">📅 3 เดือนล่าสุด</option>
+        <option value="last6m">📅 6 เดือนล่าสุด</option>
+        <option value="last1y">📅 1 ปีล่าสุด</option>
         <option value="custom">📅 กำหนดช่วงเวลา…</option>
       </select>
       <span id="customRange" style="display: none; align-items: center; gap: 6px;">
@@ -390,6 +393,13 @@
         const f = new Date(now.getFullYear(), now.getMonth() - 1, 1);
         const t = new Date(now.getFullYear(), now.getMonth(), 0);
         return { from: localDateStr(f), to: localDateStr(t), label: 'เดือนก่อนหน้า' };
+      }
+      if (kind === 'last3m' || kind === 'last6m' || kind === 'last1y') {
+        const months = kind === 'last3m' ? 3 : kind === 'last6m' ? 6 : 12;
+        const f = new Date(now);
+        f.setMonth(f.getMonth() - months);
+        f.setDate(f.getDate() + 1);
+        return { from: localDateStr(f), to: today, label: kind === 'last1y' ? '1 ปีล่าสุด' : `${months} เดือนล่าสุด` };
       }
       if (kind === 'custom') {
         return { from: $('fromDate').value, to: $('toDate').value, label: 'ช่วงที่กำหนด' };
