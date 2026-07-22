@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>คอมเมนต์ — FB Inbox Center</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .cm-layout {
+      display: grid;
+      grid-template-columns: 380px 1fr;
+      height: calc(100vh - 56px);
+      background: var(--card);
+    }
+    .cm-left { border-right: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; }
+    .cm-left-head { padding: 12px 14px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 10px; }
+    .cm-posts { overflow-y: auto; flex: 1; }
+
+    .post-item {
+      display: flex;
+      gap: 10px;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--bg);
+      cursor: pointer;
+    }
+    .post-item:hover { background: var(--bg); }
+    .post-item.active { background: #e7f0fe; }
+    .post-item img.thumb {
+      width: 56px; height: 56px;
+      border-radius: 8px;
+      object-fit: cover;
+      flex-shrink: 0;
+      background: var(--bg);
+    }
+    .post-item .body { flex: 1; min-width: 0; }
+    .post-item .msg {
+      font-size: 13.5px;
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+    }
+    .post-item .meta { font-size: 12px; color: var(--muted); margin-top: 4px; }
+    .post-item .cnt { color: var(--primary); font-weight: 700; }
+
+    /* คอลัมน์ขวา: คอมเมนต์ */
+    .cm-right { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+    .cm-post-head { padding: 12px 18px; border-bottom: 1px solid var(--border); }
+    .cm-post-head .txt { font-size: 14px; font-weight: 600; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+    .cm-list { flex: 1; overflow-y: auto; padding: 16px 18px; background: var(--bg); }
+
+    .cmt { display: flex; gap: 10px; margin-bottom: 14px; }
+    .cmt .ava, .cmt .ava-fb {
+      width: 34px; height: 34px; border-radius: 50%; object-fit: cover; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; font-weight: 700; font-size: 14px;
+    }
+    .cmt .box { max-width: 78%; }
+    .cmt .bub {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 8px 13px;
+      font-size: 13.5px;
+      line-height: 1.5;
+      word-break: break-word;
+      white-space: pre-wrap;
+    }
+    .cmt.by-page .bub { background: #e7f0fe; border-color: #c4dbf7; }
+    .cmt .who { font-weight: 700; font-size: 13px; margin-bottom: 1px; }
+    .cmt.by-page .who { color: var(--primary); }
+    .cmt .sub { font-size: 11.5px; color: var(--muted); margin-top: 3px; display: flex; gap: 10px; align-items: center; }
+    .cmt .sub .rp { color: var(--primary); font-weight: 600; cursor: pointer; }
+    .cmt .sub .rp:hover { text-decoration: underline; }
+    .cmt img.att { max-width: 200px; border-radius: 10px; display: block; margin-top: 6px; cursor: zoom-in; }
+    .cmt-replies { margin: 6px 0 0 44px; }
+    .cmt-replies .cmt { margin-bottom: 8px; }
+
+    .reply-inline { display: flex; gap: 8px; margin-top: 8px; }
+    .reply-inline input { flex: 1; border-radius: 18px; font-size: 13px; padding: 8px 13px; }
+
+    .cm-empty { flex: 1; display: flex; flex-direction: column; gap: 10px; align-items: center; justify-content: center; color: var(--muted); }
+    .cm-empty .big { font-size: 42px; }
+
+    /* dropdown เพจ (เหมือนหน้า Analytics) */
+    .pg-dd { position: relative; }
+    .pg-dd-btn {
+      display: flex; align-items: center; gap: 9px; width: 100%;
+      padding: 9px 12px; background: var(--card);
+      border: 1px solid var(--border); border-radius: 8px;
+      font-size: 14px; font-weight: 600; font-family: inherit; color: var(--text); cursor: pointer;
+    }
+    .pg-dd-btn:hover { background: var(--bg); }
+    .pg-dd-btn .caret { margin-left: auto; color: var(--muted); font-size: 11px; }
+    .pg-dd-menu {
+      display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 100;
+      background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+      box-shadow: 0 8px 26px rgba(0,0,0,0.16); max-height: 55vh; overflow-y: auto; padding: 5px;
+    }
+    .pg-dd-menu.open { display: block; }
+    .pg-dd-item { display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 8px; cursor: pointer; font-size: 13.5px; }
+    .pg-dd-item:hover { background: var(--bg); }
+    .pg-dd-item.active { background: #e7f0fe; color: var(--primary); font-weight: 600; }
+    .pg-dd-item span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .pg-ava, .pg-ava-fb {
+      width: 24px; height: 24px; border-radius: 50%; object-fit: cover; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center; color: #fff; font-size: 12px; font-weight: 700;
+    }
+
+    @media (max-width: 800px) {
+      .cm-layout { grid-template-columns: 1fr; }
+      .cm-right { display: none; }
+      .cm-layout.post-open .cm-left { display: none; }
+      .cm-layout.post-open .cm-right { display: flex; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="navbar">
+    <span class="logo">📥 FB Inbox Center</span>
+    <a class="nav-link" href="index.html">กล่องข้อความรวม</a>
+    <a class="nav-link active" href="comments.html">คอมเมนต์</a>
+    <a class="nav-link" href="analytics.html">Analytics</a>
+    <a class="nav-link" href="connect.html">เชื่อมต่อเพจ</a>
+    <span class="spacer"></span>
+    <button class="btn small" id="refreshBtn">🔄 ดึงคอมเมนต์ใหม่</button>
+  </nav>
+
+  <div class="cm-layout" id="cmLayout">
+    <!-- ซ้าย: เลือกเพจ + รายการโพสต์ -->
+    <aside class="cm-left">
+      <div class="cm-left-head">
+        <div class="pg-dd" id="pgDd">
+          <button class="pg-dd-btn" id="pgDdBtn">
+            <span id="pgDdAvaWrap" style="display:flex;"><span class="pg-ava-fb" style="background:var(--primary);">📄</span></span>
+            <span id="pgDdLabel">เลือกเพจ...</span>
+            <span class="caret">▼</span>
+          </button>
+          <div class="pg-dd-menu" id="pgDdMenu"></div>
+        </div>
+      </div>
+      <div class="cm-posts" id="postList">
+        <div class="cm-empty"><span class="big">📝</span>เลือกเพจเพื่อดูโพสต์</div>
+      </div>
+    </aside>
+
+    <!-- ขวา: คอมเมนต์ของโพสต์ที่เลือก -->
+    <main class="cm-right" id="cmRight">
+      <div class="cm-empty">
+        <span class="big">💬</span>
+        <div>เลือกโพสต์จากด้านซ้ายเพื่อดูคอมเมนต์</div>
+        <div class="muted">ตอบคอมเมนต์ในนามเพจได้จากตรงนี้เลย</div>
+      </div>
+    </main>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <!-- คลิกรูปเพื่อดูขนาดใหญ่ -->
+  <div class="lightbox" id="lightbox" onclick="this.classList.remove('show')">
+    <img id="lightboxImg" alt="">
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    let pages = [];
+    let selectedPage = null;
+    let posts = [];
+    let activePostId = null;
+
+    function toast(msg) {
+      const t = $('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 3500);
+    }
+
+    function esc(s) {
+      return String(s ?? '').replace(/[&<>"']/g, (c) =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    const AVATAR_COLORS = [
+      '#1877f2', '#e91e63', '#8e24aa', '#5e35b1', '#3949ab', '#00897b',
+      '#f4511e', '#6d4c41', '#546e7a', '#c2185b', '#2e7d32', '#ef6c00',
+    ];
+    function avatarColor(key) {
+      let h = 0;
+      for (const ch of String(key || '?')) h = (h * 31 + ch.codePointAt(0)) >>> 0;
+      return AVATAR_COLORS[h % AVATAR_COLORS.length];
+    }
+
+    function fmtAgo(iso) {
+      const d = new Date(iso);
+      const now = new Date();
+      const startOfDay = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate());
+      const diff = Math.round((startOfDay(now) - startOfDay(d)) / 86400e3);
+      if (diff <= 0) return 'วันนี้ ' + d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+      if (diff === 1) return 'เมื่อวาน';
+      return diff + ' วันก่อน';
+    }
+
+    function openLightbox(src) {
+      $('lightboxImg').src = src;
+      $('lightbox').classList.add('show');
+    }
+
+    // ---------- dropdown เพจ ----------
+    function pgAvatarHtml(p, size) {
+      const cls = size || '';
+      const fallback = `<span class="pg-ava-fb" style="background:${avatarColor(p.id)};${p.pictureUrl ? 'display:none;' : ''}">${esc((p.name || '?')[0])}</span>`;
+      if (!p.pictureUrl) return fallback;
+      return `<img class="pg-ava" src="${esc(p.pictureUrl)}" alt=""
+        onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">${fallback}`;
+    }
+
+    async function loadPages() {
+      pages = await fetch('/api/pages').then((r) => r.json());
+      pages.sort((a, b) => a.name.localeCompare(b.name, 'th'));
+      $('pgDdMenu').innerHTML = pages.map((p) => `
+        <div class="pg-dd-item ${selectedPage && selectedPage.id === p.id ? 'active' : ''}" onclick="selectPage('${esc(p.id)}')">
+          ${pgAvatarHtml(p)}
+          <span>${esc(p.name)}</span>
+        </div>`).join('');
+      // เลือกเพจแรกอัตโนมัติ
+      if (!selectedPage && pages.length) selectPage(pages[0].id);
+    }
+
+    function selectPage(id) {
+      selectedPage = pages.find((p) => p.id === id);
+      if (!selectedPage) return;
+      $('pgDdLabel').textContent = selectedPage.name;
+      $('pgDdAvaWrap').innerHTML = pgAvatarHtml(selectedPage);
+      $('pgDdMenu').classList.remove('open');
+      loadPages(); // อัปเดต active ในเมนู
+      loadPosts();
+    }
+
+    $('pgDdBtn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      $('pgDdMenu').classList.toggle('open');
+    });
+    document.addEventListener('click', () => $('pgDdMenu').classList.remove('open'));
+
+    // ---------- โพสต์ ----------
+    async function loadPosts() {
+      if (!selectedPage) return;
+      activePostId = null;
+      $('postList').innerHTML = '<div class="cm-empty"><span class="big">⏳</span>กำลังดึงโพสต์...</div>';
+      try {
+        const res = await fetch(`/api/pages/${encodeURIComponent(selectedPage.id)}/posts`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        posts = data;
+        renderPosts();
+        // เปิดโพสต์แรกอัตโนมัติบนจอกว้าง
+        if (posts.length && window.innerWidth > 800) openPost(posts[0].id);
+        else if (!posts.length) $('cmRight').innerHTML = '<div class="cm-empty"><span class="big">📭</span>เพจนี้ยังไม่มีโพสต์</div>';
+      } catch (err) {
+        $('postList').innerHTML = `<div class="cm-empty" style="padding:20px; text-align:center;"><span class="big">⚠️</span>${esc(err.message)}</div>`;
+      }
+    }
+
+    function renderPosts() {
+      $('postList').innerHTML = posts.length ? posts.map((p) => `
+        <div class="post-item ${p.id === activePostId ? 'active' : ''}" onclick="openPost('${esc(p.id)}')">
+          ${p.picture ? `<img class="thumb" src="${esc(p.picture)}" alt="">` : '<div class="thumb" style="display:flex;align-items:center;justify-content:center;">📝</div>'}
+          <div class="body">
+            <div class="msg">${esc(p.message)}</div>
+            <div class="meta">${fmtAgo(p.createdTime)} · <span class="cnt">💬 ${p.commentCount.toLocaleString()}</span></div>
+          </div>
+        </div>`).join('')
+      : '<div class="cm-empty"><span class="big">📭</span>เพจนี้ยังไม่มีโพสต์</div>';
+    }
+
+    // ---------- คอมเมนต์ ----------
+    function cmtAvatar(c) {
+      const fallback = `<span class="ava-fb" style="background:${avatarColor(c.fromId || c.fromName)};${c.fromPic ? 'display:none;' : ''}">${esc(c.fromName[0])}</span>`;
+      if (!c.fromPic) return fallback;
+      return `<img class="ava" src="${esc(c.fromPic)}" alt=""
+        onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">${fallback}`;
+    }
+
+    function cmtHtml(c, isReply) {
+      const byPage = selectedPage && c.fromId === selectedPage.id;
+      return `
+        <div class="cmt ${byPage ? 'by-page' : ''}">
+          ${cmtAvatar(c)}
+          <div class="box">
+            <div class="bub">
+              <div class="who">${esc(c.fromName)}${byPage ? ' · เพจ' : ''}</div>
+              ${esc(c.message)}
+              ${c.attachmentUrl ? `<img class="att" src="${esc(c.attachmentUrl)}" alt="" onclick="openLightbox(this.src)">` : ''}
+            </div>
+            <div class="sub">
+              <span>${fmtAgo(c.createdTime)}</span>
+              ${c.likeCount ? `<span>👍 ${c.likeCount}</span>` : ''}
+              ${!isReply ? `<span class="rp" onclick="showReplyBox('${esc(c.id)}')">↩ ตอบกลับ</span>` : ''}
+            </div>
+            ${!isReply ? `
+              <div class="cmt-replies" id="replies-${esc(c.id)}" style="margin-left:0;">
+                ${c.replies.map((r) => cmtHtml(r, true)).join('')}
+              </div>
+              <div class="reply-inline" id="replybox-${esc(c.id)}" style="display:none;">
+                <input type="text" placeholder="ตอบในนาม ${esc(selectedPage ? selectedPage.name : 'เพจ')}..."
+                  onkeydown="if(event.key==='Enter')sendReply('${esc(c.id)}');if(event.key==='Escape')this.parentElement.style.display='none';">
+                <button class="btn small" onclick="sendReply('${esc(c.id)}')">ส่ง</button>
+              </div>` : ''}
+          </div>
+        </div>`;
+    }
+
+    async function openPost(postId) {
+      activePostId = postId;
+      renderPosts();
+      $('cmLayout').classList.add('post-open');
+      const post = posts.find((p) => p.id === postId);
+      $('cmRight').innerHTML = '<div class="cm-empty"><span class="big">⏳</span>กำลังดึงคอมเมนต์...</div>';
+      try {
+        const res = await fetch(`/api/posts/${encodeURIComponent(postId)}/comments?pageId=${encodeURIComponent(selectedPage.id)}`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        $('cmRight').innerHTML = `
+          <div class="cm-post-head">
+            <button class="btn small secondary" onclick="closePost()" style="display:none; float:left; margin-right:10px;" id="backBtn">←</button>
+            <div class="txt">${esc(post.message)}</div>
+            <div class="muted" style="margin-top:4px;">
+              ${fmtAgo(post.createdTime)} · 💬 ${data.length} คอมเมนต์
+              ${post.permalink ? ` · <a href="${esc(post.permalink)}" target="_blank">เปิดโพสต์บน Facebook ↗</a>` : ''}
+            </div>
+          </div>
+          <div class="cm-list" id="cmList">
+            ${data.length ? data.map((c) => cmtHtml(c, false)).join('')
+              : '<div class="muted" style="text-align:center; padding: 30px;">โพสต์นี้ยังไม่มีคอมเมนต์</div>'}
+          </div>`;
+        if (window.innerWidth <= 800) $('backBtn').style.display = 'inline-flex';
+      } catch (err) {
+        $('cmRight').innerHTML = `<div class="cm-empty"><span class="big">⚠️</span><div style="max-width:420px; text-align:center;">${esc(err.message)}</div></div>`;
+      }
+    }
+
+    function closePost() {
+      $('cmLayout').classList.remove('post-open');
+    }
+
+    function showReplyBox(commentId) {
+      const box = $('replybox-' + commentId);
+      box.style.display = 'flex';
+      box.querySelector('input').focus();
+    }
+
+    async function sendReply(commentId) {
+      const box = $('replybox-' + commentId);
+      const input = box.querySelector('input');
+      const text = input.value.trim();
+      if (!text) return;
+      const btn = box.querySelector('button');
+      btn.disabled = true; input.disabled = true;
+      try {
+        const res = await fetch(`/api/comments/${encodeURIComponent(commentId)}/reply`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pageId: selectedPage.id, message: text }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        // เติม reply ที่ส่งแล้วเข้าไปใต้คอมเมนต์ทันที
+        $('replies-' + commentId).insertAdjacentHTML('beforeend', cmtHtml({
+          id: data.id, message: text, createdTime: new Date().toISOString(),
+          fromId: selectedPage.id, fromName: data.pageName, fromPic: selectedPage.pictureUrl || '',
+          likeCount: 0, attachmentUrl: '', replies: [],
+        }, true));
+        input.value = '';
+        box.style.display = 'none';
+        toast('ตอบคอมเมนต์แล้ว ✓');
+      } catch (err) {
+        toast('❌ ' + err.message);
+      } finally {
+        btn.disabled = false; input.disabled = false;
+      }
+    }
+
+    $('refreshBtn').addEventListener('click', () => {
+      if (activePostId) { loadPosts(); }
+      else loadPosts();
+    });
+
+    loadPages();
+  </script>
+</body>
+</html>

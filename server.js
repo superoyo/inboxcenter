@@ -638,6 +638,55 @@ app.get('/api/keyword-rooms', async (req, res) => {
   res.json({ word, total: rooms.length, rooms: rooms.slice(0, 300) });
 });
 
+// ---------- Comments (คอมเมนต์ใต้โพสต์) ----------
+// ดึงสดจาก Graph API ทุกครั้ง (ไม่เก็บลง storage)
+
+async function pageOr404(pageId, res) {
+  const page = (await store.getPages()).find((p) => p.id === pageId);
+  if (!page) res.status(404).json({ error: 'ไม่พบเพจนี้ในระบบ' });
+  return page;
+}
+
+// โพสต์ล่าสุดของเพจ
+app.get('/api/pages/:pageId/posts', async (req, res) => {
+  const page = await pageOr404(req.params.pageId, res);
+  if (!page) return;
+  try {
+    res.json(await fb.getPosts(page.id, page.accessToken));
+  } catch (err) {
+    res.status(400).json({ error: `ดึงโพสต์ไม่สำเร็จ: ${err.message}` });
+  }
+});
+
+// คอมเมนต์ใต้โพสต์
+app.get('/api/posts/:postId/comments', async (req, res) => {
+  const page = await pageOr404(String(req.query.pageId || ''), res);
+  if (!page) return;
+  try {
+    res.json(await fb.getComments(req.params.postId, page.accessToken));
+  } catch (err) {
+    res.status(400).json({ error: `ดึงคอมเมนต์ไม่สำเร็จ: ${err.message}` });
+  }
+});
+
+// ตอบกลับคอมเมนต์ในนามเพจ
+app.post('/api/comments/:commentId/reply', async (req, res) => {
+  const { pageId, message } = req.body || {};
+  const clean = String(message || '').trim().slice(0, 2000);
+  if (!clean) return res.status(400).json({ error: 'กรุณาพิมพ์ข้อความ' });
+  const page = await pageOr404(String(pageId || ''), res);
+  if (!page) return;
+  try {
+    const sent = await fb.replyComment(req.params.commentId, clean, page.accessToken);
+    res.json({ ok: true, id: sent.id, message: clean, pageName: page.name });
+  } catch (err) {
+    const hint = /permission|OAuth/i.test(err.message)
+      ? ' — token ต้องมีสิทธิ์ pages_manage_engagement (เพิ่มตอน Generate token แล้วเชื่อมเพจใหม่)'
+      : '';
+    res.status(400).json({ error: `ตอบคอมเมนต์ไม่สำเร็จ: ${err.message}${hint}` });
+  }
+});
+
 // ---------- Saved replies (คำตอบสำเร็จรูป แยกตามเพจ) ----------
 
 app.get('/api/pages/:pageId/saved-replies', async (req, res) => {
