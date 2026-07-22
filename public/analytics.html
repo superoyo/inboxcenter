@@ -659,18 +659,31 @@
       renderWpList(rooms);
     }
 
-    function openWaitingPanel(selectId, bucket = null) {
-      wpMode = { type: 'waiting', bucket };
+    // เปิด panel: ถ้าไม่ได้ระบุห้อง ให้เปิดแชทของห้องแรกในรายการอัตโนมัติ
+    // (กันคอลัมน์ขวาแสดงแชทค้างจากการเปิดครั้งก่อน)
+    function openPanelCommon(selectId) {
       refreshWpPanel();
       $('waitingPanel').classList.add('open');
-      if (selectId) selectWaitingRoom(selectId);
+      const rooms = wpRooms();
+      const target = selectId || (window.innerWidth > 800 && rooms[0] ? rooms[0].id : null);
+      if (target) {
+        selectWaitingRoom(target);
+      } else {
+        wpActiveId = null;
+        $('waitingPanel').classList.remove('chat-open');
+        $('wpChat').innerHTML = `<div class="wp-empty">${rooms.length ? 'เลือกห้องจากด้านซ้ายเพื่อดูแชทและตอบ' : 'ไม่มีห้องในรายการนี้'}</div>`;
+        renderWpList(rooms);
+      }
+    }
+
+    function openWaitingPanel(selectId, bucket = null) {
+      wpMode = { type: 'waiting', bucket };
+      openPanelCommon(selectId);
     }
 
     function openAnsweredPanel(selectId, bucket = null) {
       wpMode = { type: 'answered', bucket };
-      refreshWpPanel();
-      $('waitingPanel').classList.add('open');
-      if (selectId) selectWaitingRoom(selectId);
+      openPanelCommon(selectId);
     }
 
     function closeWaitingPanel() {
