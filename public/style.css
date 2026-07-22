@@ -159,7 +159,7 @@ input:focus, textarea:focus, select:focus { outline: 2px solid var(--primary); b
 .page-list-panel {
   border-bottom: 1px solid var(--border);
   padding: 10px 8px 8px;
-  max-height: 28vh;
+  max-height: 45vh;
   display: flex;
   flex-direction: column;
 }
