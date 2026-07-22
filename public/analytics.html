@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Analytics — FB Inbox Center</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    /* โทนสีกราฟ (validated palette): series = identity, status = state, ordinal = ลำดับ */
+    .viz {
+      --series-1: #2a78d6;   /* ข้อความเข้า */
+      --series-2: #eb6834;   /* เพจตอบ */
+      --st-good: #0ca30c;
+      --st-warning: #fab219;
+      --st-serious: #ec835a;
+      --st-critical: #d03b3b;
+      --ord-1: #86b6ef; --ord-2: #5598e7; --ord-3: #2a78d6; --ord-4: #1c5cab;
+      --ink-1: #0b0b0b;
+      --ink-2: #52514e;
+      --ink-mute: #898781;
+      --grid: #e1e0d9;
+      --delta-good: #006300;
+    }
+    .an-wrap { max-width: 1280px; margin: 0 auto; padding: 20px 24px 48px; }
+    .an-header { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 18px; }
+    .an-header h1 { font-size: 22px; }
+    .an-header .sub { color: var(--muted); font-size: 13px; }
+    .an-header select {
+      width: auto; min-width: 220px; font-weight: 600;
+    }
+    .an-grid { display: grid; gap: 14px; }
+    .cards-4 { grid-template-columns: repeat(4, 1fr); }
+    .cols-2 { grid-template-columns: 1.4fr 1fr; }
+    .cols-3g { grid-template-columns: 1fr 1fr 1.2fr; }
+    .an-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; min-width: 0; }
+    .an-card h3 { font-size: 13px; color: var(--ink-2); font-weight: 700; margin-bottom: 10px; }
+    .an-card .foot { font-size: 12px; color: var(--ink-mute); margin-top: 8px; }
+    .stat-value { font-size: 30px; font-weight: 800; color: var(--ink-1); line-height: 1.15; }
+    .stat-label { font-size: 13px; color: var(--ink-2); margin-top: 2px; }
+    .stat-delta { font-size: 12px; font-weight: 700; border-radius: 999px; padding: 2px 9px; background: var(--bg); color: var(--ink-2); float: right; }
+    .stat-delta.bad { background: #fdeaea; color: var(--st-critical); }
+    .stat-delta.good { background: #e7f5e7; color: var(--delta-good); }
+    .progress { height: 8px; background: var(--bg); border-radius: 999px; margin-top: 10px; overflow: hidden; }
+    .progress > div { height: 100%; border-radius: 999px; background: var(--st-good); }
+
+    /* กราฟเส้นรายวัน */
+    .legend { display: flex; gap: 16px; font-size: 12px; color: var(--ink-2); margin-bottom: 6px; }
+    .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+    svg text { font-family: inherit; }
+
+    /* กราฟแท่งรายชั่วโมง */
+    .hbars { display: flex; align-items: flex-end; gap: 2px; height: 150px; }
+    .hbars .bar { flex: 1; min-height: 2px; background: var(--series-1); border-radius: 4px 4px 0 0; cursor: default; }
+    .hbars .bar:hover { background: var(--ord-4); }
+    .haxis { display: flex; justify-content: space-between; font-size: 11px; color: var(--ink-mute); padding-top: 4px; }
+
+    /* สถานะความเร่งด่วน: stacked bar + chips */
+    .stackbar { display: flex; height: 22px; border-radius: 6px; overflow: hidden; gap: 2px; background: var(--card); }
+    .stackbar > div { min-width: 3px; }
+    .status-chips { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; font-size: 13px; color: var(--ink-2); }
+    .status-chips b { color: var(--ink-1); font-variant-numeric: tabular-nums; }
+
+    /* aging ห้องรอตอบ */
+    .aging-row { display: grid; grid-template-columns: 110px 1fr 46px; align-items: center; gap: 10px; margin-bottom: 10px; font-size: 13px; }
+    .aging-row .track { height: 16px; background: var(--bg); border-radius: 4px; overflow: hidden; }
+    .aging-row .fill { height: 100%; border-radius: 4px 4px 4px 4px; min-width: 2px; }
+    .aging-row .n { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+    /* รายการห้องเสี่ยง */
+    .alert-row { display: flex; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--bg); font-size: 13px; align-items: flex-start; cursor: pointer; }
+    .alert-row:hover { background: var(--bg); }
+    .alert-row .ic { flex-shrink: 0; }
+    .alert-row .who { font-weight: 700; }
+    .alert-row .txt { color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; }
+    .alert-row .wait { margin-left: auto; flex-shrink: 0; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .alert-row .wait.crit { color: var(--st-critical); }
+
+    /* ตารางรายเพจ */
+    table.pp { width: 100%; border-collapse: collapse; font-size: 13px; }
+    table.pp th { text-align: right; color: var(--ink-mute); font-weight: 600; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+    table.pp th:first-child, table.pp td:first-child { text-align: left; }
+    table.pp td { padding: 8px 10px; border-bottom: 1px solid var(--bg); text-align: right; font-variant-numeric: tabular-nums; }
+    table.pp td.warn { color: var(--st-critical); font-weight: 700; }
+    table.pp tr:hover td { background: var(--bg); }
+
+    .viz-tooltip {
+      position: fixed; z-index: 300; pointer-events: none; display: none;
+      background: var(--ink-1); color: #fff; border-radius: 8px; padding: 7px 11px;
+      font-size: 12px; line-height: 1.5; box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+    }
+    @media (max-width: 1000px) {
+      .cards-4 { grid-template-columns: repeat(2, 1fr); }
+      .cols-2, .cols-3g { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="navbar">
+    <span class="logo">📥 FB Inbox Center</span>
+    <a class="nav-link" href="index.html">กล่องข้อความรวม</a>
+    <a class="nav-link active" href="analytics.html">Analytics</a>
+    <a class="nav-link" href="connect.html">เชื่อมต่อเพจ</a>
+    <span class="spacer"></span>
+    <span class="muted" id="genAt" style="font-size: 12px;"></span>
+  </nav>
+
+  <div class="an-wrap viz">
+    <div class="an-header">
+      <select id="pageSelect"><option value="">🌐 ทุกเพจ (ภาพรวม)</option></select>
+      <div>
+        <h1>Inbox Performance</h1>
+        <div class="sub" id="scopeSub">ภาพรวมทุกเพจ · ข้อมูลจากประวัติที่ sync ล่าสุด</div>
+      </div>
+      <span class="spacer" style="flex:1;"></span>
+      <button class="btn small secondary" id="reloadBtn">↻ โหลดใหม่</button>
+    </div>
+
+    <!-- แถวที่ 1: ตัวเลขหลัก -->
+    <div class="an-grid cards-4" id="statCards"></div>
+
+    <!-- แถวที่ 2: กราฟปริมาณ -->
+    <div class="an-grid cols-2" style="margin-top: 14px;">
+      <div class="an-card">
+        <h3>📈 ปริมาณข้อความ 14 วันล่าสุด</h3>
+        <div class="legend">
+          <span><i style="background:var(--series-1)"></i>ลูกค้าทักเข้า</span>
+          <span><i style="background:var(--series-2)"></i>เพจตอบกลับ</span>
+        </div>
+        <div id="dailyChart"></div>
+      </div>
+      <div class="an-card">
+        <h3>🕐 ช่วงเวลาที่ลูกค้าทัก (30 วันล่าสุด)</h3>
+        <div class="hbars" id="hourChart"></div>
+        <div class="haxis"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></div>
+        <div class="foot" id="hourFoot"></div>
+      </div>
+    </div>
+
+    <!-- แถวที่ 3: Human Error Guard -->
+    <h2 style="margin: 22px 0 10px; font-size: 16px;">🛡 ตัวชี้วัดกันพลาด (Human Error Guard)</h2>
+    <div class="an-grid cols-3g">
+      <div class="an-card">
+        <h3>⏳ ห้องที่ยังไม่ได้ตอบ แยกตามเวลารอ</h3>
+        <div id="agingChart"></div>
+        <div class="foot">ห้องที่ข้อความล่าสุดเป็นของลูกค้า — เกิน 24 ชม. จะส่งข้อความปกติไม่ได้แล้ว (กฎ Facebook)</div>
+      </div>
+      <div class="an-card">
+        <h3>🚦 สถานะความเร่งด่วนของทุกห้อง</h3>
+        <div class="stackbar" id="urgencyBar"></div>
+        <div class="status-chips" id="urgencyChips"></div>
+      </div>
+      <div class="an-card">
+        <h3>🚨 ห้องเสี่ยงที่ควรจัดการก่อน</h3>
+        <div id="alertList"></div>
+      </div>
+    </div>
+
+    <!-- แถวที่ 4: ตารางรายเพจ (เฉพาะโหมดภาพรวม) -->
+    <div class="an-card" id="perPageCard" style="margin-top: 14px;">
+      <h3>📊 เปรียบเทียบรายเพจ</h3>
+      <div style="overflow-x: auto;">
+        <table class="pp" id="perPageTable"></table>
+      </div>
+    </div>
+  </div>
+
+  <div class="viz-tooltip" id="vizTip"></div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const TZ = -new Date().getTimezoneOffset();
+
+    function esc(s) {
+      return String(s ?? '').replace(/[&<>"']/g, (c) =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    function fmtDur(ms) {
+      if (ms == null) return '—';
+      if (ms < 60e3) return Math.max(1, Math.round(ms / 1e3)) + ' วินาที';
+      if (ms < 3600e3) return Math.round(ms / 60e3) + ' นาที';
+      if (ms < 86400e3) return (ms / 3600e3).toFixed(1) + ' ชม.';
+      return (ms / 86400e3).toFixed(1) + ' วัน';
+    }
+
+    const fmtPct = (x) => (x == null ? '—' : Math.round(x * 100) + '%');
+    const fmtDay = (iso) => new Date(iso + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
+
+    // tooltip กลาง — ใช้ร่วมทุกกราฟ
+    function showTip(html, x, y) {
+      const tip = $('vizTip');
+      tip.innerHTML = html;
+      tip.style.display = 'block';
+      const w = tip.offsetWidth;
+      tip.style.left = Math.min(x + 14, window.innerWidth - w - 10) + 'px';
+      tip.style.top = (y + 14) + 'px';
+    }
+    function hideTip() { $('vizTip').style.display = 'none'; }
+
+    // ---------- โหลดข้อมูล ----------
+    async function loadPages() {
+      const pages = await fetch('/api/pages?tz=' + TZ).then((r) => r.json());
+      $('pageSelect').innerHTML = '<option value="">🌐 ทุกเพจ (ภาพรวม)</option>' +
+        pages.map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join('');
+    }
+
+    async function loadAnalytics() {
+      const pageId = $('pageSelect').value;
+      const params = new URLSearchParams({ tz: TZ });
+      if (pageId) params.set('pageId', pageId);
+      const a = await fetch('/api/analytics?' + params).then((r) => r.json());
+
+      const pageName = pageId ? $('pageSelect').selectedOptions[0].textContent : '';
+      $('scopeSub').textContent = (pageId ? `เพจ: ${pageName}` : 'ภาพรวมทุกเพจ') + ' · ข้อมูลจากประวัติที่ sync ล่าสุด';
+      $('genAt').textContent = 'คำนวณเมื่อ ' + new Date(a.generatedAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.';
+
+      renderStatCards(a);
+      renderDailyChart(a.days);
+      renderHourChart(a.hourly);
+      renderAging(a.waiting.agingBuckets);
+      renderUrgency(a.urgency);
+      renderAlerts(a.alerts);
+      renderPerPage(a.perPage, !!pageId);
+    }
+
+    // ---------- การ์ดตัวเลขหลัก ----------
+    function renderStatCards(a) {
+      const diff = a.totals.todayIn - a.totals.yesterdayIn;
+      const deltaHtml = a.totals.yesterdayIn || a.totals.todayIn
+        ? `<span class="stat-delta">${diff >= 0 ? '↗ +' : '↘ '}${diff} vs เมื่อวาน</span>` : '';
+      const sla = a.response.sla1hPct;
+      const over24 = a.waiting.over24h;
+
+      $('statCards').innerHTML = `
+        <div class="an-card">
+          ${deltaHtml}
+          <div class="stat-value">${a.totals.todayIn.toLocaleString()}</div>
+          <div class="stat-label">ข้อความลูกค้าวันนี้</div>
+          <div class="foot">รวมทุกห้อง ${a.totals.conversations.toLocaleString()} การสนทนา</div>
+        </div>
+        <div class="an-card">
+          <div class="stat-value">${fmtDur(a.response.avgHumanMs)}</div>
+          <div class="stat-label">เวลาตอบเฉลี่ยโดยคน</div>
+          <div class="foot">ตอบด้วยคน ${a.response.humanCount.toLocaleString()} ครั้ง · bot เฉลี่ย ${fmtDur(a.response.avgBotMs)}</div>
+        </div>
+        <div class="an-card">
+          <div class="stat-value" style="color:${sla != null && sla < 0.5 ? 'var(--st-critical)' : 'var(--ink-1)'}">${fmtPct(sla)}</div>
+          <div class="stat-label">SLA: คนตอบภายใน 1 ชม.</div>
+          <div class="progress"><div style="width:${Math.round((sla || 0) * 100)}%; background:${sla != null && sla < 0.5 ? 'var(--st-critical)' : 'var(--st-good)'}"></div></div>
+        </div>
+        <div class="an-card">
+          <div class="stat-value" style="color:${a.waiting.total ? 'var(--ink-1)' : 'var(--delta-good)'}">${a.waiting.total.toLocaleString()}</div>
+          <div class="stat-label">ห้องที่ยังไม่ได้ตอบ</div>
+          <div class="foot">${over24 ? `<span style="color:var(--st-critical); font-weight:700;">⛔ ค้างเกิน 24 ชม. ${over24} ห้อง</span>` : '✓ ไม่มีห้องค้างเกิน 24 ชม.'} · ตอบแล้ว ${fmtPct(a.totals.answeredPct)}</div>
+        </div>`;
+    }
+
+    // ---------- กราฟเส้น 14 วัน (2 series + crosshair hover) ----------
+    function renderDailyChart(days) {
+      const W = 640, H = 210, padL = 34, padR = 14, padT = 12, padB = 26;
+      const iw = W - padL - padR, ih = H - padT - padB;
+      const maxV = Math.max(1, ...days.map((d) => Math.max(d.in, d.out)));
+      const yMax = Math.ceil(maxV / 4) * 4 || 4;
+      const x = (i) => padL + (i / (days.length - 1)) * iw;
+      const y = (v) => padT + ih - (v / yMax) * ih;
+      const line = (key) => days.map((d, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(d[key]).toFixed(1)}`).join('');
+
+      const gridLines = [0, 0.5, 1].map((f) => {
+        const v = Math.round(yMax * f);
+        return `<line x1="${padL}" x2="${W - padR}" y1="${y(v)}" y2="${y(v)}" stroke="var(--grid)" stroke-width="1"/>
+                <text x="${padL - 6}" y="${y(v) + 4}" text-anchor="end" font-size="10" fill="var(--ink-mute)">${v}</text>`;
+      }).join('');
+      const xLabels = days.map((d, i) => i % 2 === 1
+        ? `<text x="${x(i)}" y="${H - 8}" text-anchor="middle" font-size="10" fill="var(--ink-mute)">${fmtDay(d.date)}</text>` : '').join('');
+
+      $('dailyChart').innerHTML = `
+        <svg viewBox="0 0 ${W} ${H}" style="width:100%; display:block;" id="dailySvg">
+          ${gridLines}
+          <path d="${line('in')}" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round"/>
+          <path d="${line('out')}" fill="none" stroke="var(--series-2)" stroke-width="2" stroke-linejoin="round"/>
+          <line id="xhair" y1="${padT}" y2="${padT + ih}" stroke="var(--ink-mute)" stroke-width="1" stroke-dasharray="3,3" style="display:none;"/>
+          <circle id="dotIn" r="4" fill="var(--series-1)" stroke="#fff" stroke-width="2" style="display:none;"/>
+          <circle id="dotOut" r="4" fill="var(--series-2)" stroke="#fff" stroke-width="2" style="display:none;"/>
+          ${xLabels}
+          <rect x="${padL}" y="${padT}" width="${iw}" height="${ih}" fill="transparent" id="dailyHover"/>
+        </svg>`;
+
+      const svg = $('dailySvg');
+      $('dailyHover').addEventListener('mousemove', (e) => {
+        const rect = svg.getBoundingClientRect();
+        const sx = (e.clientX - rect.left) * (W / rect.width);
+        const i = Math.max(0, Math.min(days.length - 1, Math.round(((sx - padL) / iw) * (days.length - 1))));
+        const d = days[i];
+        $('xhair').setAttribute('x1', x(i)); $('xhair').setAttribute('x2', x(i)); $('xhair').style.display = '';
+        $('dotIn').setAttribute('cx', x(i)); $('dotIn').setAttribute('cy', y(d.in)); $('dotIn').style.display = '';
+        $('dotOut').setAttribute('cx', x(i)); $('dotOut').setAttribute('cy', y(d.out)); $('dotOut').style.display = '';
+        showTip(`<b>${fmtDay(d.date)}</b><br>ลูกค้าทักเข้า: <b>${d.in}</b><br>เพจตอบกลับ: <b>${d.out}</b>`, e.clientX, e.clientY);
+      });
+      $('dailyHover').addEventListener('mouseleave', () => {
+        hideTip();
+        ['xhair', 'dotIn', 'dotOut'].forEach((id) => $(id).style.display = 'none');
+      });
+    }
+
+    // ---------- กราฟแท่งรายชั่วโมง ----------
+    function renderHourChart(hourly) {
+      const max = Math.max(...hourly, 1);
+      const peak = hourly.indexOf(Math.max(...hourly));
+      $('hourChart').innerHTML = hourly.map((h, i) => `
+        <div class="bar" style="height:${h ? Math.max(4, Math.round(h / max * 100)) : 2}%"
+          data-h="${i}" data-n="${h}"></div>`).join('');
+      $('hourChart').querySelectorAll('.bar').forEach((b) => {
+        b.addEventListener('mousemove', (e) =>
+          showTip(`<b>${String(b.dataset.h).padStart(2, '0')}:00–${String(+b.dataset.h + 1).padStart(2, '0')}:00 น.</b><br>ข้อความเข้า: <b>${b.dataset.n}</b>`, e.clientX, e.clientY));
+        b.addEventListener('mouseleave', hideTip);
+      });
+      $('hourFoot').textContent = Math.max(...hourly) > 0
+        ? `พีคช่วง ${String(peak).padStart(2, '0')}:00–${String(peak + 1).padStart(2, '0')}:00 น. — ใช้จัดเวรแอดมินให้ตรงช่วงลูกค้าทัก`
+        : 'ยังไม่มีข้อความเข้าในช่วง 30 วัน';
+    }
+
+    // ---------- aging ห้องรอตอบ (ordinal ramp) ----------
+    function renderAging(buckets) {
+      const max = Math.max(...buckets.map((b) => b.count), 1);
+      const colors = ['var(--ord-1)', 'var(--ord-2)', 'var(--ord-3)', 'var(--ord-4)'];
+      $('agingChart').innerHTML = buckets.map((b, i) => `
+        <div class="aging-row">
+          <span style="color:var(--ink-2);">${esc(b.label)}</span>
+          <div class="track"><div class="fill" style="width:${Math.round(b.count / max * 100)}%; background:${colors[i]};"></div></div>
+          <span class="n" style="${i === 3 && b.count ? 'color:var(--st-critical);' : ''}">${b.count}</span>
+        </div>`).join('');
+    }
+
+    // ---------- สถานะความเร่งด่วน (status palette + icon + label) ----------
+    function renderUrgency(u) {
+      const total = u.red + u.yellow + u.green || 1;
+      const seg = (n, color) => n ? `<div style="flex:${n}; background:${color};"></div>` : '';
+      $('urgencyBar').innerHTML =
+        seg(u.red, 'var(--st-critical)') + seg(u.yellow, 'var(--st-warning)') + seg(u.green, 'var(--st-good)');
+      $('urgencyChips').innerHTML = `
+        <span>🔴 ต้องรีบดำเนินการ <b>${u.red.toLocaleString()}</b> ห้อง (${Math.round(u.red / total * 100)}%)</span>
+        <span>🟡 ควรติดตาม <b>${u.yellow.toLocaleString()}</b> ห้อง (${Math.round(u.yellow / total * 100)}%)</span>
+        <span>🟢 ทั่วไป <b>${u.green.toLocaleString()}</b> ห้อง (${Math.round(u.green / total * 100)}%)</span>`;
+    }
+
+    // ---------- ห้องเสี่ยง ----------
+    function renderAlerts(alerts) {
+      if (!alerts.length) {
+        $('alertList').innerHTML = '<div class="muted" style="padding: 10px 0;">✓ ไม่มีห้องค้างตอบ — เคลียร์หมดแล้ว</div>';
+        return;
+      }
+      const icon = { red: '🔴', yellow: '🟡', green: '🟢' };
+      $('alertList').innerHTML = alerts.map((w) => `
+        <div class="alert-row" onclick="location.href='index.html'">
+          <span class="ic">${icon[w.level]}</span>
+          <div style="min-width:0;">
+            <div class="who">${esc(w.customerName)} <span class="muted" style="font-weight:400;">· ${esc(w.pageName)}</span></div>
+            <div class="txt">${esc(w.lastText)}</div>
+          </div>
+          <span class="wait ${w.waitedMs > 86400e3 ? 'crit' : ''}">${fmtDur(w.waitedMs)}</span>
+        </div>`).join('');
+    }
+
+    // ---------- ตารางรายเพจ ----------
+    function renderPerPage(rows, hidden) {
+      $('perPageCard').style.display = hidden ? 'none' : '';
+      if (hidden) return;
+      $('perPageTable').innerHTML = `
+        <tr><th>เพจ</th><th>เข้าวันนี้</th><th>รอตอบ</th><th>ค้าง >24 ชม.</th><th>ห้องแดง</th><th>ตอบเฉลี่ย (คน)</th></tr>` +
+        rows.map((p) => `
+          <tr>
+            <td>${esc(p.pageName)}</td>
+            <td>${p.todayIn.toLocaleString()}</td>
+            <td>${p.waiting.toLocaleString()}</td>
+            <td class="${p.over24h ? 'warn' : ''}">${p.over24h.toLocaleString()}</td>
+            <td class="${p.red ? 'warn' : ''}">${p.red.toLocaleString()}</td>
+            <td>${fmtDur(p.avgHumanMs)}</td>
+          </tr>`).join('');
+    }
+
+    $('pageSelect').addEventListener('change', loadAnalytics);
+    $('reloadBtn').addEventListener('click', loadAnalytics);
+    loadPages().then(loadAnalytics);
+    setInterval(loadAnalytics, 60000);
+  </script>
+</body>
+</html>

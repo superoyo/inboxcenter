@@ -2,6 +2,7 @@ const express = require('express');
 const path = require('path');
 const fb = require('./lib/facebook');
 const store = require('./lib/store');
+const urgency = require('./lib/urgency');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -354,6 +355,148 @@ app.get('/api/conversations/:id/thread', async (req, res) => {
     remark: remarksMap[conv.id] || '',
     statusOverride: statusMap[conv.id] || '',
     botTexts,
+  });
+});
+
+// ---------- Analytics ----------
+// สรุป performance ของ inbox — ภาพรวมทุกเพจ หรือรายเพจด้วย ?pageId=
+// ?tz = offset นาทีจาก UTC ของผู้ใช้ (ไทย = 420)
+app.get('/api/analytics', async (req, res) => {
+  const { pageId } = req.query;
+  const tzMin = parseInt(req.query.tz, 10);
+  const offsetMs = (Number.isFinite(tzMin) ? tzMin : 0) * 60000;
+  const dayKey = dayKeyFactory(tzMin);
+  const now = Date.now();
+  const todayKey = dayKey(now);
+  const yesterdayKey = dayKey(now - 86400e3);
+  const cutoff14 = now - 14 * 86400e3;
+  const cutoff30 = now - 30 * 86400e3;
+  const HOUR = 3600e3;
+
+  let convs = pageId
+    ? await store.getConversationsForPage(pageId)
+    : await store.getAllConversations();
+  const statusMap = await store.getStatuses();
+
+  // ข้อความเพจที่ซ้ำ ≥3 ครั้งในเพจเดียวกัน = ข้อความอัตโนมัติ (bot)
+  const textCount = {};
+  for (const c of convs) {
+    const m = (textCount[c.pageId] = textCount[c.pageId] || {});
+    for (const msg of c.messages) {
+      if (msg.isFromPage && msg.text) m[msg.text] = (m[msg.text] || 0) + 1;
+    }
+  }
+  const isBot = (pid, text) => !!text && (textCount[pid] ? textCount[pid][text] || 0 : 0) >= 3;
+
+  const daily = {};                 // day -> { in, out }
+  const hourly = Array(24).fill(0); // ข้อความเข้า แยกรายชั่วโมง (30 วันล่าสุด)
+  let todayIn = 0, yesterdayIn = 0;
+  const humanDeltas = [], botDeltas = [];
+  const waiting = [];               // ห้องที่ข้อความล่าสุดเป็นของลูกค้า (ยังไม่ได้ตอบ)
+  const urgencyCount = { red: 0, yellow: 0, green: 0 };
+  let answered = 0, botOnlyRooms = 0, roomsWithReply = 0;
+  const perPage = {};               // pageId -> ตัวเลขต่อเพจ (โหมดภาพรวม)
+
+  for (const c of convs) {
+    const pp = (perPage[c.pageId] = perPage[c.pageId] || {
+      pageId: c.pageId, pageName: c.pageName,
+      todayIn: 0, waiting: 0, over24h: 0, red: 0, humanDeltas: [],
+    });
+    let pending = null, hasHuman = false, hasBot = false, lastCust = null;
+    const lastMsg = c.messages[c.messages.length - 1];
+
+    for (const m of c.messages) {
+      const t = new Date(m.createdTime).getTime();
+      if (!m.isFromPage) {
+        lastCust = m;
+        if (t >= cutoff14) { const k = dayKey(t); (daily[k] = daily[k] || { in: 0, out: 0 }).in++; }
+        if (t >= cutoff30) hourly[new Date(t + offsetMs).getUTCHours()]++;
+        const k = dayKey(t);
+        if (k === todayKey) { todayIn++; pp.todayIn++; }
+        else if (k === yesterdayKey) yesterdayIn++;
+        if (pending === null) pending = t;
+      } else {
+        if (t >= cutoff14) { const k = dayKey(t); (daily[k] = daily[k] || { in: 0, out: 0 }).out++; }
+        const bot = isBot(c.pageId, m.text);
+        if (bot) hasBot = true; else hasHuman = true;
+        if (pending !== null) {
+          const d = t - pending;
+          if (bot) botDeltas.push(d);
+          else { humanDeltas.push(d); pp.humanDeltas.push(d); }
+          pending = null;
+        }
+      }
+    }
+
+    const level = statusMap[c.id] || urgency.classify(lastCust ? lastCust.text : '');
+    urgencyCount[level]++;
+    if (level === 'red') pp.red++;
+
+    if (lastMsg && !lastMsg.isFromPage) {
+      const waitedMs = now - new Date(lastMsg.createdTime).getTime();
+      waiting.push({
+        id: c.id, customerName: c.customerName, pageName: c.pageName,
+        waitedMs, level, lastText: (lastMsg.text || '📎 ไฟล์แนบ').slice(0, 90),
+      });
+      pp.waiting++;
+      if (waitedMs > 24 * HOUR) pp.over24h++;
+    } else if (lastMsg) {
+      answered++;
+    }
+    if (hasBot || hasHuman) { roomsWithReply++; if (hasBot && !hasHuman) botOnlyRooms++; }
+  }
+
+  // ไทม์ไลน์ 14 วันเต็ม (เติมวันว่างด้วย 0)
+  const days = [];
+  for (let i = 13; i >= 0; i--) {
+    const k = dayKey(now - i * 86400e3);
+    days.push({ date: k, in: (daily[k] || {}).in || 0, out: (daily[k] || {}).out || 0 });
+  }
+
+  const avg = (a) => (a.length ? a.reduce((s, x) => s + x, 0) / a.length : null);
+  const bucketsDef = [
+    ['ต่ำกว่า 1 ชม.', (w) => w <= HOUR],
+    ['1–6 ชม.', (w) => w > HOUR && w <= 6 * HOUR],
+    ['6–24 ชม.', (w) => w > 6 * HOUR && w <= 24 * HOUR],
+    ['เกิน 24 ชม. ⛔', (w) => w > 24 * HOUR],
+  ];
+  const agingBuckets = bucketsDef.map(([label, fn]) => ({ label, count: waiting.filter((w) => fn(w.waitedMs)).length }));
+
+  // ห้องเสี่ยงที่ต้องรีบจัดการ: แดงก่อน แล้วไล่ตามเวลารอนานสุด
+  const rank = { red: 0, yellow: 1, green: 2 };
+  const alerts = [...waiting]
+    .sort((a, b) => rank[a.level] - rank[b.level] || b.waitedMs - a.waitedMs)
+    .slice(0, 10);
+
+  res.json({
+    generatedAt: new Date(now).toISOString(),
+    scope: pageId || 'all',
+    totals: {
+      conversations: convs.length,
+      todayIn,
+      yesterdayIn,
+      answeredPct: convs.length ? answered / convs.length : null,
+    },
+    response: {
+      avgHumanMs: avg(humanDeltas),
+      minHumanMs: humanDeltas.length ? Math.min(...humanDeltas) : null,
+      humanCount: humanDeltas.length,
+      avgBotMs: avg(botDeltas),
+      botCount: botDeltas.length,
+      sla1hPct: humanDeltas.length ? humanDeltas.filter((d) => d <= HOUR).length / humanDeltas.length : null,
+      botOnlyRooms,
+      roomsWithReply,
+    },
+    waiting: { total: waiting.length, agingBuckets, over24h: agingBuckets[3].count },
+    urgency: urgencyCount,
+    days,
+    hourly,
+    alerts,
+    perPage: pageId ? [] : Object.values(perPage).map((p) => ({
+      pageId: p.pageId, pageName: p.pageName,
+      todayIn: p.todayIn, waiting: p.waiting, over24h: p.over24h, red: p.red,
+      avgHumanMs: avg(p.humanDeltas),
+    })).sort((a, b) => b.todayIn - a.todayIn),
   });
 });
 
