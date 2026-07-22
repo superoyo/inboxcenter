@@ -987,6 +987,13 @@
           <div class="stat-block"><div class="stat-label">🤖 การตอบด้วย bot</div><div>${botHtml}</div></div>
 
           <div class="stat-block">
+            <div class="stat-label">🔑 คำสำคัญในห้องนี้</div>
+            <div class="kw-chips">${(c.keywords && c.keywords.length)
+              ? c.keywords.map((k) => `<span class="kw-chip" title="พูดถึง ${k.count} ครั้ง">${esc(k.word)} <b>${k.count}</b></span>`).join('')
+              : '<span class="muted">ยังไม่มีคำสำคัญ (ข้อความน้อยเกินไป)</span>'}</div>
+          </div>
+
+          <div class="stat-block">
             <div class="stat-label">🏷 แท็ก</div>
             <div>${(c.tags || []).map((t) => `<span class="tag-chip">${esc(t)}</span>`).join('') || '<span class="muted">ยังไม่มีแท็ก — เพิ่มได้ที่หัวแชท</span>'}</div>
           </div>

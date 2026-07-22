@@ -3,6 +3,7 @@ const path = require('path');
 const fb = require('./lib/facebook');
 const store = require('./lib/store');
 const urgency = require('./lib/urgency');
+const keywords = require('./lib/keywords');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -373,6 +374,7 @@ app.get('/api/conversations/:id/thread', async (req, res) => {
     remark: remarksMap[conv.id] || '',
     statusOverride: statusMap[conv.id] || '',
     botTexts,
+    keywords: keywords.roomKeywords(conv.messages), // คำสำคัญของห้องนี้ (จากข้อความลูกค้า)
   });
 });
 
@@ -420,6 +422,7 @@ app.get('/api/analytics', async (req, res) => {
 
   const daily = {};                 // day -> { in, out } (เฉพาะช่วงที่เลือก)
   const hourly = Array(24).fill(0); // ข้อความเข้า แยกรายชั่วโมง (เฉพาะช่วงที่เลือก)
+  const wordRoomCounts = new Map(); // คำ -> จำนวนห้องที่พูดถึง (word cloud)
   let periodIn = 0, prevIn = 0;
   const humanDeltas = [], botDeltas = [];
   const waiting = [];               // ห้องที่ข้อความล่าสุดของลูกค้าอยู่ในช่วงที่เลือก และยังไม่ได้ตอบ
@@ -435,6 +438,7 @@ app.get('/api/analytics', async (req, res) => {
     });
     let pending = null, hasHumanP = false, hasBotP = false, lastCust = null, activeInPeriod = false;
     let lastPairDelta = null, lastPairAt = null; // คู่ถาม-ตอบล่าสุดที่การตอบอยู่ในช่วงที่เลือก
+    const roomTokens = new Set();   // คำสำคัญของห้องนี้ (ข้อความลูกค้าในช่วงที่เลือก)
     const lastMsg = c.messages[c.messages.length - 1];
 
     for (const m of c.messages) {
@@ -448,6 +452,7 @@ app.get('/api/analytics', async (req, res) => {
           hourly[new Date(t + offsetMs).getUTCHours()]++;
           periodIn++;
           pp.periodIn++;
+          if (m.text) for (const tok of keywords.extractTokens(m.text)) roomTokens.add(tok);
         } else if (inPrev(k)) {
           prevIn++;
         }
@@ -473,6 +478,7 @@ app.get('/api/analytics', async (req, res) => {
     // ตัวชี้วัดระดับห้อง: นับเฉพาะห้องที่มีความเคลื่อนไหวในช่วงที่เลือก
     if (!activeInPeriod) continue;
     activeRooms++;
+    for (const tok of roomTokens) wordRoomCounts.set(tok, (wordRoomCounts.get(tok) || 0) + 1);
 
     const level = statusMap[c.id] || urgency.classify(lastCust ? lastCust.text : '');
     urgencyCount[level]++;
@@ -529,6 +535,13 @@ app.get('/api/analytics', async (req, res) => {
   const answeredBuckets = answeredBucketsDef.map(([label, fn]) => ({ label, count: answeredRooms.filter((w) => fn(w.replyDelta)).length }));
   answeredRooms.sort((a, b) => new Date(b.repliedAt) - new Date(a.repliedAt));
 
+  // word cloud: คำที่ถูกพูดถึงในหลายห้องที่สุด (ห้อง ≥2 ถ้ามีพอ, สูงสุด 40 คำ)
+  let cloud = [...wordRoomCounts.entries()].sort((a, b) => b[1] - a[1]);
+  const cloudFiltered = cloud.filter(([, n]) => n >= 2);
+  cloud = (cloudFiltered.length >= 5 ? cloudFiltered : cloud)
+    .slice(0, 40)
+    .map(([word, count]) => ({ word, count }));
+
   // ห้องเสี่ยงที่ต้องรีบจัดการ: แดงก่อน แล้วไล่ตามเวลารอนานสุด
   const rank = { red: 0, yellow: 1, green: 2 };
   const sortedWaiting = [...waiting].sort((a, b) => rank[a.level] - rank[b.level] || b.waitedMs - a.waitedMs);
@@ -567,6 +580,7 @@ app.get('/api/analytics', async (req, res) => {
       rooms: answeredRooms.slice(0, 300),
     },
     urgency: urgencyCount,
+    keywords: cloud,
     days,
     hourly,
     alerts,
@@ -576,6 +590,52 @@ app.get('/api/analytics', async (req, res) => {
       avgHumanMs: avg(p.humanDeltas),
     })).sort((a, b) => b.periodIn - a.periodIn),
   });
+});
+
+// ห้องที่พูดถึงคำที่เลือก (จาก word cloud) — เงื่อนไขช่วงเวลา/เพจ เดียวกับ analytics
+app.get('/api/keyword-rooms', async (req, res) => {
+  const { pageId } = req.query;
+  const word = String(req.query.word || '').trim().toLowerCase();
+  if (!word) return res.status(400).json({ error: 'ต้องระบุ word' });
+
+  const tzMin = parseInt(req.query.tz, 10);
+  const dayKey = dayKeyFactory(tzMin);
+  const DAY = 86400e3;
+  const reDate = /^\d{4}-\d{2}-\d{2}$/;
+  const kTime = (k) => Date.parse(k + 'T00:00:00Z');
+  const kOf = (t) => new Date(t).toISOString().slice(0, 10);
+  const todayKey = dayKey(Date.now());
+  let toKey = reDate.test(req.query.to) ? req.query.to : todayKey;
+  let fromKey = reDate.test(req.query.from) ? req.query.from : todayKey.slice(0, 8) + '01';
+  if (fromKey > toKey) [fromKey, toKey] = [toKey, fromKey];
+  if ((kTime(toKey) - kTime(fromKey)) / DAY > 365) fromKey = kOf(kTime(toKey) - 365 * DAY);
+  const inPeriod = (k) => k >= fromKey && k <= toKey;
+
+  const convs = pageId ? await store.getConversationsForPage(pageId) : await store.getAllConversations();
+  const statusMap = await store.getStatuses();
+  const rooms = [];
+  for (const c of convs) {
+    let hit = false, lastCust = null;
+    for (const m of c.messages) {
+      if (!m.isFromPage) lastCust = m;
+      if (hit || m.isFromPage || !m.text) continue;
+      if (!inPeriod(dayKey(new Date(m.createdTime).getTime()))) continue;
+      // กรองหยาบด้วย substring ก่อน ค่อยตัดคำจริง (เร็วกว่ามาก)
+      if (!m.text.toLowerCase().includes(word)) continue;
+      if (keywords.extractTokens(m.text).includes(word)) hit = true;
+    }
+    if (!hit) continue;
+    const lastMsg = c.messages[c.messages.length - 1];
+    rooms.push({
+      id: c.id, customerName: c.customerName, pageName: c.pageName,
+      customerId: c.customerId, customerPic: c.customerPic || '',
+      level: statusMap[c.id] || urgency.classify(lastCust ? lastCust.text : ''),
+      lastText: ((lastMsg && (lastMsg.text || '📎 ไฟล์แนบ')) || '').slice(0, 90),
+      updatedTime: c.updatedTime,
+    });
+  }
+  rooms.sort((a, b) => new Date(b.updatedTime) - new Date(a.updatedTime));
+  res.json({ word, total: rooms.length, rooms: rooms.slice(0, 300) });
 });
 
 // ---------- Saved replies (คำตอบสำเร็จรูป แยกตามเพจ) ----------

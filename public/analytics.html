@@ -62,6 +62,19 @@
     .period-select { width: auto; font-weight: 600; font-size: 13px; padding: 8px 10px; cursor: pointer; }
     #customRange input[type="date"] { width: auto; font-size: 13px; padding: 7px 9px; }
 
+    /* word cloud */
+    .word-cloud {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px 16px;
+      align-items: baseline;
+      justify-content: center;
+      padding: 10px 6px;
+      min-height: 60px;
+    }
+    .wc-word { cursor: pointer; font-weight: 700; line-height: 1.35; white-space: nowrap; }
+    .wc-word:hover { text-decoration: underline; }
+
     /* การ์ดที่คลิกได้ */
     .an-card.clickable { cursor: pointer; transition: box-shadow 0.15s; }
     .an-card.clickable:hover { box-shadow: 0 4px 16px rgba(0, 0, 0, 0.10); border-color: var(--primary); }
@@ -227,6 +240,13 @@
         <div class="haxis"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></div>
         <div class="foot" id="hourFoot"></div>
       </div>
+    </div>
+
+    <!-- แถวที่ 2.5: word cloud คำที่ลูกค้าพูดถึง -->
+    <div class="an-card" style="margin-top: 14px;">
+      <h3 id="cloudTitle">☁️ คำที่ลูกค้าพูดถึงบ่อย</h3>
+      <div class="word-cloud" id="wordCloud"></div>
+      <div class="foot" style="text-align: center;">ขนาดคำ = จำนวนห้องที่พูดถึง · คลิกคำเพื่อเปิดรายการห้องและตอบแชท</div>
     </div>
 
     <!-- แถวที่ 3: Human Error Guard -->
@@ -451,6 +471,7 @@
       renderHourChart(a.hourly);
       renderAging(a.waiting.agingBuckets);
       renderAnswered(a.answeredList.buckets);
+      renderWordCloud(a.keywords || []);
       renderUrgency(a.urgency);
       renderAlerts(a.alerts);
       renderPerPage(a.perPage, !!pageId);
@@ -621,9 +642,30 @@
           </tr>`).join('');
     }
 
+    // ---------- Word cloud ----------
+    function renderWordCloud(words) {
+      $('cloudTitle').textContent = `☁️ คำที่ลูกค้าพูดถึงบ่อย · ${currentPeriodLabel}`;
+      if (!words.length) {
+        $('wordCloud').innerHTML = '<span class="muted">ยังไม่มีข้อความเพียงพอในช่วงที่เลือก</span>';
+        return;
+      }
+      const max = words[0].count, min = words[words.length - 1].count;
+      // สลับตำแหน่งให้คำใหญ่กระจายกลางๆ ไม่กองซ้ายบน (ผลลัพธ์คงที่ ไม่สุ่ม)
+      const arranged = [];
+      words.forEach((w, i) => (i % 2 ? arranged.push(w) : arranged.unshift(w)));
+      $('wordCloud').innerHTML = arranged.map((w) => {
+        const ratio = max === min ? 1 : (w.count - min) / (max - min);
+        const size = Math.round(13 + ratio * 17);
+        const color = ratio > 0.66 ? 'var(--ord-4)' : ratio > 0.33 ? 'var(--ord-3)' : 'var(--ord-2)';
+        return `<span class="wc-word" data-wpopen style="font-size:${size}px; color:${color};"
+          title="${w.count} ห้องพูดถึงคำนี้ — คลิกเพื่อดู" onclick="openKeywordPanel('${esc(w.word)}')">${esc(w.word)}</span>`;
+      }).join('');
+    }
+
     // ---------- Panel ตอบห้องค้าง ----------
     let lastAnalytics = null;
     let wpActiveId = null;
+    let wpKeyword = { word: '', rooms: [] };
 
     function anToast(msg) {
       const t = $('anToast');
@@ -642,6 +684,7 @@
     let wpMode = { type: 'waiting', bucket: null };
 
     function wpRooms() {
+      if (wpMode.type === 'keyword') return wpKeyword.rooms;
       if (!lastAnalytics) return [];
       const src = wpMode.type === 'waiting'
         ? (lastAnalytics.waiting.rooms || [])
@@ -653,10 +696,39 @@
 
     function refreshWpPanel() {
       const rooms = wpRooms();
-      const typeLabel = wpMode.type === 'waiting' ? '⏳ ห้องที่ยังไม่ได้ตอบ' : '✅ ห้องที่ตอบแล้ว';
+      const typeLabel = wpMode.type === 'waiting' ? '⏳ ห้องที่ยังไม่ได้ตอบ'
+        : wpMode.type === 'answered' ? '✅ ห้องที่ตอบแล้ว'
+        : `🔑 ห้องที่พูดถึง "${wpKeyword.word}"`;
       const bucketLabel = wpMode.bucket != null ? ' · ' + WP_BUCKETS[wpMode.bucket].label : '';
       $('wpTitle').textContent = `${typeLabel}${bucketLabel} (${rooms.length}) · ${currentPeriodLabel}`;
       renderWpList(rooms);
+    }
+
+    // คลิกคำใน word cloud → โหลดห้องที่พูดถึงคำนั้น แล้วเปิด panel
+    async function openKeywordPanel(word) {
+      wpMode = { type: 'keyword', bucket: null };
+      wpKeyword = { word, rooms: [] };
+      $('waitingPanel').classList.add('open');
+      $('wpList').innerHTML = '<div class="muted" style="padding:14px;">⏳ กำลังค้นหาห้อง...</div>';
+      $('wpChat').innerHTML = '<div class="wp-empty">⏳ กำลังค้นหาห้อง...</div>';
+      $('wpTitle').textContent = `🔑 ห้องที่พูดถึง "${word}" · ${currentPeriodLabel}`;
+      try {
+        const range = periodRange(periodKind);
+        const params = new URLSearchParams({ tz: TZ, word, from: range.from, to: range.to });
+        if (selectedPageId) params.set('pageId', selectedPageId);
+        const d = await fetch('/api/keyword-rooms?' + params).then((r) => r.json());
+        if (d.error) throw new Error(d.error);
+        wpKeyword.rooms = d.rooms || [];
+        refreshWpPanel();
+        const first = window.innerWidth > 800 && wpKeyword.rooms[0];
+        if (first) selectWaitingRoom(first.id);
+        else {
+          $('waitingPanel').classList.remove('chat-open');
+          $('wpChat').innerHTML = `<div class="wp-empty">${wpKeyword.rooms.length ? 'เลือกห้องจากด้านซ้ายเพื่อดูแชทและตอบ' : 'ไม่พบห้องที่พูดถึงคำนี้'}</div>`;
+        }
+      } catch (err) {
+        $('wpChat').innerHTML = `<div class="wp-empty">ค้นหาไม่สำเร็จ: ${esc(err.message)}</div>`;
+      }
     }
 
     // เปิด panel: ถ้าไม่ได้ระบุห้อง ให้เปิดแชทของห้องแรกในรายการอัตโนมัติ
@@ -715,7 +787,9 @@
       $('wpList').innerHTML = rooms.length ? rooms.map((w) => {
         const timeHtml = isWaiting
           ? `<span class="time" style="${w.waitedMs > 86400e3 ? 'color:var(--st-critical);' : ''}">${fmtDur(w.waitedMs)}</span>`
-          : `<span class="time" style="color:var(--delta-good);">ตอบใน ${fmtDur(w.replyDelta)}</span>`;
+          : wpMode.type === 'answered'
+            ? `<span class="time" style="color:var(--delta-good);">ตอบใน ${fmtDur(w.replyDelta)}</span>`
+            : `<span class="time" style="color:var(--ink-mute); font-weight:400;">${fmtDur(Date.now() - new Date(w.updatedTime))}ก่อน</span>`;
         return `
         <div class="conv-item ${w.id === wpActiveId ? 'active' : ''}" onclick="selectWaitingRoom('${esc(w.id)}')">
           ${custAvatarHtml(w.customerPic, w.customerName, w.customerId)}
@@ -730,7 +804,8 @@
           </div>
         </div>`;
       }).join('')
-      : `<div class="muted" style="padding: 14px;">${isWaiting ? '✓ ไม่มีห้องค้างตอบในช่วงนี้' : 'ยังไม่มีห้องที่ตอบแล้วในช่วงนี้'}</div>`;
+      : `<div class="muted" style="padding: 14px;">${isWaiting ? '✓ ไม่มีห้องค้างตอบในช่วงนี้'
+          : wpMode.type === 'answered' ? 'ยังไม่มีห้องที่ตอบแล้วในช่วงนี้' : 'ไม่พบห้องที่พูดถึงคำนี้'}</div>`;
     }
 
     async function selectWaitingRoom(convId) {
