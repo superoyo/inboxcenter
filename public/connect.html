@@ -28,6 +28,7 @@
         <button class="btn" id="addBtn">เชื่อมต่อ</button>
       </div>
       <p id="addError" class="error-text" style="margin-top: 10px; display: none;"></p>
+      <p id="tokenModeNote" class="muted" style="margin-top: 10px;"></p>
 
       <!-- รายชื่อเพจให้เลือก (กรณีวาง User token) -->
       <div id="pageSelect" style="display: none; margin-top: 16px;">
@@ -230,6 +231,13 @@
 
     $('addBtn').addEventListener('click', addPage);
     $('tokenInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') addPage(); });
+
+    // แจ้งว่าระบบแลก long-lived token อัตโนมัติเปิดอยู่หรือไม่
+    fetch('/api/config').then((r) => r.json()).then((cfg) => {
+      $('tokenModeNote').innerHTML = cfg.longLivedTokens
+        ? '🔒 <b style="color: var(--green);">ระบบแลกเป็น long-lived token อัตโนมัติ</b> — Page token ที่เก็บจะไม่มีวันหมดอายุ'
+        : '⚠️ ยังไม่ได้ตั้งค่า <code>FB_APP_ID</code> / <code>FB_APP_SECRET</code> — token ที่วางจะหมดอายุภายในไม่กี่ชั่วโมงถึง 1 วัน ต้องวางใหม่เรื่อยๆ';
+    }).catch(() => {});
 
     loadPages();
   </script>

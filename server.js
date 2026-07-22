@@ -55,6 +55,13 @@ function matchesQuery(c, needle) {
   );
 }
 
+// การตั้งค่าที่หน้าเว็บต้องรู้ (ไม่เปิดเผยค่า secret)
+app.get('/api/config', (req, res) => {
+  res.json({
+    longLivedTokens: !!(process.env.FB_APP_ID && process.env.FB_APP_SECRET),
+  });
+});
+
 // ---------- Pages ----------
 
 // รายชื่อเพจที่เชื่อมต่อแล้ว (ไม่ส่ง token กลับไปหน้าเว็บ)
@@ -79,12 +86,23 @@ app.get('/api/pages', async (req, res) => {
 // เพิ่มเพจใหม่ — รองรับทั้ง User token และ Page token
 // - User token: ตอบรายชื่อเพจทั้งหมดกลับไปให้เลือกก่อน (needsSelection)
 // - Page token: เชื่อมต่อทันที
+// แลก token เป็น long-lived ก่อนใช้เสมอ (ถ้าตั้ง FB_APP_ID/FB_APP_SECRET ไว้)
+// → Page token ที่ดึงต่อจาก user token แบบ long-lived จะไม่มีวันหมดอายุ
+async function toLongLived(token) {
+  try {
+    const ll = await fb.exchangeLongLivedToken(token);
+    return ll || token;
+  } catch {
+    return token; // แลกไม่สำเร็จ (เช่น token ประเภทที่แลกไม่ได้) — ใช้ตัวเดิม
+  }
+}
+
 app.post('/api/pages', async (req, res) => {
   const { accessToken } = req.body || {};
   if (!accessToken || typeof accessToken !== 'string') {
     return res.status(400).json({ error: 'กรุณาใส่ Access Token' });
   }
-  const token = accessToken.trim();
+  const token = await toLongLived(accessToken.trim());
 
   // ลองแบบ User token ก่อน: ถ้ามีเพจใน /me/accounts แสดงว่าเป็น user token
   try {
@@ -132,7 +150,7 @@ app.post('/api/pages/from-user-token', async (req, res) => {
     return res.status(400).json({ error: 'ต้องระบุ accessToken และ pageIds' });
   }
   try {
-    const userPages = await fb.getUserPages(accessToken.trim());
+    const userPages = await fb.getUserPages(await toLongLived(accessToken.trim()));
     const wanted = new Set(pageIds);
     const connected = [];
     for (const p of userPages) {

@@ -30,8 +30,24 @@ node seed-demo.js
 3. เพิ่มสิทธิ์: `pages_messaging`, `pages_read_engagement`, `pages_show_list`
 4. เลือกเพจ แล้วคัดลอก token มาวางในหน้า "เชื่อมต่อเพจ"
 
-> แนะนำให้แปลงเป็น **long-lived token** (อายุ ~60 วัน) ก่อนใช้งานจริง:
-> `GET /oauth/access_token?grant_type=fb_exchange_token&client_id={app-id}&client_secret={app-secret}&fb_exchange_token={short-token}`
+## ทำให้ token ไม่หมดอายุ (แนะนำอย่างยิ่ง)
+
+Token จาก Graph Explorer หมดอายุภายในไม่กี่ชั่วโมง — ตั้ง environment variables 2 ตัวแล้วระบบจะ
+**แลกเป็น long-lived token ให้อัตโนมัติ** ตอนเชื่อมต่อเพจ ทำให้ **Page token ที่เก็บไม่มีวันหมดอายุ**:
+
+| ตัวแปร | ค่า | หาได้จาก |
+|---|---|---|
+| `FB_APP_ID` | App ID ของแอป | developers.facebook.com → แอป → Settings → Basic |
+| `FB_APP_SECRET` | App Secret ของแอป | ที่เดียวกัน (กด Show) |
+
+- **Railway**: service ของแอป → Variables → เพิ่ม 2 ตัวนี้ → redeploy
+- **ในเครื่อง**: `FB_APP_ID=xxx FB_APP_SECRET=yyy npm start`
+
+จากนั้น**เชื่อมต่อเพจใหม่อีกครั้งเดียว**ด้วย token สดจาก Explorer — หน้าเชื่อมต่อเพจจะขึ้น
+"🔒 ระบบแลกเป็น long-lived token อัตโนมัติ" เมื่อเปิดใช้แล้ว
+
+> Page token แบบไม่หมดอายุจะถูกยกเลิกเฉพาะเมื่อ: เปลี่ยนรหัสผ่าน Facebook, ถอนสิทธิ์แอป,
+> พ้นจากการเป็นแอดมินเพจ, หรือ Facebook บังคับ logout เพื่อความปลอดภัย
 
 ## API Endpoints
 
