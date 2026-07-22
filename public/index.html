@@ -354,7 +354,7 @@
           ${(() => {
             // จับเวลาตอบ: ข้อความแรกของเพจหลังลูกค้าถาม จะแสดงว่าตอบช้าไปเท่าไหร่
             let lastAsk = null, answered = true;
-            return c.messages.map((m) => {
+            return c.messages.map((m, i) => {
               let latency = '';
               const t = new Date(m.createdTime);
               if (!m.isFromPage) { lastAsk = t; answered = false; }
@@ -371,13 +371,16 @@
                   <span class="meta-time">${t.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.</span>
                   · ${esc(m.isFromPage ? c.pageName : m.fromName)} · ${t.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })}
                   ${latency ? `<span class="meta-latency">${latency}</span>` : ''}
+                  ${m.isFromPage && m.text ? `<span class="save-reply-icon" title="บันทึกข้อความนี้เป็นคำตอบสำเร็จรูปของเพจ" onclick="saveBubbleAsReply('${esc(c.id)}', ${i})">💾</span>` : ''}
                 </div>
               </div>
             </div>`;
             }).join('');
           })()}
         </div>
+        <div class="saved-replies-pop" id="savedRepliesPop" style="display:none;"></div>
         <div class="reply-bar">
+          <button class="btn small secondary" id="savedReplyBtn" title="คำตอบสำเร็จรูปของเพจนี้">💬</button>
           <input type="text" id="replyInput" placeholder="พิมพ์ข้อความตอบกลับในนาม ${esc(c.pageName)}..." autocomplete="off">
           <button class="btn" id="replySendBtn">ส่ง</button>
         </div>`;
@@ -391,7 +394,97 @@
 
       $('replySendBtn').addEventListener('click', () => sendReply(c.id));
       $('replyInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendReply(c.id); });
+      $('savedReplyBtn').addEventListener('click', () => toggleSavedReplies(c.id));
       $('replyInput').focus();
+    }
+
+    // ---------- Saved replies (คำตอบสำเร็จรูป แยกตามเพจ) ----------
+    const savedRepliesCache = {};
+
+    async function fetchSavedReplies(pageId) {
+      savedRepliesCache[pageId] = await fetch(`/api/pages/${encodeURIComponent(pageId)}/saved-replies`).then((r) => r.json());
+      return savedRepliesCache[pageId];
+    }
+
+    async function toggleSavedReplies(convId) {
+      const pop = $('savedRepliesPop');
+      if (pop.style.display !== 'none') { pop.style.display = 'none'; return; }
+      await renderSavedRepliesPop(convId);
+      pop.style.display = 'flex';
+    }
+
+    async function renderSavedRepliesPop(convId) {
+      const c = conversations.find((x) => x.id === convId);
+      if (!c) return;
+      const list = await fetchSavedReplies(c.pageId);
+      $('savedRepliesPop').innerHTML = `
+        <div class="srp-head">
+          <span>💬 คำตอบสำเร็จรูป — ${esc(c.pageName)}</span>
+          <button class="btn small secondary" onclick="$('savedRepliesPop').style.display='none'">✕</button>
+        </div>
+        <div class="srp-list">
+          ${list.length ? list.map((r) => `
+            <div class="srp-item">
+              <span class="srp-text" title="คลิกเพื่อใช้คำตอบนี้" onclick="useSavedReply('${esc(r.id)}', '${esc(c.pageId)}')">${esc(r.text)}</span>
+              <b title="ลบคำตอบนี้" onclick="removeSavedReply('${esc(c.pageId)}', '${esc(r.id)}', '${esc(convId)}')">×</b>
+            </div>`).join('')
+          : '<div class="muted" style="padding: 12px;">ยังไม่มีคำตอบสำเร็จรูปของเพจนี้<br>เพิ่มด้านล่าง หรือกด 💾 ท้ายข้อความที่เพจเคยตอบในแชท</div>'}
+        </div>
+        <div class="srp-add">
+          <textarea id="newSavedReplyText" rows="2" placeholder="พิมพ์คำตอบใหม่ที่ต้องการเก็บไว้..."></textarea>
+          <button class="btn small" onclick="addSavedReplyFromInput('${esc(c.pageId)}', '${esc(convId)}')">+ เพิ่ม</button>
+        </div>`;
+    }
+
+    function useSavedReply(replyId, pageId) {
+      const r = (savedRepliesCache[pageId] || []).find((x) => x.id === replyId);
+      if (!r) return;
+      $('replyInput').value = r.text;
+      $('savedRepliesPop').style.display = 'none';
+      $('replyInput').focus();
+    }
+
+    async function addSavedReplyFromInput(pageId, convId) {
+      const text = $('newSavedReplyText').value.trim();
+      if (!text) return;
+      try {
+        const res = await fetch(`/api/pages/${encodeURIComponent(pageId)}/saved-replies`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        toast(data.duplicated ? 'มีคำตอบนี้อยู่แล้ว' : 'เพิ่มคำตอบสำเร็จรูปแล้ว');
+        await renderSavedRepliesPop(convId);
+      } catch (err) {
+        toast(err.message || 'เพิ่มคำตอบไม่สำเร็จ');
+      }
+    }
+
+    async function removeSavedReply(pageId, replyId, convId) {
+      await fetch(`/api/pages/${encodeURIComponent(pageId)}/saved-replies/${encodeURIComponent(replyId)}`, { method: 'DELETE' });
+      toast('ลบคำตอบแล้ว');
+      await renderSavedRepliesPop(convId);
+    }
+
+    // เก็บข้อความที่เพจเคยตอบในแชท เป็นคำตอบสำเร็จรูปของเพจนั้น
+    async function saveBubbleAsReply(convId, msgIndex) {
+      const c = conversations.find((x) => x.id === convId);
+      const m = c && c.messages[msgIndex];
+      if (!m || !m.text) return;
+      try {
+        const res = await fetch(`/api/pages/${encodeURIComponent(c.pageId)}/saved-replies`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: m.text }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        toast(data.duplicated ? 'ข้อความนี้ถูกบันทึกไว้แล้ว' : 'บันทึกเป็นคำตอบสำเร็จรูปแล้ว 💾');
+      } catch (err) {
+        toast(err.message || 'บันทึกไม่สำเร็จ');
+      }
     }
 
     async function sendReply(convId) {
