@@ -87,13 +87,16 @@
         ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     }
 
+    // วันนี้ (พร้อมเวลา) / เมื่อวาน / X วันก่อน / เกิน 7 วัน → วันที่จริง
     function fmtTime(iso) {
       const d = new Date(iso);
       const now = new Date();
-      const sameDay = d.toDateString() === now.toDateString();
-      return sameDay
-        ? d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
-        : d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
+      const startOfDay = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate());
+      const dayDiff = Math.round((startOfDay(now) - startOfDay(d)) / 86400e3);
+      if (dayDiff <= 0) return 'วันนี้ ' + d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+      if (dayDiff === 1) return 'เมื่อวาน';
+      if (dayDiff <= 7) return dayDiff + ' วันก่อน';
+      return d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' });
     }
 
     function fmtFull(iso) {
