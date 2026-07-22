@@ -423,6 +423,7 @@ app.get('/api/analytics', async (req, res) => {
   let periodIn = 0, prevIn = 0;
   const humanDeltas = [], botDeltas = [];
   const waiting = [];               // ห้องที่ข้อความล่าสุดของลูกค้าอยู่ในช่วงที่เลือก และยังไม่ได้ตอบ
+  const answeredRooms = [];         // ห้องที่ตอบแล้ว พร้อมความเร็วของคู่ถาม-ตอบล่าสุดในช่วง
   const urgencyCount = { red: 0, yellow: 0, green: 0 };
   let activeRooms = 0, answered = 0, botOnlyRooms = 0, roomsWithReply = 0;
   const perPage = {};               // pageId -> ตัวเลขต่อเพจ (โหมดภาพรวม)
@@ -433,6 +434,7 @@ app.get('/api/analytics', async (req, res) => {
       periodIn: 0, waiting: 0, over24h: 0, red: 0, humanDeltas: [],
     });
     let pending = null, hasHumanP = false, hasBotP = false, lastCust = null, activeInPeriod = false;
+    let lastPairDelta = null, lastPairAt = null; // คู่ถาม-ตอบล่าสุดที่การตอบอยู่ในช่วงที่เลือก
     const lastMsg = c.messages[c.messages.length - 1];
 
     for (const m of c.messages) {
@@ -460,6 +462,8 @@ app.get('/api/analytics', async (req, res) => {
             const d = t - pending;
             if (bot) botDeltas.push(d);
             else { humanDeltas.push(d); pp.humanDeltas.push(d); }
+            lastPairDelta = d;
+            lastPairAt = t;
           }
           pending = null;
         }
@@ -487,6 +491,14 @@ app.get('/api/analytics', async (req, res) => {
       if (waitedMs > 24 * HOUR) pp.over24h++;
     } else {
       answered++;
+      if (lastPairDelta != null && lastMsg) {
+        answeredRooms.push({
+          id: c.id, customerName: c.customerName, pageName: c.pageName,
+          customerId: c.customerId, customerPic: c.customerPic || '',
+          level, lastText: (lastMsg.text || '📎 ไฟล์แนบ').slice(0, 90),
+          replyDelta: lastPairDelta, repliedAt: new Date(lastPairAt).toISOString(),
+        });
+      }
     }
     if (hasBotP || hasHumanP) { roomsWithReply++; if (hasBotP && !hasHumanP) botOnlyRooms++; }
   }
@@ -506,6 +518,16 @@ app.get('/api/analytics', async (req, res) => {
     ['เกิน 24 ชม. ⛔', (w) => w > 24 * HOUR],
   ];
   const agingBuckets = bucketsDef.map(([label, fn]) => ({ label, count: waiting.filter((w) => fn(w.waitedMs)).length }));
+
+  // ห้องที่ตอบแล้ว แบ่งตามความเร็วในการตอบ (ช่วงเดียวกับ aging)
+  const answeredBucketsDef = [
+    ['ตอบใน 1 ชม.', (d) => d <= HOUR],
+    ['1–6 ชม.', (d) => d > HOUR && d <= 6 * HOUR],
+    ['6–24 ชม.', (d) => d > 6 * HOUR && d <= 24 * HOUR],
+    ['เกิน 24 ชม.', (d) => d > 24 * HOUR],
+  ];
+  const answeredBuckets = answeredBucketsDef.map(([label, fn]) => ({ label, count: answeredRooms.filter((w) => fn(w.replyDelta)).length }));
+  answeredRooms.sort((a, b) => new Date(b.repliedAt) - new Date(a.repliedAt));
 
   // ห้องเสี่ยงที่ต้องรีบจัดการ: แดงก่อน แล้วไล่ตามเวลารอนานสุด
   const rank = { red: 0, yellow: 1, green: 2 };
@@ -538,6 +560,11 @@ app.get('/api/analytics', async (req, res) => {
       agingBuckets,
       over24h: agingBuckets[3].count,
       rooms: sortedWaiting.slice(0, 300), // รายการเต็มสำหรับ panel ตอบแชท (จำกัด 300)
+    },
+    answeredList: {
+      total: answered,
+      buckets: answeredBuckets,
+      rooms: answeredRooms.slice(0, 300),
     },
     urgency: urgencyCount,
     days,
