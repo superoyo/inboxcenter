@@ -19,7 +19,10 @@
   <div class="inbox-layout" id="layout">
     <!-- ซ้ายสุด: เลือกเพจ + ปฏิทินสรุปจำนวน inbox รายวัน -->
     <aside class="cal-panel">
-      <div class="page-list-panel" id="pageListPanel"></div>
+      <div class="page-list-panel">
+        <input type="text" id="pageSearchInput" class="page-search" placeholder="🔍 ค้นหาเพจ..." autocomplete="off">
+        <div class="page-list-items" id="pageListItems"></div>
+      </div>
       <div class="cal-head">
         <button class="cal-nav" id="calPrev">‹</button>
         <span class="cal-title" id="calTitle"></span>
@@ -142,17 +145,22 @@
     }
 
     function renderPageListPanel() {
-      $('pageListPanel').innerHTML = `
+      const q = ($('pageSearchInput').value || '').trim().toLowerCase();
+      const shown = q ? pages.filter((p) => p.name.toLowerCase().includes(q)) : pages;
+      $('pageListItems').innerHTML = `
         <div class="page-list-item ${!selectedPageId ? 'active' : ''}" onclick="selectPage('')">
           <div class="page-avatar-fallback" style="background:var(--primary);">∀</div>
           <span>ทุกเพจ (${pages.length})</span>
         </div>` +
-        pages.map((p) => `
+        shown.map((p) => `
           <div class="page-list-item ${selectedPageId === p.id ? 'active' : ''}" onclick="selectPage('${esc(p.id)}')">
             ${pageAvatarHtml(p)}
             <span>${esc(p.name)}</span>
-          </div>`).join('');
+          </div>`).join('') +
+        (q && !shown.length ? '<div class="muted" style="padding:8px 10px;">ไม่พบเพจที่ค้นหา</div>' : '');
     }
+
+    $('pageSearchInput').addEventListener('input', renderPageListPanel);
 
     function selectPage(id) {
       selectedPageId = id;
