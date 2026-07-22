@@ -561,6 +561,47 @@ input:focus, textarea:focus, select:focus { outline: 2px solid var(--primary); b
 }
 .sr-addform input { font-size: 13px; padding: 7px 10px; }
 
+/* ---------- Panel สถานะการดึง inbox ---------- */
+.sync-panel {
+  position: fixed;
+  top: 56px;
+  right: 0;
+  bottom: 0;
+  width: 430px;
+  max-width: 92vw;
+  background: var(--card);
+  border-left: 1px solid var(--border);
+  box-shadow: -8px 0 30px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+  z-index: 60;
+  transform: translateX(105%);
+  transition: transform 0.25s ease;
+}
+.sync-panel.open { transform: none; }
+.sync-body { display: flex; flex-direction: column; gap: 16px; padding: 14px 16px; flex: 1; min-height: 0; }
+.sync-sec-title { font-size: 13px; font-weight: 700; color: var(--muted); margin-bottom: 8px; }
+.sync-history { overflow-y: auto; flex: 1; border: 1px solid var(--border); border-radius: 10px; }
+.sync-run { border-bottom: 1px solid var(--bg); cursor: pointer; }
+.sync-run:hover { background: var(--bg); }
+.sync-run-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  font-size: 12.5px;
+}
+.sync-run-head .sr-time { font-weight: 700; font-variant-numeric: tabular-nums; }
+.sync-run-head .sr-sum { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; }
+.sync-run-det {
+  display: none;
+  padding: 4px 12px 10px 24px;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.8;
+}
+.sync-run.exp .sync-run-det { display: block; }
+
 /* ปุ่ม 💾 ท้ายข้อความของเพจ */
 .save-reply-icon { cursor: pointer; opacity: 0.55; margin-left: 4px; }
 .save-reply-icon:hover { opacity: 1; }

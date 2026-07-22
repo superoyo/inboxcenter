@@ -102,6 +102,40 @@
     </div>
   </div>
 
+  <!-- Panel สถานะการดึง inbox (สไลด์จากขวา) -->
+  <div class="sync-panel" id="syncPanel">
+    <div class="sr-head">
+      <span>🔄 การดึง inbox</span>
+      <button class="btn small secondary" onclick="closeSyncPanel()">✕</button>
+    </div>
+    <div class="sync-body">
+      <div class="sync-sec">
+        <button class="btn" id="syncNowBtn" style="width: 100%;">▶ ดึง inbox ทุกเพจตอนนี้</button>
+        <div class="muted" id="syncNowStatus" style="margin-top: 8px;"></div>
+      </div>
+      <div class="sync-sec">
+        <div class="sync-sec-title">⏰ ดึงอัตโนมัติทุก</div>
+        <div style="display: flex; gap: 8px;">
+          <select id="intervalSelect" style="flex: 1;">
+            <option value="30">30 นาที</option>
+            <option value="60">1 ชั่วโมง</option>
+            <option value="120">2 ชั่วโมง</option>
+            <option value="180">3 ชั่วโมง</option>
+            <option value="360">6 ชั่วโมง</option>
+            <option value="720">12 ชั่วโมง</option>
+            <option value="1440">24 ชั่วโมง</option>
+          </select>
+          <button class="btn small" id="saveIntervalBtn">บันทึก</button>
+        </div>
+        <div class="muted" id="nextRunLabel" style="margin-top: 6px;"></div>
+      </div>
+      <div class="sync-sec" style="flex: 1; min-height: 0; display: flex; flex-direction: column;">
+        <div class="sync-sec-title">📜 ประวัติการดึง (คลิกเพื่อดูรายละเอียด)</div>
+        <div class="sync-history" id="syncHistory"></div>
+      </div>
+    </div>
+  </div>
+
   <script>
     const $ = (id) => document.getElementById(id);
     const PAGE_SIZE = 50; // โหลดห้องแชททีละ 50 ห้อง แล้วค่อยโหลดเพิ่มเมื่อเลื่อนถึงล่าง
@@ -1041,21 +1075,87 @@
       } catch { /* เงียบไว้ ไม่ให้รบกวนหน้าจอ */ }
     }
 
-    $('syncAllBtn').addEventListener('click', async () => {
-      const btn = $('syncAllBtn');
-      btn.disabled = true; btn.textContent = 'กำลังดึง...';
+    // ---------- Panel สถานะการดึง inbox (เปิดจากปุ่มบน navbar) ----------
+    function openSyncPanel() {
+      $('syncPanel').classList.add('open');
+      loadSyncPanel();
+    }
+    function closeSyncPanel() {
+      $('syncPanel').classList.remove('open');
+    }
+    $('syncAllBtn').addEventListener('click', openSyncPanel);
+
+    async function loadSyncPanel() {
+      try {
+        const s = await fetch('/api/sync-status').then((r) => r.json());
+        $('intervalSelect').value = String(s.autoRefreshMinutes);
+        if (![...$('intervalSelect').options].some((o) => o.selected)) $('intervalSelect').value = '60';
+        const fmt = (iso) => new Date(iso).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+        $('nextRunLabel').textContent = `รอบอัตโนมัติถัดไป ${fmt(s.nextRefreshAt)} น.`;
+      } catch { /* เงียบ */ }
+      renderSyncHistory(await fetch('/api/sync-history').then((r) => r.json()).catch(() => []));
+    }
+
+    function renderSyncHistory(runs) {
+      $('syncHistory').innerHTML = runs.length ? runs.map((r) => {
+        const ok = r.results.filter((x) => x.ok);
+        const fail = r.results.filter((x) => !x.ok);
+        const updated = r.results.reduce((s, x) => s + (x.conversations || 0), 0);
+        const t = new Date(r.startedAt);
+        return `
+          <div class="sync-run" onclick="this.classList.toggle('exp')">
+            <div class="sync-run-head">
+              <span class="sr-time">${t.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })} ${t.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.</span>
+              <span>${r.trigger === 'auto' ? '🤖 อัตโนมัติ' : '👆 กดเอง'}</span>
+              <span class="sr-sum">${ok.length}/${r.results.length} เพจ · ${updated} ห้อง</span>
+              ${fail.length ? `<span style="color:var(--red); font-weight:700;">⚠ ${fail.length}</span>` : '<span style="color:var(--green);">✓</span>'}
+            </div>
+            <div class="sync-run-det">
+              ${r.results.map((x) => x.ok
+                ? `<div>✓ ${esc(x.pageName)} — ${x.conversations} ห้องที่ขยับ</div>`
+                : `<div style="color:var(--red);">✗ ${esc(x.pageName)} — ${esc(x.error || '')}</div>`).join('')}
+            </div>
+          </div>`;
+      }).join('') : '<div class="muted" style="padding: 12px;">ยังไม่มีประวัติการดึง</div>';
+    }
+
+    $('syncNowBtn').addEventListener('click', async () => {
+      const btn = $('syncNowBtn');
+      btn.disabled = true; btn.textContent = '⏳ กำลังดึงทุกเพจ...';
+      $('syncNowStatus').textContent = 'กำลังดึงข้อมูลจาก Facebook — เพจเยอะอาจใช้เวลาสักครู่';
       try {
         const { results } = await fetch('/api/sync-all', { method: 'POST' }).then((r) => r.json());
         const ok = results.filter((r) => r.ok).length;
-        const fail = results.filter((r) => !r.ok);
+        const fail = results.filter((r) => !r.ok).length;
         const updated = results.reduce((s, r) => s + (r.conversations || 0), 0);
-        toast(results.length === 0
+        $('syncNowStatus').textContent = results.length === 0
           ? 'ยังไม่มีเพจในระบบ — ไปที่หน้าเชื่อมต่อเพจก่อน'
-          : fail.length ? `สำเร็จ ${ok} เพจ, ล้มเหลว ${fail.length} เพจ` : `ดึงครบ ${ok} เพจ — มีความเคลื่อนไหว ${updated} ห้อง`);
+          : `เสร็จแล้ว: สำเร็จ ${ok} เพจ${fail ? `, ล้มเหลว ${fail} เพจ` : ''} · มีความเคลื่อนไหว ${updated} ห้อง`;
         await loadConversations();
         await loadSyncStatus();
+        await loadSyncPanel();
+      } catch (err) {
+        $('syncNowStatus').textContent = '❌ ' + (err.message || 'ดึงไม่สำเร็จ');
       } finally {
-        btn.disabled = false; btn.textContent = '🔄 ดึง inbox ทุกเพจ';
+        btn.disabled = false; btn.textContent = '▶ ดึง inbox ทุกเพจตอนนี้';
+      }
+    });
+
+    $('saveIntervalBtn').addEventListener('click', async () => {
+      try {
+        const res = await fetch('/api/settings/sync-interval', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ minutes: parseInt($('intervalSelect').value, 10) }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        const fmt = (iso) => new Date(iso).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+        $('nextRunLabel').textContent = `รอบอัตโนมัติถัดไป ${fmt(data.nextRefreshAt)} น.`;
+        toast('บันทึกรอบเวลาแล้ว ✓');
+        await loadSyncStatus();
+      } catch (err) {
+        toast('❌ ' + (err.message || 'บันทึกไม่สำเร็จ'));
       }
     });
 

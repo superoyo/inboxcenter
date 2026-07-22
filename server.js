@@ -225,14 +225,17 @@ async function syncPage(page) {
   return conversations.length;
 }
 
-// ---------- Auto refresh ทุก 1 ชั่วโมง ----------
-const AUTO_REFRESH_MS = 60 * 60 * 1000;
+// ---------- Auto refresh (ตั้งรอบเวลาได้ ค่าเริ่มต้น 1 ชั่วโมง) ----------
+const DEFAULT_SYNC_MINUTES = 60;
 const syncStatus = { lastRefreshAt: null, lastResults: [], running: false };
-let nextRefreshAt = Date.now() + AUTO_REFRESH_MS;
+let currentIntervalMinutes = DEFAULT_SYNC_MINUTES;
+let nextRefreshAt = Date.now() + DEFAULT_SYNC_MINUTES * 60000;
+let refreshTimer = null;
 
-async function syncAllPages() {
+async function syncAllPages(trigger = 'manual') {
   if (syncStatus.running) return syncStatus.lastResults;
   syncStatus.running = true;
+  const startedAt = new Date().toISOString();
   try {
     const pages = await store.getPages();
     const results = await Promise.all(
@@ -247,18 +250,36 @@ async function syncAllPages() {
     );
     syncStatus.lastRefreshAt = new Date().toISOString();
     syncStatus.lastResults = results;
+    // บันทึกประวัติการดึงรายครั้ง
+    await store.addSyncRun({
+      id: 'run_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+      trigger, // 'auto' | 'manual'
+      startedAt,
+      finishedAt: syncStatus.lastRefreshAt,
+      results,
+    }).catch(() => {});
     return results;
   } finally {
     syncStatus.running = false;
   }
 }
 
-setInterval(() => {
-  nextRefreshAt = Date.now() + AUTO_REFRESH_MS;
-  syncAllPages()
-    .then((r) => console.log(`[auto-refresh] sync ${r.filter((x) => x.ok).length}/${r.length} เพจ, ห้องที่อัปเดต ${r.reduce((s, x) => s + (x.conversations || 0), 0)}`))
-    .catch((err) => console.error('[auto-refresh] failed:', err.message));
-}, AUTO_REFRESH_MS);
+// ตั้งเวลารอบถัดไปตามค่าที่ผู้ใช้กำหนด (setting: syncIntervalMinutes)
+async function scheduleAutoRefresh() {
+  clearTimeout(refreshTimer);
+  const saved = parseInt(await store.getSetting('syncIntervalMinutes', DEFAULT_SYNC_MINUTES), 10);
+  currentIntervalMinutes = Number.isFinite(saved) && saved >= 15 ? saved : DEFAULT_SYNC_MINUTES;
+  nextRefreshAt = Date.now() + currentIntervalMinutes * 60000;
+  refreshTimer = setTimeout(async () => {
+    try {
+      const r = await syncAllPages('auto');
+      console.log(`[auto-refresh] sync ${r.filter((x) => x.ok).length}/${r.length} เพจ, ห้องที่อัปเดต ${r.reduce((s, x) => s + (x.conversations || 0), 0)}`);
+    } catch (err) {
+      console.error('[auto-refresh] failed:', err.message);
+    }
+    scheduleAutoRefresh();
+  }, currentIntervalMinutes * 60000);
+}
 
 // สถานะการ sync — เวลาอัปเดตล่าสุด + รอบถัดไป
 app.get('/api/sync-status', async (req, res) => {
@@ -269,9 +290,29 @@ app.get('/api/sync-status', async (req, res) => {
     lastRefreshAt: syncStatus.lastRefreshAt || lastPageSync,
     nextRefreshAt: new Date(nextRefreshAt).toISOString(),
     running: syncStatus.running,
-    autoRefreshMinutes: AUTO_REFRESH_MS / 60000,
+    autoRefreshMinutes: currentIntervalMinutes,
     lastResults: syncStatus.lastResults,
   });
+});
+
+// ประวัติการดึง inbox รายครั้ง
+app.get('/api/sync-history', async (req, res) => {
+  res.json(await store.getSyncRuns(50));
+});
+
+// อ่าน/ตั้งค่ารอบเวลาดึงอัตโนมัติ (นาที, 15–1440)
+app.get('/api/settings/sync-interval', async (req, res) => {
+  res.json({ minutes: currentIntervalMinutes });
+});
+
+app.put('/api/settings/sync-interval', async (req, res) => {
+  const minutes = parseInt(req.body && req.body.minutes, 10);
+  if (!Number.isFinite(minutes) || minutes < 15 || minutes > 1440) {
+    return res.status(400).json({ error: 'รอบเวลาต้องอยู่ระหว่าง 15 นาที ถึง 24 ชั่วโมง' });
+  }
+  await store.setSetting('syncIntervalMinutes', minutes);
+  await scheduleAutoRefresh(); // รีเซ็ตตัวจับเวลาด้วยค่าใหม่ทันที
+  res.json({ ok: true, minutes, nextRefreshAt: new Date(nextRefreshAt).toISOString() });
 });
 
 // ดึง inbox ของเพจเดียว
@@ -288,7 +329,7 @@ app.post('/api/pages/:id/sync', async (req, res) => {
 
 // ดึง inbox ทุกเพจพร้อมกัน (manual refresh — ใช้ตัวเดียวกับ auto-refresh)
 app.post('/api/sync-all', async (req, res) => {
-  const results = await syncAllPages();
+  const results = await syncAllPages('manual');
   res.json({ results, lastRefreshAt: syncStatus.lastRefreshAt });
 });
 
@@ -838,6 +879,7 @@ app.get('/api/messages', async (req, res) => {
 
 store.init()
   .then(() => {
+    scheduleAutoRefresh(); // เริ่มตัวจับเวลาดึงอัตโนมัติตามค่าที่ตั้งไว้
     app.listen(PORT, () => {
       const backend = process.env.DATABASE_URL ? 'PostgreSQL' : 'JSON files (data/)';
       console.log(`Facebook Inbox Center running at http://localhost:${PORT} [storage: ${backend}]`);
