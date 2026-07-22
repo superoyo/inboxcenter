@@ -12,9 +12,24 @@ app.use(express.static(path.join(__dirname, 'public')));
 // ---------- Pages ----------
 
 // รายชื่อเพจที่เชื่อมต่อแล้ว (ไม่ส่ง token กลับไปหน้าเว็บ)
+// พร้อมจำนวนข้อความใหม่จากลูกค้า "วันนี้" ต่อเพจ — ?tz=นาที offset จาก UTC ของฝั่งผู้ใช้ (ไทย = 420)
 app.get('/api/pages', async (req, res) => {
   const pages = (await store.getPages()).map(({ accessToken, ...p }) => p);
-  res.json(pages);
+
+  const tzMin = parseInt(req.query.tz, 10);
+  const offsetMs = (Number.isFinite(tzMin) ? tzMin : 0) * 60000;
+  const localDayKey = (time) => new Date(new Date(time).getTime() + offsetMs).toISOString().slice(0, 10);
+  const todayKey = localDayKey(Date.now());
+
+  const counts = {};
+  for (const c of await store.getAllConversations()) {
+    for (const m of c.messages) {
+      if (!m.isFromPage && localDayKey(m.createdTime) === todayKey) {
+        counts[c.pageId] = (counts[c.pageId] || 0) + 1;
+      }
+    }
+  }
+  res.json(pages.map((p) => ({ ...p, todayNewMessages: counts[p.id] || 0 })));
 });
 
 // เพิ่มเพจใหม่ — รองรับทั้ง User token และ Page token
@@ -229,13 +244,26 @@ app.get('/api/conversations', async (req, res) => {
         c.messages.some((m) => m.text.toLowerCase().includes(needle))
     );
   }
-  const [tagsMap, remarksMap] = await Promise.all([store.getTags(), store.getRemarks()]);
+  const [tagsMap, remarksMap, statusMap] = await Promise.all([
+    store.getTags(), store.getRemarks(), store.getStatuses(),
+  ]);
   for (const c of convs) {
     c.tags = tagsMap[c.id] || [];
     c.remark = remarksMap[c.id] || '';
+    c.statusOverride = statusMap[c.id] || '';
   }
   convs.sort((a, b) => new Date(b.updatedTime) - new Date(a.updatedTime));
   res.json(convs);
+});
+
+// ตั้งสถานะสี (override) — ส่ง '' หรือ null เพื่อกลับไปใช้ค่าอัตโนมัติ
+app.put('/api/conversations/:convId/status', async (req, res) => {
+  const { status } = req.body || {};
+  if (status && !['red', 'yellow', 'green'].includes(status)) {
+    return res.status(400).json({ error: 'status ต้องเป็น red / yellow / green หรือค่าว่าง' });
+  }
+  await store.setStatus(req.params.convId, status || null);
+  res.json({ ok: true, status: status || '' });
 });
 
 // บันทึกโน้ต (remark) ของการสนทนา

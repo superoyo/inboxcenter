@@ -114,11 +114,26 @@
       return '';
     }
 
-    function classifyUrgency(c) {
+    const URGENCY_LABELS = {
+      red: 'ต้องรีบดำเนินการ',
+      yellow: 'ควรติดตาม',
+      green: 'ทั่วไป',
+    };
+
+    // ค่าอัตโนมัติจากคำสำคัญ (ไม่สน override)
+    function classifyUrgencyAuto(c) {
       const t = lastCustomerText(c).toLowerCase();
       if (t && URGENCY_RED.some((k) => t.includes(k))) return { level: 'red', label: 'ต้องรีบดำเนินการ — พบคำตำหนิ/เร่งด่วน' };
       if (t && URGENCY_YELLOW.some((k) => t.includes(k))) return { level: 'yellow', label: 'ควรติดตาม — ลูกค้าทวงถาม/ติดปัญหา' };
       return { level: 'green', label: 'ทั่วไป' };
+    }
+
+    // ค่าที่แสดงจริง: ถ้าผู้ใช้กำหนดเอง (override) ให้ใช้ค่านั้นก่อน
+    function classifyUrgency(c) {
+      if (c.statusOverride) {
+        return { level: c.statusOverride, label: URGENCY_LABELS[c.statusOverride] + ' (กำหนดเอง)' };
+      }
+      return classifyUrgencyAuto(c);
     }
 
     // วันนี้ (พร้อมเวลา) / เมื่อวาน / ผ่านมาแล้ว X วัน
@@ -157,7 +172,8 @@
     }
 
     async function loadPagesFilter() {
-      pages = await fetch('/api/pages').then((r) => r.json());
+      // ส่ง timezone offset ไปให้ server นับ "ข้อความใหม่วันนี้" ตามเวลาท้องถิ่น
+      pages = await fetch('/api/pages?tz=' + (-new Date().getTimezoneOffset())).then((r) => r.json());
       // dropdown สำรองสำหรับจอแคบ (ปฏิทิน/รายการเพจถูกซ่อน)
       const sel = $('pageFilter');
       sel.innerHTML = '<option value="">ทุกเพจ (' + pages.length + ')</option>' +
@@ -178,15 +194,19 @@
     function renderPageListPanel() {
       const q = ($('pageSearchInput').value || '').trim().toLowerCase();
       const shown = q ? pages.filter((p) => p.name.toLowerCase().includes(q)) : pages;
+      const totalToday = pages.reduce((s, p) => s + (p.todayNewMessages || 0), 0);
+      const badge = (n) => n > 0 ? `<span class="today-badge" title="ข้อความใหม่จากลูกค้าวันนี้ ${n} ข้อความ">${n}</span>` : '';
       $('pageListItems').innerHTML = `
         <div class="page-list-item ${!selectedPageId ? 'active' : ''}" onclick="selectPage('')">
           <div class="page-avatar-fallback" style="background:var(--primary);">∀</div>
-          <span>ทุกเพจ (${pages.length})</span>
+          <span class="pl-name">ทุกเพจ (${pages.length})</span>
+          ${badge(totalToday)}
         </div>` +
         shown.map((p) => `
           <div class="page-list-item ${selectedPageId === p.id ? 'active' : ''}" onclick="selectPage('${esc(p.id)}')">
             ${pageAvatarHtml(p)}
-            <span>${esc(p.name)}</span>
+            <span class="pl-name">${esc(p.name)}</span>
+            ${badge(p.todayNewMessages || 0)}
           </div>`).join('') +
         (q && !shown.length ? '<div class="muted" style="padding:8px 10px;">ไม่พบเพจที่ค้นหา</div>' : '');
     }
@@ -328,6 +348,7 @@
             <div class="muted">ผ่านเพจ: ${esc(c.pageName)}</div>
             <div class="thread-tags" id="threadTags"></div>
           </div>
+          <div class="status-picker" id="statusPicker"></div>
         </div>
         <div class="thread-messages" id="msgArea">
           ${(() => {
@@ -362,6 +383,7 @@
         </div>`;
       if (window.innerWidth <= 800) $('backBtn').style.display = 'inline-flex';
       renderThreadTags(c);
+      renderStatusPicker(c);
       renderStatsPanel(c);
       $('layout').classList.add('stats-open');
       const area = $('msgArea');
@@ -405,6 +427,41 @@
         toast(err.message);
       } finally {
         btn.disabled = false; input.disabled = false; input.focus();
+      }
+    }
+
+    // ---------- ปุ่มแก้สถานะสีในหัวแชท ----------
+    function renderStatusPicker(c) {
+      const el = $('statusPicker');
+      if (!el) return;
+      const current = classifyUrgency(c).level;
+      el.innerHTML = `
+        <span class="muted" style="font-size:11px;">สถานะ:</span>
+        ${['red', 'yellow', 'green'].map((l) => `
+          <span class="urgency u-${l} pick ${current === l ? 'picked' : ''}"
+            title="${URGENCY_LABELS[l]}${c.statusOverride === l ? ' (กำหนดเอง)' : ''}"
+            onclick="setStatus('${esc(c.id)}', '${l}')"></span>`).join('')}
+        ${c.statusOverride ? `<button class="tag-add" onclick="setStatus('${esc(c.id)}', '')" title="กลับไปใช้ค่าอัตโนมัติ">↺ อัตโนมัติ</button>` : ''}`;
+    }
+
+    async function setStatus(convId, status) {
+      try {
+        const res = await fetch(`/api/conversations/${encodeURIComponent(convId)}/status`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        const c = conversations.find((x) => x.id === convId);
+        if (c) {
+          c.statusOverride = data.status;
+          renderStatusPicker(c);
+          renderConvList();
+        }
+        toast(status ? `เปลี่ยนสถานะเป็น "${URGENCY_LABELS[status]}" แล้ว` : 'กลับไปใช้สถานะอัตโนมัติแล้ว');
+      } catch (err) {
+        toast(err.message || 'เปลี่ยนสถานะไม่สำเร็จ');
       }
     }
 
@@ -645,8 +702,8 @@
 
     loadPagesFilter().then(loadConversations);
     loadSyncStatus();
-    // รีเฟรชรายการ + สถานะอัตโนมัติทุก 60 วินาที (ข้อมูลจาก storage ในเครื่อง server)
-    setInterval(() => { loadConversations(); loadSyncStatus(); }, 60000);
+    // รีเฟรชรายการ + สถานะ + ตัวเลขข้อความใหม่ อัตโนมัติทุก 60 วินาที
+    setInterval(() => { loadConversations(); loadSyncStatus(); loadPagesFilter(); }, 60000);
   </script>
 </body>
 </html>

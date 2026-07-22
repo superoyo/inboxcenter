@@ -186,7 +186,27 @@ input:focus, textarea:focus, select:focus { outline: 2px solid var(--primary); b
 }
 .page-list-item:hover { background: var(--bg); }
 .page-list-item.active { background: #e7f0fe; color: var(--primary); font-weight: 600; }
-.page-list-item span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.page-list-item .pl-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.today-badge {
+  flex-shrink: 0;
+  background: var(--primary);
+  color: #fff;
+  border-radius: 7px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 7px;
+}
+
+/* ปุ่มเลือกสถานะสีในหัวแชท */
+.status-picker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.urgency.pick { cursor: pointer; opacity: 0.3; width: 26px; height: 12px; }
+.urgency.pick:hover { opacity: 0.7; }
+.urgency.pick.picked { opacity: 1; box-shadow: 0 0 0 2px var(--card), 0 0 0 3.5px var(--muted); }
 .page-avatar, .page-avatar-fallback {
   width: 26px; height: 26px;
   border-radius: 50%;
