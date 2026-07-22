@@ -378,7 +378,7 @@ app.get('/api/conversations/:id/thread', async (req, res) => {
 
 // ---------- Analytics ----------
 // สรุป performance ของ inbox — ภาพรวมทุกเพจ หรือรายเพจด้วย ?pageId=
-// ?tz = offset นาทีจาก UTC ของผู้ใช้ (ไทย = 420)
+// ?tz = offset นาทีจาก UTC · ?from=YYYY-MM-DD&to=YYYY-MM-DD = ช่วงเวลา (default: เดือนนี้)
 app.get('/api/analytics', async (req, res) => {
   const { pageId } = req.query;
   const tzMin = parseInt(req.query.tz, 10);
@@ -386,10 +386,22 @@ app.get('/api/analytics', async (req, res) => {
   const dayKey = dayKeyFactory(tzMin);
   const now = Date.now();
   const todayKey = dayKey(now);
-  const yesterdayKey = dayKey(now - 86400e3);
-  const cutoff14 = now - 14 * 86400e3;
-  const cutoff30 = now - 30 * 86400e3;
   const HOUR = 3600e3;
+  const DAY = 86400e3;
+
+  // ช่วงเวลาที่เลือก (เทียบด้วย day key ตามเวลาท้องถิ่นผู้ใช้)
+  const reDate = /^\d{4}-\d{2}-\d{2}$/;
+  const kTime = (k) => Date.parse(k + 'T00:00:00Z');
+  const kOf = (t) => new Date(t).toISOString().slice(0, 10);
+  let toKey = reDate.test(req.query.to) ? req.query.to : todayKey;
+  let fromKey = reDate.test(req.query.from) ? req.query.from : todayKey.slice(0, 8) + '01'; // default: วันที่ 1 เดือนนี้
+  if (fromKey > toKey) [fromKey, toKey] = [toKey, fromKey];
+  if ((kTime(toKey) - kTime(fromKey)) / DAY > 91) fromKey = kOf(kTime(toKey) - 91 * DAY); // จำกัด 92 วัน
+  const nDays = Math.round((kTime(toKey) - kTime(fromKey)) / DAY) + 1;
+  const prevFromKey = kOf(kTime(fromKey) - nDays * DAY);
+  const prevToKey = kOf(kTime(fromKey) - DAY);
+  const inPeriod = (k) => k >= fromKey && k <= toKey;
+  const inPrev = (k) => k >= prevFromKey && k <= prevToKey;
 
   let convs = pageId
     ? await store.getConversationsForPage(pageId)
@@ -406,11 +418,11 @@ app.get('/api/analytics', async (req, res) => {
   }
   const isBot = (pid, text) => !!text && (textCount[pid] ? textCount[pid][text] || 0 : 0) >= 3;
 
-  const daily = {};                 // day -> { in, out }
-  const hourly = Array(24).fill(0); // ข้อความเข้า แยกรายชั่วโมง (30 วันล่าสุด)
-  let todayIn = 0, yesterdayIn = 0;
+  const daily = {};                 // day -> { in, out } (เฉพาะช่วงที่เลือก)
+  const hourly = Array(24).fill(0); // ข้อความเข้า แยกรายชั่วโมง (เฉพาะช่วงที่เลือก)
+  let periodIn = 0, prevIn = 0;
   const humanDeltas = [], botDeltas = [];
-  const waiting = [];               // ห้องที่ข้อความล่าสุดเป็นของลูกค้า (ยังไม่ได้ตอบ)
+  const waiting = [];               // ห้องที่ข้อความล่าสุดเป็นของลูกค้า (ยังไม่ได้ตอบ) — สถานะปัจจุบัน
   const urgencyCount = { red: 0, yellow: 0, green: 0 };
   let answered = 0, botOnlyRooms = 0, roomsWithReply = 0;
   const perPage = {};               // pageId -> ตัวเลขต่อเพจ (โหมดภาพรวม)
@@ -418,29 +430,36 @@ app.get('/api/analytics', async (req, res) => {
   for (const c of convs) {
     const pp = (perPage[c.pageId] = perPage[c.pageId] || {
       pageId: c.pageId, pageName: c.pageName,
-      todayIn: 0, waiting: 0, over24h: 0, red: 0, humanDeltas: [],
+      periodIn: 0, waiting: 0, over24h: 0, red: 0, humanDeltas: [],
     });
     let pending = null, hasHuman = false, hasBot = false, lastCust = null;
     const lastMsg = c.messages[c.messages.length - 1];
 
     for (const m of c.messages) {
       const t = new Date(m.createdTime).getTime();
+      const k = dayKey(t);
       if (!m.isFromPage) {
         lastCust = m;
-        if (t >= cutoff14) { const k = dayKey(t); (daily[k] = daily[k] || { in: 0, out: 0 }).in++; }
-        if (t >= cutoff30) hourly[new Date(t + offsetMs).getUTCHours()]++;
-        const k = dayKey(t);
-        if (k === todayKey) { todayIn++; pp.todayIn++; }
-        else if (k === yesterdayKey) yesterdayIn++;
+        if (inPeriod(k)) {
+          (daily[k] = daily[k] || { in: 0, out: 0 }).in++;
+          hourly[new Date(t + offsetMs).getUTCHours()]++;
+          periodIn++;
+          pp.periodIn++;
+        } else if (inPrev(k)) {
+          prevIn++;
+        }
         if (pending === null) pending = t;
       } else {
-        if (t >= cutoff14) { const k = dayKey(t); (daily[k] = daily[k] || { in: 0, out: 0 }).out++; }
+        if (inPeriod(k)) (daily[k] = daily[k] || { in: 0, out: 0 }).out++;
         const bot = isBot(c.pageId, m.text);
         if (bot) hasBot = true; else hasHuman = true;
         if (pending !== null) {
-          const d = t - pending;
-          if (bot) botDeltas.push(d);
-          else { humanDeltas.push(d); pp.humanDeltas.push(d); }
+          // นับเวลาตอบเฉพาะการตอบที่เกิดในช่วงที่เลือก
+          if (inPeriod(k)) {
+            const d = t - pending;
+            if (bot) botDeltas.push(d);
+            else { humanDeltas.push(d); pp.humanDeltas.push(d); }
+          }
           pending = null;
         }
       }
@@ -464,10 +483,10 @@ app.get('/api/analytics', async (req, res) => {
     if (hasBot || hasHuman) { roomsWithReply++; if (hasBot && !hasHuman) botOnlyRooms++; }
   }
 
-  // ไทม์ไลน์ 14 วันเต็ม (เติมวันว่างด้วย 0)
+  // ไทม์ไลน์ครบทุกวันในช่วงที่เลือก (เติมวันว่างด้วย 0)
   const days = [];
-  for (let i = 13; i >= 0; i--) {
-    const k = dayKey(now - i * 86400e3);
+  for (let i = 0; i < nDays; i++) {
+    const k = kOf(kTime(fromKey) + i * DAY);
     days.push({ date: k, in: (daily[k] || {}).in || 0, out: (daily[k] || {}).out || 0 });
   }
 
@@ -489,10 +508,11 @@ app.get('/api/analytics', async (req, res) => {
   res.json({
     generatedAt: new Date(now).toISOString(),
     scope: pageId || 'all',
+    period: { from: fromKey, to: toKey, days: nDays },
     totals: {
       conversations: convs.length,
-      todayIn,
-      yesterdayIn,
+      periodIn,
+      prevIn,
       answeredPct: convs.length ? answered / convs.length : null,
     },
     response: {
@@ -512,9 +532,9 @@ app.get('/api/analytics', async (req, res) => {
     alerts,
     perPage: pageId ? [] : Object.values(perPage).map((p) => ({
       pageId: p.pageId, pageName: p.pageName,
-      todayIn: p.todayIn, waiting: p.waiting, over24h: p.over24h, red: p.red,
+      periodIn: p.periodIn, waiting: p.waiting, over24h: p.over24h, red: p.red,
       avgHumanMs: avg(p.humanDeltas),
-    })).sort((a, b) => b.todayIn - a.todayIn),
+    })).sort((a, b) => b.periodIn - a.periodIn),
   });
 });
 

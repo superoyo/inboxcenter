@@ -57,6 +57,10 @@
       display: flex; align-items: center; justify-content: center;
       color: #fff; font-size: 12px; font-weight: 700;
     }
+
+    /* ตัวเลือกช่วงเวลา */
+    .period-select { width: auto; font-weight: 600; font-size: 13px; padding: 8px 10px; cursor: pointer; }
+    #customRange input[type="date"] { width: auto; font-size: 13px; padding: 7px 9px; }
     .an-grid { display: grid; gap: 14px; }
     .cards-4 { grid-template-columns: repeat(4, 1fr); }
     .cols-2 { grid-template-columns: 1.4fr 1fr; }
@@ -148,6 +152,19 @@
         <div class="sub" id="scopeSub">ภาพรวมทุกเพจ · ข้อมูลจากประวัติที่ sync ล่าสุด</div>
       </div>
       <span class="spacer" style="flex:1;"></span>
+      <select id="periodSelect" class="period-select">
+        <option value="today">📅 วันนี้</option>
+        <option value="thisWeek">📅 สัปดาห์นี้</option>
+        <option value="thisMonth" selected>📅 เดือนนี้</option>
+        <option value="lastMonth">📅 เดือนก่อนหน้านี้</option>
+        <option value="custom">📅 กำหนดช่วงเวลา…</option>
+      </select>
+      <span id="customRange" style="display: none; align-items: center; gap: 6px;">
+        <input type="date" id="fromDate">
+        <span class="muted">–</span>
+        <input type="date" id="toDate">
+        <button class="btn small" id="applyRange">ใช้</button>
+      </span>
       <button class="btn small secondary" id="reloadBtn">↻ โหลดใหม่</button>
     </div>
 
@@ -157,7 +174,7 @@
     <!-- แถวที่ 2: กราฟปริมาณ -->
     <div class="an-grid cols-2" style="margin-top: 14px;">
       <div class="an-card">
-        <h3>📈 ปริมาณข้อความ 14 วันล่าสุด</h3>
+        <h3 id="dailyTitle">📈 ปริมาณข้อความ</h3>
         <div class="legend">
           <span><i style="background:var(--series-1)"></i>ลูกค้าทักเข้า</span>
           <span><i style="background:var(--series-2)"></i>เพจตอบกลับ</span>
@@ -165,7 +182,7 @@
         <div id="dailyChart"></div>
       </div>
       <div class="an-card">
-        <h3>🕐 ช่วงเวลาที่ลูกค้าทัก (30 วันล่าสุด)</h3>
+        <h3 id="hourTitle">🕐 ช่วงเวลาที่ลูกค้าทัก</h3>
         <div class="hbars" id="hourChart"></div>
         <div class="haxis"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></div>
         <div class="foot" id="hourFoot"></div>
@@ -294,14 +311,71 @@
     });
     document.addEventListener('click', () => $('pgDdMenu').classList.remove('open'));
 
+    // ---------- ช่วงเวลา (period) ----------
+    let periodKind = 'thisMonth'; // default: เดือนนี้
+    let currentPeriodLabel = 'เดือนนี้';
+
+    function localDateStr(d) {
+      const p = (n) => String(n).padStart(2, '0');
+      return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+    }
+
+    function periodRange(kind) {
+      const now = new Date();
+      const today = localDateStr(now);
+      if (kind === 'today') return { from: today, to: today, label: 'วันนี้' };
+      if (kind === 'thisWeek') {
+        const d = new Date(now);
+        d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); // จันทร์ = ต้นสัปดาห์
+        return { from: localDateStr(d), to: today, label: 'สัปดาห์นี้' };
+      }
+      if (kind === 'lastMonth') {
+        const f = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const t = new Date(now.getFullYear(), now.getMonth(), 0);
+        return { from: localDateStr(f), to: localDateStr(t), label: 'เดือนก่อนหน้า' };
+      }
+      if (kind === 'custom') {
+        return { from: $('fromDate').value, to: $('toDate').value, label: 'ช่วงที่กำหนด' };
+      }
+      return { from: today.slice(0, 8) + '01', to: today, label: 'เดือนนี้' }; // thisMonth
+    }
+
+    $('periodSelect').addEventListener('change', () => {
+      periodKind = $('periodSelect').value;
+      if (periodKind === 'custom') {
+        // เตรียมค่าเริ่มต้น = เดือนนี้ แล้วรอผู้ใช้กด "ใช้"
+        const r = periodRange('thisMonth');
+        if (!$('fromDate').value) $('fromDate').value = r.from;
+        if (!$('toDate').value) $('toDate').value = r.to;
+        $('customRange').style.display = 'inline-flex';
+        return;
+      }
+      $('customRange').style.display = 'none';
+      loadAnalytics();
+    });
+
+    $('applyRange').addEventListener('click', () => {
+      if (!$('fromDate').value || !$('toDate').value) { alert('กรุณาเลือกวันที่ให้ครบทั้ง 2 ช่อง'); return; }
+      loadAnalytics();
+    });
+
     // ---------- โหลดข้อมูล ----------
     async function loadAnalytics() {
       const pageId = selectedPageId;
-      const params = new URLSearchParams({ tz: TZ });
+      const range = periodRange(periodKind);
+      if (!range.from || !range.to) return; // custom ยังเลือกไม่ครบ
+      currentPeriodLabel = range.label;
+      const params = new URLSearchParams({ tz: TZ, from: range.from, to: range.to });
       if (pageId) params.set('pageId', pageId);
       const a = await fetch('/api/analytics?' + params).then((r) => r.json());
 
-      $('scopeSub').textContent = (pageId ? `เพจ: ${selectedPageName}` : 'ภาพรวมทุกเพจ') + ' · ข้อมูลจากประวัติที่ sync ล่าสุด';
+      const periodText = a.period.from === a.period.to
+        ? fmtDay(a.period.from)
+        : `${fmtDay(a.period.from)} – ${fmtDay(a.period.to)}`;
+      $('scopeSub').textContent = (pageId ? `เพจ: ${selectedPageName}` : 'ภาพรวมทุกเพจ')
+        + ` · ${currentPeriodLabel} (${periodText})`;
+      $('dailyTitle').textContent = `📈 ปริมาณข้อความ · ${currentPeriodLabel}`;
+      $('hourTitle').textContent = `🕐 ช่วงเวลาที่ลูกค้าทัก · ${currentPeriodLabel}`;
       $('genAt').textContent = 'คำนวณเมื่อ ' + new Date(a.generatedAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.';
 
       renderStatCards(a);
@@ -315,17 +389,17 @@
 
     // ---------- การ์ดตัวเลขหลัก ----------
     function renderStatCards(a) {
-      const diff = a.totals.todayIn - a.totals.yesterdayIn;
-      const deltaHtml = a.totals.yesterdayIn || a.totals.todayIn
-        ? `<span class="stat-delta">${diff >= 0 ? '↗ +' : '↘ '}${diff} vs เมื่อวาน</span>` : '';
+      const diff = a.totals.periodIn - a.totals.prevIn;
+      const deltaHtml = a.totals.prevIn || a.totals.periodIn
+        ? `<span class="stat-delta">${diff >= 0 ? '↗ +' : '↘ '}${diff.toLocaleString()} vs ช่วงก่อนหน้า</span>` : '';
       const sla = a.response.sla1hPct;
       const over24 = a.waiting.over24h;
 
       $('statCards').innerHTML = `
         <div class="an-card">
           ${deltaHtml}
-          <div class="stat-value">${a.totals.todayIn.toLocaleString()}</div>
-          <div class="stat-label">ข้อความลูกค้าวันนี้</div>
+          <div class="stat-value">${a.totals.periodIn.toLocaleString()}</div>
+          <div class="stat-label">ข้อความลูกค้า · ${esc(currentPeriodLabel)}</div>
           <div class="foot">รวมทุกห้อง ${a.totals.conversations.toLocaleString()} การสนทนา</div>
         </div>
         <div class="an-card">
@@ -351,7 +425,7 @@
       const iw = W - padL - padR, ih = H - padT - padB;
       const maxV = Math.max(1, ...days.map((d) => Math.max(d.in, d.out)));
       const yMax = Math.ceil(maxV / 4) * 4 || 4;
-      const x = (i) => padL + (i / (days.length - 1)) * iw;
+      const x = (i) => days.length === 1 ? padL + iw / 2 : padL + (i / (days.length - 1)) * iw;
       const y = (v) => padT + ih - (v / yMax) * ih;
       const line = (key) => days.map((d, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(d[key]).toFixed(1)}`).join('');
 
@@ -360,7 +434,9 @@
         return `<line x1="${padL}" x2="${W - padR}" y1="${y(v)}" y2="${y(v)}" stroke="var(--grid)" stroke-width="1"/>
                 <text x="${padL - 6}" y="${y(v) + 4}" text-anchor="end" font-size="10" fill="var(--ink-mute)">${v}</text>`;
       }).join('');
-      const xLabels = days.map((d, i) => i % 2 === 1
+      // เว้นระยะ label แกน x ตามจำนวนวัน ไม่ให้ทับกัน
+      const step = Math.max(1, Math.ceil(days.length / 8));
+      const xLabels = days.map((d, i) => (i % step === 0 || days.length === 1)
         ? `<text x="${x(i)}" y="${H - 8}" text-anchor="middle" font-size="10" fill="var(--ink-mute)">${fmtDay(d.date)}</text>` : '').join('');
 
       $('dailyChart').innerHTML = `
@@ -456,11 +532,11 @@
       $('perPageCard').style.display = hidden ? 'none' : '';
       if (hidden) return;
       $('perPageTable').innerHTML = `
-        <tr><th>เพจ</th><th>เข้าวันนี้</th><th>รอตอบ</th><th>ค้าง >24 ชม.</th><th>ห้องแดง</th><th>ตอบเฉลี่ย (คน)</th></tr>` +
+        <tr><th>เพจ</th><th>เข้า (${esc(currentPeriodLabel)})</th><th>รอตอบ</th><th>ค้าง >24 ชม.</th><th>ห้องแดง</th><th>ตอบเฉลี่ย (คน)</th></tr>` +
         rows.map((p) => `
           <tr>
             <td>${esc(p.pageName)}</td>
-            <td>${p.todayIn.toLocaleString()}</td>
+            <td>${p.periodIn.toLocaleString()}</td>
             <td>${p.waiting.toLocaleString()}</td>
             <td class="${p.over24h ? 'warn' : ''}">${p.over24h.toLocaleString()}</td>
             <td class="${p.red ? 'warn' : ''}">${p.red.toLocaleString()}</td>
