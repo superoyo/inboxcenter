@@ -672,6 +672,9 @@
     document.addEventListener('click', (e) => {
       const panel = $('waitingPanel');
       if (!panel.classList.contains('open')) return;
+      // element ที่ถูกคลิกอาจหลุดจาก DOM เพราะรายการใน panel ถูก re-render ระหว่างคลิก
+      // (เช่น กดเลือกห้อง) — กรณีนั้นถือว่าเป็นคลิก "ข้างใน" ห้ามปิด
+      if (!e.target.isConnected) return;
       if (e.target.closest('#waitingPanel') || e.target.closest('[data-wpopen]')) return;
       closeWaitingPanel();
     });
