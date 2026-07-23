@@ -138,15 +138,14 @@ app.get('/api/pages', async (req, res) => {
   const localDayKey = dayKeyFactory(parseInt(req.query.tz, 10));
   const todayKey = localDayKey(Date.now());
 
-  const counts = {};
+  // นับ "จำนวนห้อง" ที่มีข้อความวันนี้ (ให้ตรงกับตัวเลขในปฏิทิน) — ไม่ใช่จำนวนข้อความ
+  const rooms = {};
   for (const c of await store.getAllConversations()) {
-    for (const m of c.messages) {
-      if (!m.isFromPage && localDayKey(m.createdTime) === todayKey) {
-        counts[c.pageId] = (counts[c.pageId] || 0) + 1;
-      }
+    if (c.messages.some((m) => localDayKey(m.createdTime) === todayKey)) {
+      rooms[c.pageId] = (rooms[c.pageId] || 0) + 1;
     }
   }
-  res.json(pages.map((p) => ({ ...p, todayNewMessages: counts[p.id] || 0 })));
+  res.json(pages.map((p) => ({ ...p, todayNewMessages: rooms[p.id] || 0 })));
 });
 
 // เพิ่มเพจใหม่ — รองรับทั้ง User token และ Page token
@@ -897,6 +896,13 @@ app.get('/api/pages/:pageId/report/comments', async (req, res) => {
   } catch (err) {
     res.status(400).json({ error: `ดึงคอมเมนต์ไม่สำเร็จ: ${err.message}` });
   }
+});
+
+// สถิติเชิงลึกของโพสต์ (reach / impressions / clicks)
+app.get('/api/posts/:postId/insights', async (req, res) => {
+  const page = await pageOr404(String(req.query.pageId || ''), res);
+  if (!page) return;
+  res.json(await fb.getPostInsights(req.params.postId, page.accessToken));
 });
 
 // ตอบกลับคอมเมนต์ในนามเพจ

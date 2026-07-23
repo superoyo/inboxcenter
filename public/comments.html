@@ -96,6 +96,13 @@
     .eng-bar .eng { display: flex; align-items: center; gap: 5px; color: var(--text); }
     .eng-bar .eng b { font-weight: 700; }
     .eng-bar .eng span { color: var(--muted); font-size: 12px; }
+    /* รูปโพสต์ในคอลัมน์ขวา */
+    .post-hero { width: 100%; max-height: 260px; object-fit: cover; border-radius: 10px; margin-top: 10px; cursor: zoom-in; background: var(--bg); }
+    /* สถิติเชิงลึก */
+    .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
+    .stat-box { background: var(--bg); border-radius: 8px; padding: 8px 10px; }
+    .stat-box .sv { font-size: 17px; font-weight: 800; color: var(--text); }
+    .stat-box .sl { font-size: 11px; color: var(--muted); margin-top: 2px; }
     .cm-list { flex: 1; overflow-y: auto; padding: 16px 18px; background: var(--card); }
 
     /* คอมเมนต์สไตล์ Facebook: avatar เล็ก + bubble เทาหุ้มพอดีข้อความ + แถว action เล็กใต้ bubble */
@@ -455,19 +462,45 @@
               ${fmtAgo(post.createdTime)}
               ${post.permalink ? ` · <a href="${esc(post.permalink)}" target="_blank">เปิดโพสต์บน Facebook ↗</a>` : ''}
             </div>
+            ${post.picture ? `<img class="post-hero" src="${esc(post.picture)}" alt="" onclick="openLightbox(this.src)">` : ''}
             <div class="eng-bar">
               <span class="eng">👍 <b>${post.reactionCount.toLocaleString()}</b> <span>ถูกใจ</span></span>
               <span class="eng">💬 <b>${data.length.toLocaleString()}</b> <span>คอมเมนต์</span></span>
               <span class="eng">↗ <b>${post.shareCount.toLocaleString()}</b> <span>แชร์</span></span>
             </div>
+            <div class="stat-grid" id="statGrid"><div class="muted" style="font-size:12px;">⏳ กำลังโหลดสถิติเชิงลึก...</div></div>
           </div>
           <div class="cm-list" id="cmList">
             ${data.length ? data.map((c) => cmtHtml(c, false)).join('')
               : '<div class="muted" style="text-align:center; padding: 30px;">โพสต์นี้ยังไม่มีคอมเมนต์</div>'}
           </div>`;
         if (window.innerWidth <= 800) $('backBtn').style.display = 'inline-flex';
+        loadInsights(postId);
       } catch (err) {
         $('cmRight').innerHTML = `<div class="cm-empty"><span class="big">⚠️</span><div style="max-width:420px; text-align:center;">${esc(err.message)}</div></div>`;
+      }
+    }
+
+    // ---------- สถิติเชิงลึก (reach / impressions / clicks) ----------
+    async function loadInsights(postId) {
+      const el = $('statGrid');
+      if (!el) return;
+      try {
+        const s = await fetch(`/api/posts/${encodeURIComponent(postId)}/insights?pageId=${encodeURIComponent(selectedPage.id)}`).then((r) => r.json());
+        if (!s.available) {
+          el.innerHTML = `<div class="muted" style="font-size:12px;">ℹ️ สถิติเชิงลึก (reach/impressions) ต้องเพิ่มสิทธิ์ <code>read_insights</code> แล้วเชื่อมเพจใหม่</div>`;
+          return;
+        }
+        const n = (x) => (x || 0).toLocaleString();
+        el.innerHTML = [
+          ['👁 การเข้าถึง (Reach)', n(s.reach)],
+          ['🌱 Organic Reach', n(s.organicReach)],
+          ['💰 Paid Reach', n(s.paidReach)],
+          ['📊 การมองเห็น (Impressions)', n(s.impressions)],
+          ['🖱 คลิกที่โพสต์', n(s.clicks)],
+        ].map(([label, val]) => `<div class="stat-box"><div class="sv">${val}</div><div class="sl">${label}</div></div>`).join('');
+      } catch {
+        el.innerHTML = '';
       }
     }
 

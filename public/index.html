@@ -302,7 +302,7 @@
       const filtered = q ? pages.filter((p) => p.name.toLowerCase().includes(q)) : pages;
       const shown = sortedPages(filtered);
       const totalToday = pages.reduce((s, p) => s + (p.todayNewMessages || 0), 0);
-      const badge = (n) => n > 0 ? `<span class="today-badge" title="ข้อความใหม่จากลูกค้าวันนี้ ${n} ข้อความ">${n}</span>` : '';
+      const badge = (n) => n > 0 ? `<span class="today-badge" title="ห้องที่มีข้อความวันนี้ ${n} ห้อง">${n}</span>` : '';
       $('pageListItems').innerHTML = `
         <div class="page-list-item ${!selectedPageId ? 'active' : ''}" onclick="selectPage('')">
           <div class="page-avatar-fallback" style="background:var(--primary);">∀</div>
