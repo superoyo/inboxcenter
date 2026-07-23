@@ -8,45 +8,61 @@
   <style>
     .cm-layout {
       display: grid;
-      grid-template-columns: 380px 1fr;
+      grid-template-columns: 1fr 420px;
       height: calc(100vh - 56px);
       background: var(--card);
     }
     .cm-left { border-right: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; }
-    .cm-left-head { padding: 12px 14px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 10px; }
-    .cm-posts { overflow-y: auto; flex: 1; }
+    .cm-left-head {
+      padding: 12px 16px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 12px;
+    }
+    .cal-nav-group { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+    .cal-title { font-weight: 700; font-size: 16px; min-width: 130px; text-align: center; }
+    .cal-nav {
+      border: 1px solid var(--border); background: var(--card); border-radius: 8px;
+      width: 32px; height: 32px; font-size: 16px; cursor: pointer; color: var(--text);
+    }
+    .cal-nav:hover { background: var(--bg); }
 
-    .post-item {
-      display: flex;
-      gap: 10px;
-      padding: 12px 14px;
-      border-bottom: 1px solid var(--bg);
-      cursor: pointer;
+    /* ปฏิทินโพสต์ */
+    .cal-wrap { flex: 1; overflow-y: auto; padding: 10px 14px 20px; }
+    .cal-dow { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 4px; }
+    .cal-dow span { text-align: center; font-size: 11px; font-weight: 700; color: var(--muted); padding: 4px 0; }
+    .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; grid-auto-rows: 1fr; }
+    .cal-cell {
+      border: 1px solid var(--border); border-radius: 8px; min-height: 92px;
+      padding: 4px; display: flex; flex-direction: column; gap: 3px; overflow: hidden;
     }
-    .post-item:hover { background: var(--bg); }
-    .post-item.active { background: #e7f0fe; }
-    .post-item img.thumb {
-      width: 56px; height: 56px;
-      border-radius: 8px;
-      object-fit: cover;
-      flex-shrink: 0;
-      background: var(--bg);
+    .cal-cell.empty { border-color: transparent; background: transparent; }
+    .cal-cell.today { border-color: var(--primary); }
+    .cal-cell .daynum { font-size: 12px; font-weight: 700; color: var(--muted); padding: 1px 3px; }
+    .cal-cell.today .daynum { color: var(--primary); }
+    .cal-post {
+      cursor: pointer; border-radius: 6px; overflow: hidden;
+      border: 1px solid var(--border); background: var(--card);
     }
-    .post-item .body { flex: 1; min-width: 0; }
-    .post-item .msg {
-      font-size: 13.5px;
-      overflow: hidden;
-      display: -webkit-box;
-      -webkit-line-clamp: 2;
-      -webkit-box-orient: vertical;
+    .cal-post:hover { border-color: var(--primary); }
+    .cal-post.active { outline: 2px solid var(--primary); }
+    .cal-post img { width: 100%; height: 40px; object-fit: cover; display: block; background: var(--bg); }
+    .cal-post .cp-txt {
+      font-size: 10.5px; line-height: 1.3; padding: 2px 4px;
+      overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
     }
-    .post-item .meta { font-size: 12px; color: var(--muted); margin-top: 4px; }
-    .post-item .cnt { color: var(--primary); font-weight: 700; }
+    .cal-post .cp-eng {
+      display: flex; gap: 6px; font-size: 9.5px; color: var(--muted);
+      padding: 0 4px 3px; flex-wrap: wrap;
+    }
 
     /* คอลัมน์ขวา: คอมเมนต์ */
     .cm-right { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
     .cm-post-head { padding: 12px 18px; border-bottom: 1px solid var(--border); }
     .cm-post-head .txt { font-size: 14px; font-weight: 600; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+    /* แถบ engagement: reactions / comments / shares */
+    .eng-bar { display: flex; gap: 16px; margin-top: 8px; font-size: 13px; }
+    .eng-bar .eng { display: flex; align-items: center; gap: 5px; color: var(--text); }
+    .eng-bar .eng b { font-weight: 700; }
+    .eng-bar .eng span { color: var(--muted); font-size: 12px; }
     .cm-list { flex: 1; overflow-y: auto; padding: 16px 18px; background: var(--card); }
 
     /* คอมเมนต์สไตล์ Facebook: avatar เล็ก + bubble เทาหุ้มพอดีข้อความ + แถว action เล็กใต้ bubble */
@@ -134,7 +150,7 @@
     <!-- ซ้าย: เลือกเพจ + รายการโพสต์ -->
     <aside class="cm-left">
       <div class="cm-left-head">
-        <div class="pg-dd" id="pgDd">
+        <div class="pg-dd" id="pgDd" style="min-width: 220px;">
           <button class="pg-dd-btn" id="pgDdBtn">
             <span id="pgDdAvaWrap" style="display:flex;"><span class="pg-ava-fb" style="background:var(--primary);">📄</span></span>
             <span id="pgDdLabel">เลือกเพจ...</span>
@@ -142,9 +158,14 @@
           </button>
           <div class="pg-dd-menu" id="pgDdMenu"></div>
         </div>
+        <div class="cal-nav-group">
+          <button class="cal-nav" id="calPrev">‹</button>
+          <span class="cal-title" id="calTitle"></span>
+          <button class="cal-nav" id="calNext">›</button>
+        </div>
       </div>
-      <div class="cm-posts" id="postList">
-        <div class="cm-empty"><span class="big">📝</span>เลือกเพจเพื่อดูโพสต์</div>
+      <div class="cal-wrap" id="calWrap">
+        <div class="cm-empty"><span class="big">📅</span>เลือกเพจเพื่อดูปฏิทินโพสต์</div>
       </div>
     </aside>
 
@@ -171,6 +192,7 @@
     let selectedPage = null;
     let posts = [];
     let activePostId = null;
+    let calMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 
     function toast(msg) {
       const t = $('toast');
@@ -246,36 +268,80 @@
     });
     document.addEventListener('click', () => $('pgDdMenu').classList.remove('open'));
 
-    // ---------- โพสต์ ----------
+    // ---------- โพสต์ (ปฏิทิน) ----------
     async function loadPosts() {
       if (!selectedPage) return;
       activePostId = null;
-      $('postList').innerHTML = '<div class="cm-empty"><span class="big">⏳</span>กำลังดึงโพสต์...</div>';
+      $('calWrap').innerHTML = '<div class="cm-empty"><span class="big">⏳</span>กำลังดึงโพสต์...</div>';
       try {
         const res = await fetch(`/api/pages/${encodeURIComponent(selectedPage.id)}/posts`);
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
         posts = data;
-        renderPosts();
-        // เปิดโพสต์แรกอัตโนมัติบนจอกว้าง
+        // เด้งไปเดือนของโพสต์ล่าสุด เพื่อให้เห็นโพสต์ทันที
+        if (posts.length) {
+          const d = new Date(posts[0].createdTime);
+          calMonth = new Date(d.getFullYear(), d.getMonth(), 1);
+        }
+        renderCalendar();
+        // เปิดโพสต์ล่าสุดอัตโนมัติบนจอกว้าง
         if (posts.length && window.innerWidth > 800) openPost(posts[0].id);
         else if (!posts.length) $('cmRight').innerHTML = '<div class="cm-empty"><span class="big">📭</span>เพจนี้ยังไม่มีโพสต์</div>';
       } catch (err) {
-        $('postList').innerHTML = `<div class="cm-empty" style="padding:20px; text-align:center;"><span class="big">⚠️</span>${esc(err.message)}</div>`;
+        $('calWrap').innerHTML = `<div class="cm-empty" style="padding:20px; text-align:center;"><span class="big">⚠️</span>${esc(err.message)}</div>`;
       }
     }
 
-    function renderPosts() {
-      $('postList').innerHTML = posts.length ? posts.map((p) => `
-        <div class="post-item ${p.id === activePostId ? 'active' : ''}" onclick="openPost('${esc(p.id)}')">
-          ${p.picture ? `<img class="thumb" src="${esc(p.picture)}" alt="">` : '<div class="thumb" style="display:flex;align-items:center;justify-content:center;">📝</div>'}
-          <div class="body">
-            <div class="msg">${esc(p.message)}</div>
-            <div class="meta">${fmtAgo(p.createdTime)} · <span class="cnt">💬 ${p.commentCount.toLocaleString()}</span></div>
-          </div>
-        </div>`).join('')
-      : '<div class="cm-empty"><span class="big">📭</span>เพจนี้ยังไม่มีโพสต์</div>';
+    const dayKey = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    function engBadges(p) {
+      const parts = [];
+      if (p.reactionCount) parts.push(`👍 ${p.reactionCount}`);
+      if (p.commentCount) parts.push(`💬 ${p.commentCount}`);
+      if (p.shareCount) parts.push(`↗ ${p.shareCount}`);
+      return parts;
     }
+
+    function calPostHtml(p) {
+      const eng = engBadges(p);
+      return `
+        <div class="cal-post ${p.id === activePostId ? 'active' : ''}" title="${esc(p.message)}" onclick="openPost('${esc(p.id)}')">
+          ${p.picture ? `<img src="${esc(p.picture)}" alt="">` : ''}
+          <div class="cp-txt">${esc(p.message)}</div>
+          ${eng.length ? `<div class="cp-eng">${eng.map((e) => `<span>${e}</span>`).join('')}</div>` : ''}
+        </div>`;
+    }
+
+    function renderCalendar() {
+      $('calTitle').textContent = calMonth.toLocaleDateString('th-TH', { month: 'long', year: 'numeric' });
+      // จัดกลุ่มโพสต์ตามวัน
+      const byDay = {};
+      for (const p of posts) {
+        const k = dayKey(new Date(p.createdTime));
+        (byDay[k] = byDay[k] || []).push(p);
+      }
+      const firstDow = calMonth.getDay();
+      const daysInMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + 1, 0).getDate();
+      const todayKey = dayKey(new Date());
+      let cells = '';
+      // ช่องว่างก่อนวันที่ 1 (ให้จันทร์เป็นคอลัมน์แรก → shift)
+      const lead = (firstDow + 6) % 7;
+      for (let i = 0; i < lead; i++) cells += '<div class="cal-cell empty"></div>';
+      for (let day = 1; day <= daysInMonth; day++) {
+        const k = dayKey(new Date(calMonth.getFullYear(), calMonth.getMonth(), day));
+        const dayPosts = byDay[k] || [];
+        cells += `
+          <div class="cal-cell ${k === todayKey ? 'today' : ''}">
+            <div class="daynum">${day}</div>
+            ${dayPosts.map(calPostHtml).join('')}
+          </div>`;
+      }
+      $('calWrap').innerHTML = `
+        <div class="cal-dow"><span>จ</span><span>อ</span><span>พ</span><span>พฤ</span><span>ศ</span><span>ส</span><span>อา</span></div>
+        <div class="cal-grid">${cells}</div>`;
+    }
+
+    $('calPrev').addEventListener('click', () => { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() - 1, 1); renderCalendar(); });
+    $('calNext').addEventListener('click', () => { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + 1, 1); renderCalendar(); });
 
     // ---------- คอมเมนต์ ----------
     function cmtAvatar(c) {
@@ -313,7 +379,7 @@
 
     async function openPost(postId) {
       activePostId = postId;
-      renderPosts();
+      renderCalendar();
       $('cmLayout').classList.add('post-open');
       const post = posts.find((p) => p.id === postId);
       $('cmRight').innerHTML = '<div class="cm-empty"><span class="big">⏳</span>กำลังดึงคอมเมนต์...</div>';
@@ -326,8 +392,13 @@
             <button class="btn small secondary" onclick="closePost()" style="display:none; float:left; margin-right:10px;" id="backBtn">←</button>
             <div class="txt">${esc(post.message)}</div>
             <div class="muted" style="margin-top:4px;">
-              ${fmtAgo(post.createdTime)} · 💬 ${data.length} คอมเมนต์
+              ${fmtAgo(post.createdTime)}
               ${post.permalink ? ` · <a href="${esc(post.permalink)}" target="_blank">เปิดโพสต์บน Facebook ↗</a>` : ''}
+            </div>
+            <div class="eng-bar">
+              <span class="eng">👍 <b>${post.reactionCount.toLocaleString()}</b> <span>ถูกใจ</span></span>
+              <span class="eng">💬 <b>${data.length.toLocaleString()}</b> <span>คอมเมนต์</span></span>
+              <span class="eng">↗ <b>${post.shareCount.toLocaleString()}</b> <span>แชร์</span></span>
             </div>
           </div>
           <div class="cm-list" id="cmList">
