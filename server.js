@@ -128,12 +128,60 @@ app.get('/api/config', (req, res) => {
   });
 });
 
+// ---------- Projects (กลุ่มเพจ) ----------
+
+// คืน Set ของ pageId ในโปรเจกต์ (null = ไม่ระบุโปรเจกต์ = ทุกเพจ)
+async function projectPageIds(projectId) {
+  if (!projectId) return null;
+  const p = (await store.getProjects()).find((x) => x.id === projectId);
+  return new Set(p ? p.pageIds : []);
+}
+
+app.get('/api/projects', async (req, res) => {
+  res.json(await store.getProjects());
+});
+
+app.post('/api/projects', async (req, res) => {
+  const { name, description, pageIds } = req.body || {};
+  if (!name || !String(name).trim()) return res.status(400).json({ error: 'กรุณาตั้งชื่อโปรเจกต์' });
+  const project = {
+    id: 'prj_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+    name: String(name).trim().slice(0, 80),
+    description: String(description || '').trim().slice(0, 300),
+    pageIds: Array.isArray(pageIds) ? [...new Set(pageIds.map(String))] : [],
+    createdAt: new Date().toISOString(),
+  };
+  await store.saveProject(project);
+  res.json(project);
+});
+
+app.put('/api/projects/:id', async (req, res) => {
+  const existing = (await store.getProjects()).find((p) => p.id === req.params.id);
+  if (!existing) return res.status(404).json({ error: 'ไม่พบโปรเจกต์' });
+  const { name, description, pageIds } = req.body || {};
+  const updated = {
+    ...existing,
+    name: name != null ? String(name).trim().slice(0, 80) : existing.name,
+    description: description != null ? String(description).trim().slice(0, 300) : existing.description,
+    pageIds: Array.isArray(pageIds) ? [...new Set(pageIds.map(String))] : existing.pageIds,
+  };
+  await store.saveProject(updated);
+  res.json(updated);
+});
+
+app.delete('/api/projects/:id', async (req, res) => {
+  await store.deleteProject(req.params.id);
+  res.json({ ok: true });
+});
+
 // ---------- Pages ----------
 
 // รายชื่อเพจที่เชื่อมต่อแล้ว (ไม่ส่ง token กลับไปหน้าเว็บ)
 // พร้อมจำนวนข้อความใหม่จากลูกค้า "วันนี้" ต่อเพจ — ?tz=นาที offset จาก UTC ของฝั่งผู้ใช้ (ไทย = 420)
 app.get('/api/pages', async (req, res) => {
-  const pages = (await store.getPages()).map(({ accessToken, ...p }) => p);
+  const inProject = await projectPageIds(req.query.project);
+  let pages = (await store.getPages()).map(({ accessToken, ...p }) => p);
+  if (inProject) pages = pages.filter((p) => inProject.has(p.id));
 
   const localDayKey = dayKeyFactory(parseInt(req.query.tz, 10));
   const todayKey = localDayKey(Date.now());
@@ -410,6 +458,8 @@ app.get('/api/conversations', async (req, res) => {
 
   // ดึงเฉพาะเพจที่เลือก (ใช้ index ใน Postgres) — เร็วกว่าดึงทุกเพจมา filter ทีหลังมาก
   let convs = pageId ? await store.getConversationsForPage(pageId) : await store.getAllConversations();
+  const inProjectC = await projectPageIds(req.query.project);
+  if (inProjectC) convs = convs.filter((c) => inProjectC.has(c.pageId));
   if (q) {
     const needle = String(q).toLowerCase();
     convs = convs.filter((c) => matchesQuery(c, needle));
@@ -441,6 +491,8 @@ app.get('/api/calendar', async (req, res) => {
   const { pageId, q } = req.query;
   const dayKey = dayKeyFactory(parseInt(req.query.tz, 10));
   let convs = pageId ? await store.getConversationsForPage(pageId) : await store.getAllConversations();
+  const inProjectCal = await projectPageIds(req.query.project);
+  if (inProjectCal) convs = convs.filter((c) => inProjectCal.has(c.pageId));
   if (q) {
     const needle = String(q).toLowerCase();
     convs = convs.filter((c) => matchesQuery(c, needle));
@@ -513,6 +565,8 @@ app.get('/api/analytics', async (req, res) => {
   let convs = pageId
     ? await store.getConversationsForPage(pageId)
     : await store.getAllConversations();
+  const inProjectA = await projectPageIds(req.query.project);
+  if (inProjectA) convs = convs.filter((c) => inProjectA.has(c.pageId));
   const statusMap = await store.getStatuses();
 
   // ข้อความเพจที่ซ้ำ ≥3 ครั้งในเพจเดียวกัน = ข้อความอัตโนมัติ (bot)

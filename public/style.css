@@ -47,6 +47,13 @@ body {
   padding: 6px 12px;
   border-radius: 8px;
 }
+.navbar a.logo { text-decoration: none; }
+.navbar .proj-back {
+  color: var(--muted); text-decoration: none; font-size: 14px;
+  padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border);
+}
+.navbar .proj-back:hover { background: var(--bg); color: var(--text); }
+.navbar .proj-back b { color: var(--primary); font-weight: 700; }
 .navbar a.nav-link:hover { background: var(--bg); }
 .navbar a.nav-link.active { color: var(--primary); font-weight: 600; background: #e7f0fe; }
 .navbar .spacer { flex: 1; }

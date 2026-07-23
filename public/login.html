@@ -39,10 +39,10 @@
       pw.focus();
     });
 
-    // ปลายทางหลัง login: หน้าที่ตั้งใจเข้าไว้ (return-url) ไม่งั้น index
+    // ปลายทางหลัง login: หน้าที่ตั้งใจเข้าไว้ (return-url) ไม่งั้นหน้าโปรเจกต์
     function nextUrl() {
       const r = sessionStorage.getItem('wz_return');
-      return (r && !/^login\.html/.test(r)) ? r : 'index.html';
+      return (r && !/^login\.html/.test(r)) ? r : 'projects.html';
     }
 
     // แปลงข้อมูลรูปจากโปรไฟล์เป็น src: ใช้ base64 เป็น data URI ก่อน (ฝังในหน้า = ไม่ติด CORS)
