@@ -28,12 +28,14 @@
 
     /* ปฏิทินโพสต์ */
     .cal-wrap { flex: 1; overflow-y: auto; padding: 10px 14px 20px; }
-    .cal-dow { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 4px; }
+    .cal-dow { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; margin-bottom: 4px; }
     .cal-dow span { text-align: center; font-size: 11px; font-weight: 700; color: var(--muted); padding: 4px 0; }
-    /* ทุกแถวสูงคงที่ 135px → ช่องเท่ากันหมดไม่ว่าเนื้อหา/เดือน/ขนาดจอ */
-    .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; grid-auto-rows: 135px; }
+    /* ทุกช่องกว้าง+สูงเท่ากันหมด ไม่ว่าเนื้อหา/เดือน/ขนาดจอ
+       minmax(0,1fr): คุมความกว้างให้เท่ากันเป๊ะ — กัน URL/ข้อความยาวตัดคำไม่ได้ดันคอลัมน์ให้กว้างเกิน
+       grid-auto-rows 135px: คุมความสูงคงที่ */
+    .cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; grid-auto-rows: 135px; }
     .cal-cell {
-      border: 1px solid var(--border); border-radius: 8px; height: 135px;
+      border: 1px solid var(--border); border-radius: 8px; height: 135px; min-width: 0;
       padding: 4px; display: flex; flex-direction: column; gap: 3px; overflow: visible;
     }
     /* ปุ่ม +N โพสต์ + popup เลือกโพสต์ของวันนั้น */
@@ -63,7 +65,7 @@
     .cal-cell .daynum { font-size: 12px; font-weight: 700; color: var(--muted); padding: 1px 3px; }
     .cal-cell.today .daynum { color: var(--primary); }
     .cal-post {
-      cursor: pointer; border-radius: 6px; overflow: hidden;
+      cursor: pointer; border-radius: 6px; overflow: hidden; min-width: 0;
       border: 1px solid var(--border); background: var(--card);
     }
     .cal-post:hover { border-color: var(--primary); }
@@ -74,6 +76,8 @@
       font-size: 10.5px; line-height: 1.3; padding: 2px 4px;
       /* จองพื้นที่ 2 บรรทัดเสมอ (2 × line-height) ให้การ์ดสูงเท่ากันไม่ว่าข้อความสั้น/ยาว */
       min-height: 2.6em;
+      /* ตัดคำ URL/ข้อความยาวได้ ไม่ให้ดันความกว้างช่อง */
+      overflow-wrap: anywhere;
       overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
     }
     .cal-post .cp-eng {
