@@ -67,15 +67,20 @@
     }
     .cal-post:hover { border-color: var(--primary); }
     .cal-post.active { outline: 2px solid var(--primary); }
-    .cal-post img { width: 100%; height: 40px; object-fit: cover; display: block; background: var(--bg); }
+    .cal-post img,
+    .cal-post .cp-noimg { width: 100%; height: 40px; object-fit: cover; display: block; background: var(--bg); }
     .cal-post .cp-txt {
       font-size: 10.5px; line-height: 1.3; padding: 2px 4px;
+      /* จองพื้นที่ 2 บรรทัดเสมอ (2 × line-height) ให้การ์ดสูงเท่ากันไม่ว่าข้อความสั้น/ยาว */
+      min-height: 2.6em;
       overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
     }
     .cal-post .cp-eng {
       display: flex; gap: 6px; font-size: 9.5px; color: var(--muted);
-      padding: 0 4px 3px; flex-wrap: wrap;
+      /* ไม่ให้ badge ตกบรรทัดตอนจอแคบ — คงความสูง 1 บรรทัดเสมอ */
+      padding: 0 4px 3px; flex-wrap: nowrap; overflow: hidden;
     }
+    .cal-post .cp-eng span { white-space: nowrap; }
 
     /* คอลัมน์ขวา: คอมเมนต์ */
     .cm-right { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
@@ -332,7 +337,7 @@
       const eng = engBadges(p);
       return `
         <div class="cal-post ${p.id === activePostId ? 'active' : ''}" title="${esc(p.message)}" onclick="openPost('${esc(p.id)}')">
-          ${p.picture ? `<img src="${esc(p.picture)}" alt="">` : ''}
+          ${p.picture ? `<img src="${esc(p.picture)}" alt="">` : '<div class="cp-noimg"></div>'}
           <div class="cp-txt">${esc(p.message)}</div>
           ${eng.length ? `<div class="cp-eng">${eng.map((e) => `<span>${e}</span>`).join('')}</div>` : ''}
         </div>`;
