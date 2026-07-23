@@ -56,6 +56,71 @@ function matchesQuery(c, needle) {
   );
 }
 
+// ---------- Auth (Wazzup identity) ----------
+// proxy ไป Wazzup เพื่อเลี่ยง CORS + ให้ base URL เป็น config ฝั่ง server
+const WAZZUP_BASE_URL = process.env.WAZZUP_BASE_URL || 'https://api.fareastfamelineddb.com';
+
+// แกะ exp (วินาที) จาก JWT โดยไม่ verify ลายเซ็น — ใช้เช็กหมดอายุแบบเบา ๆ ที่ server
+function decodeJwtExp(token) {
+  try {
+    const payload = token.split('.')[1];
+    const json = Buffer.from(payload.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8');
+    const claims = JSON.parse(json);
+    return typeof claims.exp === 'number' ? claims.exp : null;
+  } catch {
+    return null;
+  }
+}
+
+// ด่านตรวจ token สำหรับทุก /api/* ยกเว้น login/config — ไม่มี/หมดอายุ/พัง = 401
+const AUTH_PUBLIC_PATHS = new Set(['/api/auth/login', '/api/config']);
+function requireAuth(req, res, next) {
+  if (!req.path.startsWith('/api/')) return next();     // static/html ผ่านได้
+  if (AUTH_PUBLIC_PATHS.has(req.path)) return next();    // login + config เปิด
+  const m = /^Bearer\s+(.+)$/i.exec(req.headers.authorization || '');
+  if (!m) return res.status(401).json({ error: 'ต้องเข้าสู่ระบบก่อน' });
+  const exp = decodeJwtExp(m[1]);
+  if (!exp || exp * 1000 <= Date.now()) {
+    return res.status(401).json({ error: 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่' });
+  }
+  next();
+}
+app.use(requireAuth);
+
+// login: แลก username/password → session (มี access_token + expiration)
+app.post('/api/auth/login', async (req, res) => {
+  const { authenticationName, authenticationPassword } = req.body || {};
+  if (!authenticationName || !authenticationPassword) {
+    return res.status(400).json({ error: 'กรุณากรอกชื่อผู้ใช้และรหัสผ่าน' });
+  }
+  try {
+    const r = await fetch(`${WAZZUP_BASE_URL}/api/User/Authentication`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ authenticationName, authenticationPassword }),
+    });
+    if (r.status === 401) return res.status(401).json({ error: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' });
+    if (!r.ok) return res.status(502).json({ error: 'เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่' });
+    res.json(await r.json());
+  } catch {
+    res.status(502).json({ error: 'เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่' });
+  }
+});
+
+// profile: ส่งต่อ Bearer ไปดึงโปรไฟล์เต็ม + roles จาก Wazzup
+app.get('/api/auth/profile', async (req, res) => {
+  try {
+    const r = await fetch(`${WAZZUP_BASE_URL}/api/User/Profile`, {
+      headers: { Authorization: req.headers.authorization || '' },
+    });
+    if (r.status === 401) return res.status(401).json({ error: 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่' });
+    if (!r.ok) return res.status(502).json({ error: 'โหลดโปรไฟล์ไม่สำเร็จ' });
+    res.json(await r.json());
+  } catch {
+    res.status(502).json({ error: 'โหลดโปรไฟล์ไม่สำเร็จ' });
+  }
+});
+
 // การตั้งค่าที่หน้าเว็บต้องรู้ (ไม่เปิดเผยค่า secret)
 app.get('/api/config', (req, res) => {
   res.json({

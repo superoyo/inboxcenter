@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>เข้าสู่ระบบ — FB Inbox Center</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="login-body">
+  <form class="login-card" id="loginForm" autocomplete="on">
+    <div class="login-logo">📥 FB Inbox Center</div>
+    <div class="login-sub">เข้าสู่ระบบด้วยบัญชี Wazzup</div>
+
+    <input id="username" class="login-input" type="text" autocomplete="username" autofocus
+           placeholder="รหัสพนักงาน / EmpCode" aria-label="รหัสพนักงาน / EmpCode">
+
+    <div class="login-input-wrap">
+      <input id="password" class="login-input" type="password" autocomplete="current-password"
+             placeholder="วัน เดือน ปีเกิดค.ศ / Birthdate (ddmmyyyy)" aria-label="วัน เดือน ปีเกิดค.ศ (ddmmyyyy)">
+      <button type="button" class="pw-toggle" id="pwToggle" aria-label="แสดง/ซ่อนรหัสผ่าน"></button>
+    </div>
+
+    <div class="login-error" id="loginError"></div>
+    <button class="btn" id="loginBtn" type="submit">เข้าสู่ระบบ</button>
+  </form>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+
+    // ปุ่มลูกตา: เปิด/ปิดการมองเห็นรหัส (birthdate)
+    const EYE = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+    const EYE_OFF = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+    $('pwToggle').innerHTML = EYE_OFF;
+    $('pwToggle').addEventListener('click', () => {
+      const pw = $('password');
+      const show = pw.type === 'password';
+      pw.type = show ? 'text' : 'password';
+      $('pwToggle').innerHTML = show ? EYE : EYE_OFF;
+      pw.focus();
+    });
+
+    // ปลายทางหลัง login: หน้าที่ตั้งใจเข้าไว้ (return-url) ไม่งั้น index
+    function nextUrl() {
+      const r = sessionStorage.getItem('wz_return');
+      return (r && !/^login\.html/.test(r)) ? r : 'index.html';
+    }
+
+    // มี session ที่ยังไม่หมดอยู่แล้ว → เข้าเลย ไม่ต้อง login ซ้ำ
+    (function () {
+      try {
+        const s = JSON.parse(localStorage.getItem('wz_session') || 'null');
+        if (s && s.expiration && new Date(s.expiration).getTime() > Date.now()) {
+          location.replace(nextUrl());
+        }
+      } catch { /* ไม่มี session — แสดงฟอร์มตามปกติ */ }
+    })();
+
+    $('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = $('loginBtn'), err = $('loginError');
+      err.textContent = '';
+      const authenticationName = $('username').value.trim();
+      const authenticationPassword = $('password').value;
+      if (!authenticationName || !authenticationPassword) {
+        err.textContent = 'กรุณากรอกชื่อผู้ใช้และรหัสผ่าน';
+        return;
+      }
+      btn.disabled = true; btn.textContent = 'กำลังเข้าสู่ระบบ...';
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ authenticationName, authenticationPassword }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'เข้าสู่ระบบไม่สำเร็จ');
+
+        // เก็บเฉพาะ token + วันหมดอายุ + ฟิลด์ไว้โชว์ชื่อ — ไม่เก็บรหัสผ่าน
+        const session = {
+          access_token: data.access_token,
+          expiration: data.expiration,
+          user: {
+            empThaiName: data.empThaiName,
+            empEngName: data.empEngName,
+            nickName: data.nickName,
+            positionName: data.positionName,
+            departmentName: data.departmentName,
+            profileURL: data.profileURL,
+            email: data.email,
+          },
+        };
+        localStorage.setItem('wz_session', JSON.stringify(session));
+
+        const dest = nextUrl();
+        sessionStorage.removeItem('wz_return');
+        location.replace(dest);
+      } catch (e2) {
+        err.textContent = e2.message || 'เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่';
+      } finally {
+        btn.disabled = false; btn.textContent = 'เข้าสู่ระบบ';
+      }
+    });
+  </script>
+</body>
+</html>

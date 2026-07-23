@@ -730,3 +730,67 @@ input:focus, textarea:focus, select:focus { outline: 2px solid var(--primary); b
   .inbox-layout.thread-open .conv-panel { display: none; }
   .inbox-layout.thread-open .thread-panel { display: flex; }
 }
+
+/* ---------- Auth: หน้า login + chip บน navbar ---------- */
+.login-body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: var(--bg);
+  padding: 20px;
+}
+.login-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+  padding: 40px 28px;
+  width: 100%;
+  max-width: 380px;
+  display: flex;
+  flex-direction: column;
+}
+.login-logo { font-size: 22px; font-weight: 800; color: var(--primary); text-align: center; }
+.login-sub { color: var(--muted); font-size: 13px; text-align: center; margin: 4px 0 22px; }
+.login-card label { font-size: 13px; font-weight: 600; margin-bottom: 5px; }
+.login-card input {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 14px;
+  font-size: 14px;
+  font-family: inherit;
+  margin-bottom: 16px;
+}
+.login-card input:focus { outline: 2px solid var(--primary); border-color: transparent; }
+/* ช่องรหัส (birthdate) + ปุ่มลูกตา */
+.login-input-wrap { position: relative; margin-bottom: 16px; }
+.login-input-wrap input { margin-bottom: 0; padding-right: 44px; }
+.pw-toggle {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--muted);
+  padding: 6px;
+  display: flex;
+  align-items: center;
+}
+.pw-toggle:hover { color: var(--text); }
+.login-card .btn { width: 100%; justify-content: center; padding: 11px; font-size: 15px; }
+.login-error { color: var(--red); font-size: 13px; margin: 2px 0 8px; }
+.login-error:empty { display: none; }
+
+.auth-chip { display: flex; align-items: center; gap: 10px; margin-left: 12px; }
+.auth-chip .auth-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  max-width: 160px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
