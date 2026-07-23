@@ -45,6 +45,17 @@
       return (r && !/^login\.html/.test(r)) ? r : 'index.html';
     }
 
+    // แปลงข้อมูลรูปจากโปรไฟล์เป็น src: ใช้ profileURL ก่อน ไม่งั้นสร้าง data URI จาก base64
+    function buildPhoto(p) {
+      if (!p) return '';
+      if (p.profileURL) return p.profileURL;
+      if (p.wazzupPhotoBase64) {
+        const ft = p.wazzupPhotoFileType || 'image/jpeg';
+        return p.wazzupPhotoBase64.startsWith('data:') ? p.wazzupPhotoBase64 : ('data:' + ft + ';base64,' + p.wazzupPhotoBase64);
+      }
+      return '';
+    }
+
     // มี session ที่ยังไม่หมดอยู่แล้ว → เข้าเลย ไม่ต้อง login ซ้ำ
     (function () {
       try {
@@ -85,11 +96,26 @@
             nickName: data.nickName,
             positionName: data.positionName,
             departmentName: data.departmentName,
-            profileURL: data.profileURL,
             email: data.email,
+            photo: data.profileURL || '',
           },
         };
         localStorage.setItem('wz_session', JSON.stringify(session));
+
+        // ดึงโปรไฟล์เต็ม (รูป + ชื่อ-นามสกุล + roles) แล้ว merge — ไม่บล็อกถ้าพลาด (ไม่แตะ hrPassword)
+        try {
+          const pr = await fetch('/api/auth/profile', { headers: { Authorization: 'Bearer ' + data.access_token } });
+          if (pr.ok) {
+            const pj = await pr.json();
+            const p = pj.profile || {};
+            session.user = {
+              empThaiName: p.empThaiName, empEngName: p.empEngName, nickName: p.nickName,
+              positionName: p.positionName, departmentName: p.departmentName, email: p.email,
+              photo: buildPhoto(p), roles: pj.userRole || [],
+            };
+            localStorage.setItem('wz_session', JSON.stringify(session));
+          }
+        } catch { /* ใช้ข้อมูลจาก login response ไปก่อน */ }
 
         const dest = nextUrl();
         sessionStorage.removeItem('wz_return');

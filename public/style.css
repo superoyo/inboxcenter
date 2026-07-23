@@ -784,13 +784,64 @@ input:focus, textarea:focus, select:focus { outline: 2px solid var(--primary); b
 .login-error { color: var(--red); font-size: 13px; margin: 2px 0 8px; }
 .login-error:empty { display: none; }
 
-.auth-chip { display: flex; align-items: center; gap: 10px; margin-left: 12px; }
-.auth-chip .auth-name {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text);
-  max-width: 160px;
-  white-space: nowrap;
+/* รูปโปรไฟล์วงกลม + dropdown บน navbar */
+.auth-menu { position: relative; margin-left: 6px; flex-shrink: 0; }
+.auth-avatar {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  padding: 0;
+  cursor: pointer;
   overflow: hidden;
-  text-overflow: ellipsis;
+  background: var(--primary);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 15px;
+  flex-shrink: 0;
 }
+.auth-avatar:hover { border-color: var(--primary); }
+.auth-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.auth-avatar.lg { width: 46px; height: 46px; font-size: 19px; cursor: default; }
+
+.auth-dropdown {
+  display: none;
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 244px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+  z-index: 100;
+}
+.auth-dropdown.open { display: block; }
+.auth-dd-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+}
+.auth-dd-info { min-width: 0; }
+.auth-dd-name { font-weight: 700; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.auth-dd-sub { color: var(--muted); font-size: 12px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.auth-dd-item {
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 13px 16px;
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.auth-dd-item:hover { background: var(--bg); }
