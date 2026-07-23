@@ -189,9 +189,13 @@
 
     .viz-tooltip {
       position: fixed; z-index: 300; pointer-events: none; display: none;
-      background: var(--ink-1); color: #fff; border-radius: 8px; padding: 7px 11px;
-      font-size: 12px; line-height: 1.5; box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+      background: #0b0b0b; color: #fff; border-radius: 8px; padding: 7px 11px;
+      font-size: 12px; line-height: 1.6; box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+      white-space: nowrap;
     }
+    .viz-tooltip b { font-weight: 700; }
+    .viz-tooltip .tt-cur { color: #7fe0b8; }
+    .viz-tooltip .tt-prev { color: #f6a97f; }
     @media (max-width: 1000px) {
       .cards-4 { grid-template-columns: repeat(2, 1fr); }
       .cols-2, .cols-3g { grid-template-columns: 1fr; }
@@ -506,20 +510,46 @@
 
     // ---------- ภาพรวมแชท ----------
     // sparkline 2 เส้น (ปัจจุบัน=เขียวอมฟ้า / ก่อนหน้า=ส้ม) แบบ area
+    const SPK = { W: 300, H: 60, pad: 3 }; // เรขาคณิต sparkline (ใช้ร่วมตอน hover)
+    function spkX(i, n) { return n <= 1 ? SPK.W / 2 : SPK.pad + (i / (n - 1)) * (SPK.W - 2 * SPK.pad); }
+    function spkY(v, max) { return SPK.H - SPK.pad - (v / max) * (SPK.H - 2 * SPK.pad); }
+
     function sparkSvg(cur, prev) {
-      const W = 300, H = 60, pad = 3;
-      const all = cur.concat(prev);
-      const max = Math.max(1, ...all);
+      const max = Math.max(1, ...cur, ...prev);
       const n = cur.length;
-      const x = (i) => n <= 1 ? W / 2 : pad + (i / (n - 1)) * (W - 2 * pad);
-      const y = (v) => H - pad - (v / max) * (H - 2 * pad);
-      const path = (arr) => arr.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join('');
-      const area = (arr) => `${path(arr)} L${x(n - 1).toFixed(1)},${H - pad} L${x(0).toFixed(1)},${H - pad} Z`;
-      return `<svg viewBox="0 0 ${W} ${H}" style="width:100%; height:60px; display:block;">
+      const path = (arr) => arr.map((v, i) => `${i ? 'L' : 'M'}${spkX(i, n).toFixed(1)},${spkY(v, max).toFixed(1)}`).join('');
+      const area = (arr) => `${path(arr)} L${spkX(n - 1, n).toFixed(1)},${SPK.H - SPK.pad} L${spkX(0, n).toFixed(1)},${SPK.H - SPK.pad} Z`;
+      return `<svg viewBox="0 0 ${SPK.W} ${SPK.H}" preserveAspectRatio="none" style="width:100%; height:60px; display:block;">
         <path d="${area(cur)}" fill="#1baf7a" opacity="0.10"/>
-        <path d="${path(prev)}" fill="none" stroke="#eb6834" stroke-width="2" stroke-linejoin="round" opacity="0.85"/>
-        <path d="${path(cur)}" fill="none" stroke="#1baf7a" stroke-width="2" stroke-linejoin="round"/>
+        <path d="${path(prev)}" fill="none" stroke="#eb6834" stroke-width="2" stroke-linejoin="round" opacity="0.85" vector-effect="non-scaling-stroke"/>
+        <path d="${path(cur)}" fill="none" stroke="#1baf7a" stroke-width="2" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+        <line class="spk-x" y1="${SPK.pad}" y2="${SPK.H - SPK.pad}" stroke="#898781" stroke-width="1" stroke-dasharray="3,3" style="display:none" vector-effect="non-scaling-stroke"/>
+        <circle class="spk-dc" r="3" fill="#1baf7a" stroke="#fff" stroke-width="1.5" style="display:none" vector-effect="non-scaling-stroke"/>
+        <circle class="spk-dp" r="3" fill="#eb6834" stroke="#fff" stroke-width="1.5" style="display:none" vector-effect="non-scaling-stroke"/>
+        <rect class="spk-hit" x="0" y="0" width="${SPK.W}" height="${SPK.H}" fill="transparent"/>
       </svg>`;
+    }
+
+    // ผูก hover ให้ sparkline: แสดง crosshair + จุด + tooltip (วันที่ + ค่า 2 ช่วง)
+    function bindSpark(svg, cur, prev, unit) {
+      const n = cur.length, max = Math.max(1, ...cur, ...prev);
+      const line = svg.querySelector('.spk-x'), dc = svg.querySelector('.spk-dc'), dp = svg.querySelector('.spk-dp');
+      const hit = svg.querySelector('.spk-hit');
+      const from = lastAnalytics && lastAnalytics.period ? lastAnalytics.period.from : null;
+      const fmtV = (v) => unit === 'pct' ? v + '%' : v.toLocaleString();
+      hit.addEventListener('mousemove', (e) => {
+        const r = svg.getBoundingClientRect();
+        const i = Math.max(0, Math.min(n - 1, Math.round(((e.clientX - r.left) / r.width) * (n - 1))));
+        const xx = spkX(i, n);
+        line.setAttribute('x1', xx); line.setAttribute('x2', xx); line.style.display = '';
+        dc.setAttribute('cx', xx); dc.setAttribute('cy', spkY(cur[i], max)); dc.style.display = '';
+        dp.setAttribute('cx', xx); dp.setAttribute('cy', spkY(prev[i], max)); dp.style.display = '';
+        const dateStr = from ? fmtDay(new Date(new Date(from + 'T00:00:00').getTime() + i * 86400e3).toISOString().slice(0, 10)) : `วันที่ ${i + 1}`;
+        showTip(`<b>${dateStr}</b><br><span class="tt-cur">● ช่วงนี้: ${fmtV(cur[i])}</span><br><span class="tt-prev">● ช่วงก่อนหน้า: ${fmtV(prev[i])}</span>`, e.clientX, e.clientY);
+      });
+      hit.addEventListener('mouseleave', () => {
+        hideTip(); line.style.display = 'none'; dc.style.display = 'none'; dp.style.display = 'none';
+      });
     }
 
     function deltaChip(d, invert) {
@@ -533,7 +563,7 @@
 
     const sparkLegend = '<div class="ov-legend"><span><i style="background:#1baf7a"></i>ช่วงนี้</span><span><i style="background:#eb6834"></i>ช่วงก่อนหน้า</span></div>';
 
-    function ovCard(title, valueHtml, o, isPct) {
+    function ovCard(title, valueHtml, o, isPct, metric) {
       // o.delta: สัดส่วน (count) หรือ percentage-point (sla) — แสดงเป็น %
       const d = isPct ? o.delta : o.delta; // count delta เป็นสัดส่วน, sla เป็น pp
       const chip = isPct
@@ -543,7 +573,7 @@
         <div class="ov-card">
           <div class="ov-title">${title}</div>
           <div class="ov-head"><span class="ov-val">${valueHtml}</span>${chip}</div>
-          <div class="ov-spark">${sparkSvg(o.cur, o.prevSeries)}</div>
+          <div class="ov-spark" data-metric="${metric}" data-unit="${isPct ? 'pct' : 'count'}">${sparkSvg(o.cur, o.prevSeries)}</div>
           ${sparkLegend}
         </div>`;
     }
@@ -577,11 +607,17 @@
             </div>
           </div>
         </div>
-        ${ovCard('จำนวนแชทลูกค้า', o.customerChats.value.toLocaleString(), o.customerChats, false)}
-        ${ovCard('อัตราการตอบแชทภายใน 12 ชั่วโมง', fmtPct(o.sla12h.value), o.sla12h, true)}
-        ${ovCard('อัตราการตอบแชทภายใน 10 นาที', fmtPct(o.sla10min.value), o.sla10min, true)}
-        ${ovCard('จำนวนข้อความที่ได้รับ', o.messagesReceived.value.toLocaleString(), o.messagesReceived, false)}
-        ${ovCard('จำนวนข้อความที่ส่งออกไป', o.messagesSent.value.toLocaleString(), o.messagesSent, false)}`;
+        ${ovCard('จำนวนแชทลูกค้า', o.customerChats.value.toLocaleString(), o.customerChats, false, 'customerChats')}
+        ${ovCard('อัตราการตอบแชทภายใน 12 ชั่วโมง', fmtPct(o.sla12h.value), o.sla12h, true, 'sla12h')}
+        ${ovCard('อัตราการตอบแชทภายใน 10 นาที', fmtPct(o.sla10min.value), o.sla10min, true, 'sla10min')}
+        ${ovCard('จำนวนข้อความที่ได้รับ', o.messagesReceived.value.toLocaleString(), o.messagesReceived, false, 'messagesReceived')}
+        ${ovCard('จำนวนข้อความที่ส่งออกไป', o.messagesSent.value.toLocaleString(), o.messagesSent, false, 'messagesSent')}`;
+
+      // ผูก hover ให้ทุก sparkline
+      $('chatOverview').querySelectorAll('.ov-spark[data-metric]').forEach((el) => {
+        const m = o[el.dataset.metric];
+        if (m) bindSpark(el.querySelector('svg'), m.cur, m.prevSeries, el.dataset.unit);
+      });
     }
 
     // ---------- การ์ดตัวเลขหลัก ----------
