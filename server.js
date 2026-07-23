@@ -472,12 +472,22 @@ app.get('/api/analytics', async (req, res) => {
   let activeRooms = 0, answered = 0, botOnlyRooms = 0, roomsWithReply = 0;
   const perPage = {};               // pageId -> ตัวเลขต่อเพจ (โหมดภาพรวม)
 
+  // ---- ภาพรวมแชท (chat overview): นับรายวันทั้งช่วงปัจจุบันและก่อนหน้า สำหรับ sparkline ----
+  const recvDay = {}, sentDay = {};       // จำนวนข้อความเข้า/ออก ต่อวัน (ครอบคลุมทั้ง 2 ช่วง)
+  const chatDaySet = {};                  // วัน -> Set(convId) ที่ลูกค้ามีข้อความ (นับแชทรายวัน)
+  const sla12Day = {}, sla10Day = {};     // วัน -> { hit, tot } อัตราตอบใน 12 ชม. / 10 นาที
+  let sentPeriod = 0, sentPrev = 0;
+  let sla12hit = 0, sla12tot = 0, sla10hit = 0, sla10tot = 0;         // ช่วงปัจจุบัน
+  let sla12hitPrev = 0, sla12totPrev = 0, sla10hitPrev = 0, sla10totPrev = 0; // ช่วงก่อนหน้า
+  let newChats = 0, returningChats = 0, activePrevRooms = 0;
+  const MIN10 = 10 * 60 * 1000;
+
   for (const c of convs) {
     const pp = (perPage[c.pageId] = perPage[c.pageId] || {
       pageId: c.pageId, pageName: c.pageName,
       periodIn: 0, waiting: 0, over24h: 0, red: 0, humanDeltas: [],
     });
-    let pending = null, hasHumanP = false, hasBotP = false, lastCust = null, activeInPeriod = false;
+    let pending = null, hasHumanP = false, hasBotP = false, lastCust = null, activeInPeriod = false, activeInPrev = false;
     let lastPairDelta = null, lastPairAt = null; // คู่ถาม-ตอบล่าสุดที่การตอบอยู่ในช่วงที่เลือก
     const roomTokens = new Set();   // คำสำคัญของห้องนี้ (ข้อความลูกค้าในช่วงที่เลือก)
     const lastMsg = c.messages[c.messages.length - 1];
@@ -486,6 +496,7 @@ app.get('/api/analytics', async (req, res) => {
       const t = new Date(m.createdTime).getTime();
       const k = dayKey(t);
       if (inPeriod(k)) activeInPeriod = true;
+      else if (inPrev(k)) activeInPrev = true;
       if (!m.isFromPage) {
         lastCust = m;
         if (inPeriod(k)) {
@@ -497,28 +508,49 @@ app.get('/api/analytics', async (req, res) => {
         } else if (inPrev(k)) {
           prevIn++;
         }
+        if (inPeriod(k) || inPrev(k)) {
+          recvDay[k] = (recvDay[k] || 0) + 1;
+          (chatDaySet[k] = chatDaySet[k] || new Set()).add(c.id);
+        }
         if (pending === null) pending = t;
       } else {
         if (inPeriod(k)) (daily[k] = daily[k] || { in: 0, out: 0 }).out++;
+        if (inPeriod(k) || inPrev(k)) sentDay[k] = (sentDay[k] || 0) + 1;
+        if (inPeriod(k)) sentPeriod++; else if (inPrev(k)) sentPrev++;
         const bot = isBot(c.pageId, m.text);
         if (inPeriod(k)) { if (bot) hasBotP = true; else hasHumanP = true; }
         if (pending !== null) {
-          // นับเวลาตอบเฉพาะการตอบที่เกิดในช่วงที่เลือก
+          const d = t - pending;
           if (inPeriod(k)) {
-            const d = t - pending;
             if (bot) botDeltas.push(d);
             else { humanDeltas.push(d); pp.humanDeltas.push(d); }
             lastPairDelta = d;
             lastPairAt = t;
+          }
+          // อัตราตอบ (นับเฉพาะการตอบด้วยคน) — สำหรับการ์ดภาพรวมแชท
+          if (!bot) {
+            const s12 = (sla12Day[k] = sla12Day[k] || { hit: 0, tot: 0 });
+            const s10 = (sla10Day[k] = sla10Day[k] || { hit: 0, tot: 0 });
+            if (inPeriod(k) || inPrev(k)) {
+              s12.tot++; if (d <= 12 * HOUR) s12.hit++;
+              s10.tot++; if (d <= MIN10) s10.hit++;
+            }
+            if (inPeriod(k)) { sla12tot++; if (d <= 12 * HOUR) sla12hit++; sla10tot++; if (d <= MIN10) sla10hit++; }
+            else if (inPrev(k)) { sla12totPrev++; if (d <= 12 * HOUR) sla12hitPrev++; sla10totPrev++; if (d <= MIN10) sla10hitPrev++; }
           }
           pending = null;
         }
       }
     }
 
+    if (activeInPrev) activePrevRooms++;
+
     // ตัวชี้วัดระดับห้อง: นับเฉพาะห้องที่มีความเคลื่อนไหวในช่วงที่เลือก
     if (!activeInPeriod) continue;
     activeRooms++;
+    // แชทใหม่ = ห้องที่เริ่มคุยครั้งแรกในช่วงนี้ · แชทเก่า = เคยคุยมาก่อนแล้วกลับมาคุยอีก
+    const firstK = c.messages.length ? dayKey(new Date(c.messages[0].createdTime).getTime()) : toKey;
+    if (inPeriod(firstK)) newChats++; else returningChats++;
     for (const tok of roomTokens) wordRoomCounts.set(tok, (wordRoomCounts.get(tok) || 0) + 1);
 
     const level = statusMap[c.id] || urgency.classify(lastCust ? lastCust.text : '');
@@ -588,6 +620,45 @@ app.get('/api/analytics', async (req, res) => {
   const sortedWaiting = [...waiting].sort((a, b) => rank[a.level] - rank[b.level] || b.waitedMs - a.waitedMs);
   const alerts = sortedWaiting.slice(0, 10);
 
+  // ---- สร้าง series รายวันสำหรับ sparkline (ช่วงปัจจุบัน + ช่วงก่อนหน้า อยู่กันคนละเส้น ความยาวเท่ากัน) ----
+  const countSeries = (map, startKey) => Array.from({ length: nDays }, (_, i) => map[kOf(kTime(startKey) + i * DAY)] || 0);
+  const pctSeries = (map, startKey) => Array.from({ length: nDays }, (_, i) => {
+    const e = map[kOf(kTime(startKey) + i * DAY)];
+    return e && e.tot ? Math.round((e.hit / e.tot) * 100) : 0;
+  });
+  const chatCntDay = {};
+  for (const k of Object.keys(chatDaySet)) chatCntDay[k] = chatDaySet[k].size;
+  const pct = (h, t) => (t ? h / t : null);
+  const delta = (cur, prev) => (prev ? (cur - prev) / prev : null); // สัดส่วนเปลี่ยนแปลง
+
+  const chatOverview = {
+    newVsReturning: { newChats, returningChats },
+    customerChats: {
+      value: activeRooms, prev: activePrevRooms, delta: delta(activeRooms, activePrevRooms),
+      cur: countSeries(chatCntDay, fromKey), prevSeries: countSeries(chatCntDay, prevFromKey),
+    },
+    sla12h: {
+      value: pct(sla12hit, sla12tot), prev: pct(sla12hitPrev, sla12totPrev),
+      delta: (pct(sla12hit, sla12tot) != null && pct(sla12hitPrev, sla12totPrev) != null)
+        ? pct(sla12hit, sla12tot) - pct(sla12hitPrev, sla12totPrev) : null,
+      cur: pctSeries(sla12Day, fromKey), prevSeries: pctSeries(sla12Day, prevFromKey),
+    },
+    sla10min: {
+      value: pct(sla10hit, sla10tot), prev: pct(sla10hitPrev, sla10totPrev),
+      delta: (pct(sla10hit, sla10tot) != null && pct(sla10hitPrev, sla10totPrev) != null)
+        ? pct(sla10hit, sla10tot) - pct(sla10hitPrev, sla10totPrev) : null,
+      cur: pctSeries(sla10Day, fromKey), prevSeries: pctSeries(sla10Day, prevFromKey),
+    },
+    messagesReceived: {
+      value: periodIn, prev: prevIn, delta: delta(periodIn, prevIn),
+      cur: countSeries(recvDay, fromKey), prevSeries: countSeries(recvDay, prevFromKey),
+    },
+    messagesSent: {
+      value: sentPeriod, prev: sentPrev, delta: delta(sentPeriod, sentPrev),
+      cur: countSeries(sentDay, fromKey), prevSeries: countSeries(sentDay, prevFromKey),
+    },
+  };
+
   res.json({
     generatedAt: new Date(now).toISOString(),
     scope: pageId || 'all',
@@ -622,6 +693,7 @@ app.get('/api/analytics', async (req, res) => {
     },
     urgency: urgencyCount,
     keywords: cloud,
+    chatOverview,
     days,
     hourly,
     alerts,
