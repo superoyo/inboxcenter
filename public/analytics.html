@@ -934,11 +934,10 @@
             ? `<span class="time" style="color:var(--delta-good);">ตอบใน ${fmtDur(w.replyDelta)}</span>`
             : `<span class="time" style="color:var(--ink-mute); font-weight:400;">${fmtDur(Date.now() - new Date(w.updatedTime))}ก่อน</span>`;
         return `
-        <div class="conv-item ${w.id === wpActiveId ? 'active' : ''}" onclick="selectWaitingRoom('${esc(w.id)}')">
+        <div class="conv-item lvl-${w.level} ${w.id === wpActiveId ? 'active' : ''}" onclick="selectWaitingRoom('${esc(w.id)}')">
           ${custAvatarHtml(w.customerPic, w.customerName, w.customerId)}
           <div class="conv-body">
             <div class="top-row">
-              <span class="urgency u-${w.level}"></span>
               <span class="cust-name">${esc(w.customerName)}</span>
               ${timeHtml}
             </div>

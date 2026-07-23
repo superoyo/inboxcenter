@@ -494,11 +494,10 @@
           : 'ไม่มีข้อความ';
         const urgency = classifyUrgency(c);
         return `
-          <div class="conv-item ${c.id === activeConvId ? 'active' : ''}" onclick="openConv('${esc(c.id)}')">
+          <div class="conv-item lvl-${urgency.level} ${c.id === activeConvId ? 'active' : ''}" onclick="openConv('${esc(c.id)}')" title="${esc(urgency.label)}">
             ${avatarHtml(c.customerPic, c.customerName, c.customerId)}
             <div class="conv-body">
               <div class="top-row">
-                <span class="urgency u-${urgency.level}" title="${esc(urgency.label)}"></span>
                 <span class="cust-name">${esc(c.customerName)}</span>
                 <span class="time">${fmtTime(c.updatedTime)}</span>
               </div>
