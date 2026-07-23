@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Report — FB Inbox Center</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .rp-wrap { max-width: 760px; margin: 0 auto; padding: 24px; }
+    .rp-wrap h1 { font-size: 22px; margin-bottom: 4px; }
+    .rp-wrap .sub { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+    .rp-field { margin-bottom: 20px; }
+    .rp-field > label { display: block; font-weight: 700; font-size: 14px; margin-bottom: 8px; }
+    /* dropdown เพจ */
+    .pg-dd { position: relative; }
+    .pg-dd-btn {
+      display: flex; align-items: center; gap: 9px; width: 100%;
+      padding: 10px 12px; background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+      font-size: 14px; font-weight: 600; font-family: inherit; color: var(--text); cursor: pointer;
+    }
+    .pg-dd-btn:hover { background: var(--bg); }
+    .pg-dd-btn .caret { margin-left: auto; color: var(--muted); font-size: 11px; }
+    .pg-dd-menu {
+      display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 100;
+      background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+      box-shadow: 0 8px 26px rgba(0,0,0,0.16); max-height: 50vh; overflow-y: auto; padding: 5px;
+    }
+    .pg-dd-menu.open { display: block; }
+    .pg-dd-item { display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 8px; cursor: pointer; font-size: 13.5px; }
+    .pg-dd-item:hover { background: var(--bg); }
+    .pg-dd-item.active { background: #e7f0fe; color: var(--primary); font-weight: 600; }
+    .pg-dd-item span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .pg-ava, .pg-ava-fb {
+      width: 24px; height: 24px; border-radius: 50%; object-fit: cover; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center; color: #fff; font-size: 12px; font-weight: 700;
+    }
+    /* ปุ่มเลือกช่วงเวลา */
+    .period-opts { display: flex; gap: 8px; flex-wrap: wrap; }
+    .period-opt {
+      border: 1px solid var(--border); background: var(--card); border-radius: 8px;
+      padding: 9px 16px; font-size: 14px; cursor: pointer; font-weight: 600; color: var(--text);
+    }
+    .period-opt:hover { background: var(--bg); }
+    .period-opt.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+    /* การ์ด export */
+    .exp-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    @media (max-width: 640px) { .exp-cards { grid-template-columns: 1fr; } }
+    .exp-card { border: 1px solid var(--border); border-radius: 12px; padding: 18px; }
+    .exp-card .ic { font-size: 30px; }
+    .exp-card h3 { font-size: 15px; margin: 8px 0 4px; }
+    .exp-card p { color: var(--muted); font-size: 13px; line-height: 1.5; margin-bottom: 14px; }
+    .exp-card .btn { width: 100%; justify-content: center; }
+    .rp-status { margin-top: 16px; font-size: 13px; color: var(--muted); min-height: 20px; }
+  </style>
+</head>
+<body>
+  <nav class="navbar">
+    <span class="logo">📥 FB Inbox Center</span>
+    <a class="nav-link" href="index.html">Inbox</a>
+    <a class="nav-link" href="comments.html">Content</a>
+    <a class="nav-link" href="analytics.html">Analytics</a>
+    <a class="nav-link active" href="report.html">Report</a>
+    <a class="nav-link" href="connect.html">Setting</a>
+  </nav>
+
+  <div class="rp-wrap">
+    <h1>📄 Report — ส่งออกข้อมูล CSV</h1>
+    <div class="sub">ดาวน์โหลดข้อมูลโพสต์และคอมเมนต์ย้อนหลัง เพื่อนำไปวิเคราะห์ content analysis</div>
+
+    <div class="rp-field">
+      <label>เลือกเพจ</label>
+      <div class="pg-dd" id="pgDd">
+        <button class="pg-dd-btn" id="pgDdBtn">
+          <span id="pgDdAvaWrap" style="display:flex;"><span class="pg-ava-fb" style="background:var(--primary);">📄</span></span>
+          <span id="pgDdLabel">เลือกเพจ...</span>
+          <span class="caret">▼</span>
+        </button>
+        <div class="pg-dd-menu" id="pgDdMenu"></div>
+      </div>
+    </div>
+
+    <div class="rp-field">
+      <label>ช่วงเวลาย้อนหลัง</label>
+      <div class="period-opts" id="periodOpts">
+        <button class="period-opt active" data-m="1">1 เดือน</button>
+        <button class="period-opt" data-m="3">1 ไตรมาส</button>
+        <button class="period-opt" data-m="12">1 ปี</button>
+        <button class="period-opt" data-m="36">3 ปี</button>
+      </div>
+    </div>
+
+    <div class="rp-field">
+      <label>เลือกข้อมูลที่ต้องการส่งออก</label>
+      <div class="exp-cards">
+        <div class="exp-card">
+          <div class="ic">📝</div>
+          <h3>ข้อมูลเนื้อหาที่เพจโพสต์</h3>
+          <p>วันที่โพสต์ · ข้อความ · จำนวนคำ · reactions · comments · shares · ลิงก์โพสต์</p>
+          <button class="btn" id="expPosts">⬇ Export โพสต์ (CSV)</button>
+        </div>
+        <div class="exp-card">
+          <div class="ic">💬</div>
+          <h3>ข้อมูลคอมเมนต์ใต้โพสต์</h3>
+          <p>โพสต์ที่เกี่ยวข้อง · ผู้แสดงความเห็น · ข้อความคอมเมนต์ · ไลก์ · วันเวลา · ระดับ (คอมเมนต์/ตอบกลับ)</p>
+          <button class="btn" id="expComments">⬇ Export คอมเมนต์ (CSV)</button>
+        </div>
+      </div>
+      <div class="rp-status" id="rpStatus"></div>
+    </div>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    let pages = [];
+    let selectedPage = null;
+    let months = 1;
+
+    function esc(s) {
+      return String(s ?? '').replace(/[&<>"']/g, (c) =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+    const AVATAR_COLORS = ['#1877f2','#e91e63','#8e24aa','#5e35b1','#3949ab','#00897b','#f4511e','#6d4c41','#546e7a','#c2185b','#2e7d32','#ef6c00'];
+    function avatarColor(key){ let h=0; for(const ch of String(key||'?')) h=(h*31+ch.codePointAt(0))>>>0; return AVATAR_COLORS[h%AVATAR_COLORS.length]; }
+    function pgAvatarHtml(p){
+      const fb = `<span class="pg-ava-fb" style="background:${avatarColor(p.id)};${p.pictureUrl?'display:none;':''}">${esc((p.name||'?')[0])}</span>`;
+      return p.pictureUrl ? `<img class="pg-ava" src="${esc(p.pictureUrl)}" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">${fb}` : fb;
+    }
+
+    async function loadPages(){
+      pages = await fetch('/api/pages').then(r=>r.json());
+      pages.sort((a,b)=>a.name.localeCompare(b.name,'th'));
+      $('pgDdMenu').innerHTML = pages.map(p=>`
+        <div class="pg-dd-item ${selectedPage&&selectedPage.id===p.id?'active':''}" onclick="selectPage('${esc(p.id)}')">
+          ${pgAvatarHtml(p)}<span>${esc(p.name)}</span></div>`).join('');
+      if(!selectedPage && pages.length) selectPage(pages[0].id);
+    }
+    function selectPage(id){
+      selectedPage = pages.find(p=>p.id===id); if(!selectedPage) return;
+      $('pgDdLabel').textContent = selectedPage.name;
+      $('pgDdAvaWrap').innerHTML = pgAvatarHtml(selectedPage);
+      $('pgDdMenu').classList.remove('open');
+      loadPages();
+    }
+    $('pgDdBtn').addEventListener('click',(e)=>{ e.stopPropagation(); $('pgDdMenu').classList.toggle('open'); });
+    document.addEventListener('click',()=>$('pgDdMenu').classList.remove('open'));
+
+    $('periodOpts').addEventListener('click',(e)=>{
+      const b = e.target.closest('.period-opt'); if(!b) return;
+      months = +b.dataset.m;
+      [...$('periodOpts').children].forEach(x=>x.classList.toggle('active', x===b));
+    });
+
+    // ---------- CSV helper ----------
+    function csvCell(v){ const s=String(v==null?'':v); return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; }
+    function downloadCSV(rows, name){
+      const csv = '﻿' + rows.map(r=>r.map(csvCell).join(',')).join('\r\n');
+      const blob = new Blob([csv],{type:'text/csv;charset=utf-8;'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href=url; a.download=name; a.click(); URL.revokeObjectURL(url);
+    }
+    const fmt = (iso)=> new Date(iso).toLocaleString('th-TH',{dateStyle:'short',timeStyle:'short'});
+    const stamp = ()=> new Date().toISOString().slice(0,10);
+    const periodLabel = ()=> ({1:'1เดือน',3:'1ไตรมาส',12:'1ปี',36:'3ปี'}[months]||months+'ด');
+    function safeName(s){ return String(s||'page').slice(0,24).replace(/[^\wก-๙]+/g,'_'); }
+    function busy(on,msg){ $('expPosts').disabled=on; $('expComments').disabled=on; $('rpStatus').textContent=msg||''; }
+
+    async function exportPosts(){
+      if(!selectedPage) return;
+      busy(true,'⏳ กำลังดึงข้อมูลโพสต์... (ช่วงยาวอาจใช้เวลาสักครู่)');
+      try{
+        const d = await fetch(`/api/pages/${encodeURIComponent(selectedPage.id)}/report/posts?months=${months}`).then(r=>r.json());
+        if(d.error) throw new Error(d.error);
+        if(!d.posts.length){ busy(false,'ไม่พบโพสต์ในช่วงเวลานี้'); return; }
+        const rows = [['วันที่โพสต์','เพจ','ข้อความ','จำนวนคำ','จำนวนตัวอักษร','มีรูป','Reactions','Comments','Shares','ลิงก์']];
+        for(const p of d.posts){
+          const msg = p.message||'';
+          rows.push([ fmt(p.createdTime), d.pageName, msg,
+            (msg.trim()?msg.trim().split(/\s+/).length:0), msg.length,
+            p.picture?'มี':'ไม่มี', p.reactionCount, p.commentCount, p.shareCount, p.permalink ]);
+        }
+        downloadCSV(rows, `posts_${safeName(d.pageName)}_${periodLabel()}_${stamp()}.csv`);
+        busy(false,`✓ ดาวน์โหลด ${d.posts.length} โพสต์แล้ว`);
+      }catch(err){ busy(false,'❌ '+err.message); }
+    }
+
+    async function exportComments(){
+      if(!selectedPage) return;
+      busy(true,'⏳ กำลังดึงคอมเมนต์ของทุกโพสต์... (อาจใช้เวลาหลายสิบวินาทีสำหรับช่วงยาว)');
+      try{
+        const d = await fetch(`/api/pages/${encodeURIComponent(selectedPage.id)}/report/comments?months=${months}`).then(r=>r.json());
+        if(d.error) throw new Error(d.error);
+        if(!d.rows.length){ busy(false,'ไม่พบคอมเมนต์ในช่วงเวลานี้'); return; }
+        const rows = [['วันที่โพสต์','โพสต์ (ย่อ)','ระดับ','ผู้แสดงความเห็น','ข้อความคอมเมนต์','ไลก์','วันเวลาคอมเมนต์','ตอบใต้คอมเมนต์ของ']];
+        for(const x of d.rows){
+          rows.push([ fmt(x.post.createdTime), (x.post.message||'').slice(0,60), x.level,
+            x.c.fromName, x.c.message, x.c.likeCount, fmt(x.c.createdTime), x.parent ]);
+        }
+        downloadCSV(rows, `comments_${safeName(d.pageName)}_${periodLabel()}_${stamp()}.csv`);
+        const trunc = d.meta.truncated ? ` (จำกัด ${d.meta.postsProcessed}/${d.meta.postsTotal} โพสต์ล่าสุด)` : '';
+        busy(false,`✓ ดาวน์โหลด ${d.rows.length} คอมเมนต์ จาก ${d.meta.postsProcessed} โพสต์แล้ว${trunc}`);
+      }catch(err){ busy(false,'❌ '+err.message); }
+    }
+
+    $('expPosts').addEventListener('click', exportPosts);
+    $('expComments').addEventListener('click', exportComments);
+    loadPages();
+  </script>
+</body>
+</html>

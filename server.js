@@ -782,6 +782,58 @@ app.get('/api/posts/:postId/comments', async (req, res) => {
   }
 });
 
+// ---------- Report (export CSV ย้อนหลัง) ----------
+function sinceUnixFromMonths(months) {
+  const d = new Date();
+  d.setMonth(d.getMonth() - (parseInt(months, 10) || 1));
+  return Math.floor(d.getTime() / 1000);
+}
+
+// รายงานโพสต์ย้อนหลัง (สำหรับ content analysis)
+app.get('/api/pages/:pageId/report/posts', async (req, res) => {
+  const page = await pageOr404(req.params.pageId, res);
+  if (!page) return;
+  try {
+    const posts = await fb.getPostsSince(page.id, page.accessToken, sinceUnixFromMonths(req.query.months));
+    res.json({ pageName: page.name, posts });
+  } catch (err) {
+    res.status(400).json({ error: `ดึงโพสต์ไม่สำเร็จ: ${err.message}` });
+  }
+});
+
+// รายงานคอมเมนต์ย้อนหลัง — ดึงคอมเมนต์ของทุกโพสต์ในช่วง (จำกัดจำนวนโพสต์กันหนักเกินไป)
+app.get('/api/pages/:pageId/report/comments', async (req, res) => {
+  const page = await pageOr404(req.params.pageId, res);
+  if (!page) return;
+  const MAX_POSTS = 200; // เพดานโพสต์ที่ดึงคอมเมนต์ (กัน API หนัก/timeout)
+  try {
+    const allPosts = await fb.getPostsSince(page.id, page.accessToken, sinceUnixFromMonths(req.query.months));
+    const posts = allPosts.slice(0, MAX_POSTS);
+    const rows = [];
+    // ดึงคอมเมนต์ทีละ 4 โพสต์พร้อมกัน
+    const queue = [...posts];
+    async function worker() {
+      while (queue.length) {
+        const p = queue.shift();
+        let comments = [];
+        try { comments = await fb.getComments(p.id, page.accessToken); } catch { comments = []; }
+        for (const c of comments) {
+          rows.push({ post: p, level: 'คอมเมนต์', c, parent: '' });
+          for (const r of (c.replies || [])) rows.push({ post: p, level: 'ตอบกลับ', c: r, parent: c.fromName });
+        }
+      }
+    }
+    await Promise.all(Array.from({ length: 4 }, worker));
+    res.json({
+      pageName: page.name,
+      rows,
+      meta: { postsTotal: allPosts.length, postsProcessed: posts.length, truncated: allPosts.length > MAX_POSTS },
+    });
+  } catch (err) {
+    res.status(400).json({ error: `ดึงคอมเมนต์ไม่สำเร็จ: ${err.message}` });
+  }
+});
+
 // ตอบกลับคอมเมนต์ในนามเพจ
 app.post('/api/comments/:commentId/reply', async (req, res) => {
   const { pageId, message } = req.body || {};
