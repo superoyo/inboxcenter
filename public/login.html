@@ -45,14 +45,15 @@
       return (r && !/^login\.html/.test(r)) ? r : 'index.html';
     }
 
-    // แปลงข้อมูลรูปจากโปรไฟล์เป็น src: ใช้ profileURL ก่อน ไม่งั้นสร้าง data URI จาก base64
+    // แปลงข้อมูลรูปจากโปรไฟล์เป็น src: ใช้ base64 เป็น data URI ก่อน (ฝังในหน้า = ไม่ติด CORS)
+    // ตกไปใช้ profileURL เฉพาะกรณีไม่มี base64
     function buildPhoto(p) {
       if (!p) return '';
-      if (p.profileURL) return p.profileURL;
       if (p.wazzupPhotoBase64) {
         const ft = p.wazzupPhotoFileType || 'image/jpeg';
         return p.wazzupPhotoBase64.startsWith('data:') ? p.wazzupPhotoBase64 : ('data:' + ft + ';base64,' + p.wazzupPhotoBase64);
       }
+      if (p.profileURL) return p.profileURL;
       return '';
     }
 
