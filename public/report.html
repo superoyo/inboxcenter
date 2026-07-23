@@ -171,12 +171,13 @@
         const d = await fetch(`/api/pages/${encodeURIComponent(selectedPage.id)}/report/posts?months=${months}`).then(r=>r.json());
         if(d.error) throw new Error(d.error);
         if(!d.posts.length){ busy(false,'ไม่พบโพสต์ในช่วงเวลานี้'); return; }
-        const rows = [['วันที่โพสต์','เพจ','ข้อความ','จำนวนคำ','จำนวนตัวอักษร','มีรูป','Reactions','Comments','Shares','ลิงก์']];
+        const rows = [['วันที่โพสต์','เพจ','ข้อความ','จำนวนคำ','จำนวนตัวอักษร','มีรูป','Reactions','Comments','Shares','Engagement รวม','ลิงก์โพสต์']];
         for(const p of d.posts){
           const msg = p.message||'';
           rows.push([ fmt(p.createdTime), d.pageName, msg,
             (msg.trim()?msg.trim().split(/\s+/).length:0), msg.length,
-            p.picture?'มี':'ไม่มี', p.reactionCount, p.commentCount, p.shareCount, p.permalink ]);
+            p.picture?'มี':'ไม่มี', p.reactionCount, p.commentCount, p.shareCount,
+            p.engagementTotal, p.permalink ]);
         }
         downloadCSV(rows, `posts_${safeName(d.pageName)}_${periodLabel()}_${stamp()}.csv`);
         busy(false,`✓ ดาวน์โหลด ${d.posts.length} โพสต์แล้ว`);
