@@ -192,6 +192,7 @@
     let selectedPage = null;
     let posts = [];
     let activePostId = null;
+    let currentComments = [];
     let calMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 
     function toast(msg) {
@@ -387,9 +388,11 @@
         const res = await fetch(`/api/posts/${encodeURIComponent(postId)}/comments?pageId=${encodeURIComponent(selectedPage.id)}`);
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
+        currentComments = data; // เก็บไว้ให้ export CSV
         $('cmRight').innerHTML = `
           <div class="cm-post-head">
             <button class="btn small secondary" onclick="closePost()" style="display:none; float:left; margin-right:10px;" id="backBtn">←</button>
+            <button class="btn small secondary" onclick="exportCommentsCSV()" style="float:right;" title="ดาวน์โหลดคอมเมนต์ทั้งหมดเป็นไฟล์ CSV">⬇ Export CSV</button>
             <div class="txt">${esc(post.message)}</div>
             <div class="muted" style="margin-top:4px;">
               ${fmtAgo(post.createdTime)}
@@ -409,6 +412,36 @@
       } catch (err) {
         $('cmRight').innerHTML = `<div class="cm-empty"><span class="big">⚠️</span><div style="max-width:420px; text-align:center;">${esc(err.message)}</div></div>`;
       }
+    }
+
+    // ---------- Export CSV ----------
+    function csvCell(v) {
+      const s = String(v == null ? '' : v);
+      return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    }
+
+    function exportCommentsCSV() {
+      if (!currentComments.length) { toast('โพสต์นี้ยังไม่มีคอมเมนต์'); return; }
+      const post = posts.find((p) => p.id === activePostId);
+      const rows = [['ระดับ', 'ผู้แสดงความเห็น', 'ข้อความ', 'จำนวนไลก์', 'วันเวลา', 'ตอบใต้คอมเมนต์ของ']];
+      const fmt = (iso) => new Date(iso).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' });
+      for (const c of currentComments) {
+        rows.push(['คอมเมนต์', c.fromName, c.message, c.likeCount, fmt(c.createdTime), '']);
+        for (const r of (c.replies || [])) {
+          rows.push(['ตอบกลับ', r.fromName, r.message, r.likeCount, fmt(r.createdTime), c.fromName]);
+        }
+      }
+      const csv = '﻿' + rows.map((r) => r.map(csvCell).join(',')).join('\r\n'); // BOM ให้ Excel อ่านไทยถูก
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const stamp = new Date().toISOString().slice(0, 10);
+      const name = (post && post.message ? post.message.slice(0, 30).replace(/[^\wก-๙]+/g, '_') : 'post');
+      a.href = url;
+      a.download = `comments_${name}_${stamp}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast(`ดาวน์โหลด ${currentComments.length} คอมเมนต์เป็น CSV แล้ว`);
     }
 
     function closePost() {
