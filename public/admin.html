@@ -243,7 +243,7 @@
         return (e.thaiName+' '+e.engName+' '+e.nickName+' '+e.empCode).toLowerCase().includes(query);
       }).slice(0,8);
       dd.innerHTML = matches.length ? matches.map(e=>`
-        <div class="team-dd-item" data-code="${esc(e.empCode)}" title="${esc([(e.thaiName||e.engName)+(e.nickName?` (${e.nickName})`:''), e.position, e.department].filter(Boolean).join(' · '))}" onmousedown="teamPick('${esc(pid)}','${key}','${esc(e.empCode)}')">
+        <div class="team-dd-item" data-code="${esc(e.empCode)}" title="${esc([(e.thaiName||e.engName)+(e.nickName?` (${e.nickName})`:''), e.position, e.department].filter(Boolean).join(' · '))}" onmousedown="event.preventDefault();teamPick('${esc(pid)}','${key}','${esc(e.empCode)}')">
           ${avaHtml('dd-ava', e.photo, e.thaiName||e.engName)}
           <div class="dd-txt">
             <div class="nm">${esc(e.thaiName||e.engName)}${e.nickName?` (${esc(e.nickName)})`:''}</div>
