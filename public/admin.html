@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin — FB Inbox Center</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="auth.js"></script>
+  <script src="project.js"></script>
+  <style>
+    .ad-wrap { max-width: 1100px; margin: 0 auto; padding: 24px; }
+    .ad-wrap h1 { font-size: 22px; margin-bottom: 4px; }
+    .ad-wrap .sub { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+    .ad-card {
+      background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+      padding: 18px 20px; margin-bottom: 16px;
+    }
+    .ad-head { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+    .ad-head .pg-ava, .ad-head .pg-ava-fb {
+      width: 44px; height: 44px; border-radius: 50%; object-fit: cover; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 18px;
+    }
+    .ad-head .nm { font-weight: 700; font-size: 16px; }
+    .ad-head .id { color: var(--muted); font-size: 12px; }
+    .ad-head .save-state { margin-left: auto; font-size: 12px; color: var(--green); }
+    .ad-grid { display: grid; grid-template-columns: 220px 1fr; gap: 20px; }
+    @media (max-width: 720px) { .ad-grid { grid-template-columns: 1fr; } }
+    .ad-field label { display: block; font-weight: 700; font-size: 13px; margin-bottom: 6px; }
+    /* อัพโหลดรูปแพ็กเกจ */
+    .pkg-drop {
+      border: 2px dashed var(--border); border-radius: 10px; height: 150px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 6px; cursor: pointer; color: var(--muted); font-size: 13px; overflow: hidden; position: relative;
+    }
+    .pkg-drop:hover { border-color: var(--primary); background: #f5f9ff; }
+    .pkg-drop img { width: 100%; height: 100%; object-fit: cover; }
+    .pkg-drop .rm { position: absolute; top: 6px; right: 6px; background: rgba(0,0,0,0.6); color: #fff; border: none; border-radius: 6px; padding: 2px 8px; cursor: pointer; font-size: 12px; }
+    .teams-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    @media (max-width: 560px) { .teams-grid { grid-template-columns: 1fr; } }
+    .team-box { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+    .team-box .tl { font-weight: 700; font-size: 13px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .chip { display: inline-flex; align-items: center; gap: 5px; background: var(--bg); border-radius: 999px; padding: 3px 6px 3px 10px; font-size: 12.5px; }
+    .chip b { cursor: pointer; color: var(--muted); font-weight: 700; }
+    .chip b:hover { color: var(--red); }
+    .team-input { border: none; background: none; font-size: 12.5px; padding: 4px; outline: none; min-width: 90px; font-family: inherit; }
+    .ad-startdate { max-width: 220px; }
+  </style>
+</head>
+<body>
+  <nav class="navbar">
+    <a class="logo" href="projects.html">📥 FB Inbox Center</a>
+    <a class="nav-link" href="index.html">Inbox</a>
+    <a class="nav-link" href="comments.html">Content</a>
+    <a class="nav-link" href="analytics.html">Analytics</a>
+    <a class="nav-link" href="report.html">Report</a>
+    <a class="nav-link active" href="admin.html">Admin</a>
+    <span class="spacer"></span>
+    <a class="nav-link" href="connect.html">Connect</a>
+  </nav>
+
+  <div class="ad-wrap">
+    <h1>⚙️ Admin — ตั้งค่ารายเพจ</h1>
+    <div class="sub">กำหนดแพ็กเกจ · วันเริ่มดูแล · ทีมที่ดูแล ของแต่ละเพจในโปรเจกต์นี้</div>
+    <div id="adList"><div class="muted">กำลังโหลด...</div></div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    let pages = [], configs = {};
+    const TEAMS = [
+      ['content', '✍️ Content Team'],
+      ['graphic', '🎨 Graphic Team'],
+      ['chatInbox', '💬 Chat Inbox Team'],
+      ['am', '🧑‍💼 AM Team'],
+    ];
+
+    function toast(m){ const t=$('toast'); t.textContent=m; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2500); }
+    function esc(s){ return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+    const AVATAR_COLORS=['#1877f2','#e91e63','#8e24aa','#5e35b1','#3949ab','#00897b','#f4511e','#6d4c41','#546e7a','#c2185b','#2e7d32','#ef6c00'];
+    function avatarColor(k){ let h=0; for(const ch of String(k||'?')) h=(h*31+ch.codePointAt(0))>>>0; return AVATAR_COLORS[h%AVATAR_COLORS.length]; }
+    function ava(p){ return p.pictureUrl ? `<img class="pg-ava" src="${esc(p.pictureUrl)}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><span class="pg-ava-fb" style="display:none;background:${avatarColor(p.id)}">${esc((p.name||'?')[0])}</span>` : `<span class="pg-ava-fb" style="background:${avatarColor(p.id)}">${esc((p.name||'?')[0])}</span>`; }
+
+    async function load(){
+      [pages, configs] = await Promise.all([
+        fetch('/api/pages').then(r=>r.json()),
+        fetch('/api/page-config').then(r=>r.json()),
+      ]);
+      pages.sort((a,b)=>a.name.localeCompare(b.name,'th'));
+      render();
+    }
+
+    function cfg(id){ const c = configs[id] || {}; return { packageImage: c.packageImage||'', startDate: c.startDate||'', teams: Object.assign({content:[],graphic:[],chatInbox:[],am:[]}, c.teams||{}) }; }
+
+    function render(){
+      if(!pages.length){ $('adList').innerHTML = '<div class="ad-card muted">ยังไม่มีเพจในโปรเจกต์นี้ — เพิ่มเพจได้ที่เมนู Connect</div>'; return; }
+      $('adList').innerHTML = pages.map(p=>{
+        const c = cfg(p.id);
+        return `
+        <div class="ad-card" data-id="${esc(p.id)}">
+          <div class="ad-head">
+            ${ava(p)}
+            <div><div class="nm">${esc(p.name)}</div><div class="id">ID: ${esc(p.id)}</div></div>
+            <span class="save-state" id="ss-${esc(p.id)}"></span>
+          </div>
+          <div class="ad-grid">
+            <div class="ad-field">
+              <label>แพ็กเกจที่นำเสนอ</label>
+              <div class="pkg-drop" onclick="if(!event.target.classList.contains('rm'))this.querySelector('input').click()">
+                ${c.packageImage ? `<img src="${esc(c.packageImage)}"><button class="rm" onclick="removeImg('${esc(p.id)}')">ลบรูป</button>` : '<div style="font-size:26px">🖼</div><div>คลิกเพื่ออัพโหลดรูปแพ็กเกจ</div>'}
+                <input type="file" accept="image/*" style="display:none" onchange="uploadImg('${esc(p.id)}', this)">
+              </div>
+              <div style="margin-top:14px;">
+                <label>ระยะเวลาที่เริ่มดูแล</label>
+                <input type="date" class="ad-startdate" value="${esc(c.startDate)}" onchange="setStart('${esc(p.id)}', this.value)">
+              </div>
+            </div>
+            <div class="ad-field">
+              <label>ทีมที่ดูแล (ใส่ได้หลายคน — พิมพ์แล้วกด Enter)</label>
+              <div class="teams-grid">
+                ${TEAMS.map(([key,label])=>`
+                  <div class="team-box">
+                    <div class="tl">${label}</div>
+                    <div class="chips" id="team-${esc(p.id)}-${key}">
+                      ${c.teams[key].map((n,i)=>chipHtml(p.id,key,n,i)).join('')}
+                      <input class="team-input" placeholder="+ เพิ่มชื่อ" onkeydown="teamKey(event,'${esc(p.id)}','${key}')">
+                    </div>
+                  </div>`).join('')}
+              </div>
+            </div>
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    function chipHtml(pid,key,name,idx){ return `<span class="chip">${esc(name)}<b onclick="removeMember('${esc(pid)}','${key}',${idx})">×</b></span>`; }
+
+    function saved(pid){ const el=$('ss-'+pid); if(el){ el.textContent='✓ บันทึกแล้ว'; setTimeout(()=>el.textContent='',1500);} }
+    async function save(pid){
+      const c = cfg(pid);
+      const res = await fetch(`/api/pages/${encodeURIComponent(pid)}/config`, {
+        method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(c)
+      });
+      const d = await res.json();
+      if(res.ok){ configs[pid]=d.config; saved(pid); }
+      else toast(d.error||'บันทึกไม่สำเร็จ');
+    }
+
+    function ensure(pid){ configs[pid] = cfg(pid); return configs[pid]; }
+    function setStart(pid,val){ ensure(pid).startDate=val; save(pid); }
+    function removeImg(pid){ ensure(pid).packageImage=''; save(pid).then(render); }
+    function uploadImg(pid,input){
+      const f=input.files[0]; if(!f) return;
+      if(f.size>4_000_000){ toast('รูปใหญ่เกิน 4MB'); return; }
+      const r=new FileReader();
+      r.onload=()=>{ ensure(pid).packageImage=r.result; save(pid).then(()=>render()); };
+      r.readAsDataURL(f);
+    }
+    function teamKey(e,pid,key){
+      if(e.key!=='Enter') return;
+      const v=e.target.value.trim(); if(!v) return;
+      ensure(pid); if(!configs[pid].teams[key]) configs[pid].teams[key]=[];
+      configs[pid].teams[key].push(v); e.target.value='';
+      save(pid).then(render);
+    }
+    function removeMember(pid,key,idx){
+      ensure(pid).teams[key].splice(idx,1); save(pid).then(render);
+    }
+
+    load();
+  </script>
+</body>
+</html>

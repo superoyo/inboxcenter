@@ -28,7 +28,7 @@
     document.addEventListener('DOMContentLoaded', () => {
       document.querySelectorAll('.navbar a.nav-link').forEach((a) => {
         const href = a.getAttribute('href') || '';
-        if (/^(index|comments|analytics|report)\.html/.test(href) && !href.includes('project=')) {
+        if (/^(index|comments|analytics|report|admin)\.html/.test(href) && !href.includes('project=')) {
           a.setAttribute('href', href + (href.includes('?') ? '&' : '?') + 'project=' + encodeURIComponent(pid));
         }
       });

@@ -8,7 +8,7 @@ const keywords = require('./lib/keywords');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(express.json());
+app.use(express.json({ limit: '6mb' })); // เผื่อรูปแพ็กเกจ (data URL) ในตั้งค่ารายเพจ
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ---------- Helpers ----------
@@ -172,6 +172,28 @@ app.put('/api/projects/:id', async (req, res) => {
 app.delete('/api/projects/:id', async (req, res) => {
   await store.deleteProject(req.params.id);
   res.json({ ok: true });
+});
+
+// ---------- Admin: ตั้งค่ารายเพจ (แพ็กเกจ/วันเริ่มดูแล/ทีม) ----------
+app.get('/api/page-config', async (req, res) => {
+  res.json(await store.getPageConfigs());
+});
+
+app.put('/api/pages/:id/config', async (req, res) => {
+  const b = req.body || {};
+  const cleanTeam = (arr) => Array.isArray(arr) ? arr.map((s) => String(s).trim().slice(0, 60)).filter(Boolean).slice(0, 30) : [];
+  const config = {
+    packageImage: typeof b.packageImage === 'string' ? b.packageImage.slice(0, 4_000_000) : '',
+    startDate: typeof b.startDate === 'string' ? b.startDate.slice(0, 20) : '',
+    teams: {
+      content: cleanTeam(b.teams && b.teams.content),
+      graphic: cleanTeam(b.teams && b.teams.graphic),
+      chatInbox: cleanTeam(b.teams && b.teams.chatInbox),
+      am: cleanTeam(b.teams && b.teams.am),
+    },
+  };
+  await store.setPageConfig(req.params.id, config);
+  res.json({ ok: true, config });
 });
 
 // ---------- Pages ----------
