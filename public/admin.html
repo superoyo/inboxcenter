@@ -71,6 +71,9 @@
     .stack-ava.fb { display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 13px; }
     .stack-x { position: absolute; top: 0; right: 0; width: 16px; height: 16px; border-radius: 50%; background: var(--red); color: #fff; font-size: 11px; font-weight: 700; line-height: 15px; text-align: center; cursor: pointer; display: none; box-shadow: 0 0 0 2px var(--card); }
     .stack-item:hover .stack-x { display: block; }
+    /* ปุ่ม + (ขนาดเท่า avatar) — กดแล้วค่อยเปิด search */
+    .team-add-btn { width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0; margin-left: 6px; padding: 0; border: 2px dashed var(--border); background: var(--card); color: var(--muted); font-size: 20px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+    .team-add-btn:hover { border-color: var(--primary); color: var(--primary); background: #f5f9ff; }
     .ad-startdate { max-width: 220px; }
   </style>
 </head>
@@ -96,7 +99,7 @@
 
   <script>
     const $ = (id) => document.getElementById(id);
-    let pages = [], configs = {}, employees = [];
+    let pages = [], configs = {}, employees = [], openTeam = null; // openTeam = "pid|key" กล่องที่เปิด search อยู่ (ทีละกล่อง)
     const TEAMS = [
       ['content', '✍️ Content Team'],
       ['graphic', '🎨 Graphic Team'],
@@ -138,6 +141,7 @@
     function cfg(id){ const c = configs[id] || {}; return { packageImage: c.packageImage||'', startDate: c.startDate||'', teams: Object.assign({content:[],graphic:[],chatInbox:[],am:[]}, c.teams||{}) }; }
 
     function render(){
+      openTeam = null; // วาดใหม่ทั้งหน้า = ปิด search ทุกกล่อง
       if(!pages.length){ $('adList').innerHTML = '<div class="ad-card muted">ยังไม่มีเพจในโปรเจกต์นี้ — เพิ่มเพจได้ที่เมนู Connect</div>'; return; }
       $('adList').innerHTML = pages.map(p=>{
         const c = cfg(p.id);
@@ -161,19 +165,16 @@
               </div>
             </div>
             <div class="ad-field">
-              <label>ทีมที่ดูแล (ค้นหาชื่อแล้วเลือกจากรายการ)</label>
+              <label>ทีมที่ดูแล (กด + เพื่อค้นหาและเลือก)</label>
               <div class="teams-grid">
                 ${TEAMS.map(([key,label])=>`
                   <div class="team-box">
                     <div class="tl">${label}</div>
-                    <div class="team-stack" id="team-${esc(p.id)}-${key}">
-                      ${c.teams[key].length ? c.teams[key].map((m,i)=>memberChip(p.id,key,m,i)).join('') : '<span class="team-empty">ยังไม่มีสมาชิก</span>'}
-                    </div>
-                    <div class="team-search-wrap">
+                    <div class="team-stack" id="team-${esc(p.id)}-${key}">${stackInner(p.id,key)}</div>
+                    <div class="team-search-wrap" id="wrap-${esc(p.id)}-${key}" style="display:none;">
                       <input class="team-search" id="search-${esc(p.id)}-${key}" placeholder="🔍 ค้นชื่อพนักงาน..." autocomplete="off"
                         oninput="teamSearch('${esc(p.id)}','${key}',this.value)"
-                        onkeydown="teamSearchKey(event,'${esc(p.id)}','${key}')"
-                        onblur="setTimeout(()=>teamCloseDD('${esc(p.id)}','${key}'),150)">
+                        onkeydown="teamSearchKey(event,'${esc(p.id)}','${key}')">
                       <div class="team-dd" id="dd-${esc(p.id)}-${key}" style="display:none"></div>
                     </div>
                   </div>`).join('')}
@@ -210,7 +211,26 @@
       r.readAsDataURL(f);
     }
     // ---- ค้นหา + เลือกพนักงานเข้าทีม ----
-    function teamCloseDD(pid,key){ const dd=$('dd-'+pid+'-'+key); if(dd) dd.style.display='none'; }
+    // เนื้อในกล่องทีม: avatar สมาชิก (ซ้อนกัน) + ปุ่ม + ต่อท้าย
+    function stackInner(pid,key){
+      const members = cfg(pid).teams[key] || [];
+      return members.map((m,i)=>memberChip(pid,key,m,i)).join('')
+        + `<button class="team-add-btn" id="add-${esc(pid)}-${key}" title="เพิ่มสมาชิก" onclick="teamOpen('${esc(pid)}','${key}')">+</button>`;
+    }
+    function teamClose(pid,key){
+      const a=$('add-'+pid+'-'+key); if(a) a.style.display='';
+      const w=$('wrap-'+pid+'-'+key); if(w) w.style.display='none';
+      const inp=$('search-'+pid+'-'+key); if(inp) inp.value='';
+      const dd=$('dd-'+pid+'-'+key); if(dd){ dd.style.display='none'; dd.innerHTML=''; }
+    }
+    function teamCloseAll(){ if(!openTeam) return; const [pid,key]=openTeam.split('|'); teamClose(pid,key); openTeam=null; }
+    function teamOpen(pid,key){
+      teamCloseAll(); // ปิดกล่องอื่นก่อน (เปิดทีละกล่อง)
+      openTeam=pid+'|'+key;
+      const a=$('add-'+pid+'-'+key); if(a) a.style.display='none';
+      const w=$('wrap-'+pid+'-'+key); if(w) w.style.display='block';
+      const inp=$('search-'+pid+'-'+key); if(inp) inp.focus();
+    }
 
     function teamSearch(pid,key,q){
       const dd=$('dd-'+pid+'-'+key); if(!dd) return;
@@ -235,7 +255,7 @@
     }
 
     function teamSearchKey(e,pid,key){
-      if(e.key==='Escape'){ teamCloseDD(pid,key); return; }
+      if(e.key==='Escape'){ teamCloseAll(); return; }
       if(e.key==='Enter'){
         e.preventDefault();
         const first=$('dd-'+pid+'-'+key).querySelector('.team-dd-item[data-code]');
@@ -248,11 +268,27 @@
       ensure(pid); if(!configs[pid].teams[key]) configs[pid].teams[key]=[];
       if(configs[pid].teams[key].some(m=>memberCode(m)===e.empCode)) return; // มีแล้ว
       configs[pid].teams[key].push({ empCode:e.empCode, name:(e.thaiName||e.engName||e.nickName) });
-      save(pid).then(render);
+      save(pid);
+      // อัปเดตเฉพาะ stack ของกล่องนี้ + คง search เปิดไว้ (เพิ่มหลายคนรวดได้)
+      const stack=$('team-'+pid+'-'+key); if(stack) stack.innerHTML=stackInner(pid,key);
+      if(openTeam===pid+'|'+key){ const a=$('add-'+pid+'-'+key); if(a) a.style.display='none'; }
+      const inp=$('search-'+pid+'-'+key);
+      if(inp){ teamSearch(pid,key,inp.value); inp.focus(); } // รีเฟรช dropdown (เอาคนที่เลือกออก) + คง focus
     }
     function removeMember(pid,key,idx){
-      ensure(pid).teams[key].splice(idx,1); save(pid).then(render);
+      ensure(pid).teams[key].splice(idx,1); save(pid);
+      const stack=$('team-'+pid+'-'+key); if(stack) stack.innerHTML=stackInner(pid,key);
+      if(openTeam===pid+'|'+key){ const a=$('add-'+pid+'-'+key); if(a) a.style.display='none'; }
     }
+
+    // คลิกที่อื่นนอกกล่องที่เปิด search อยู่ → ปิดกลับเป็นปุ่ม +
+    document.addEventListener('click', (e) => {
+      if (!openTeam) return;
+      if (!e.target.isConnected) return; // เป้าหมายถูกถอดจาก DOM แล้ว (เช่น กดเลือกใน dropdown ที่ re-render) — อย่าปิด
+      const [pid,key] = openTeam.split('|');
+      const box = $('wrap-'+pid+'-'+key)?.closest('.team-box');
+      if (box && !box.contains(e.target)) teamCloseAll();
+    });
 
     load();
   </script>
