@@ -49,13 +49,12 @@
     .rp-custom label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600; color: var(--muted); }
     .rp-custom input[type=date] { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 14px; font-family: inherit; color: var(--text); background: var(--card); }
     /* การ์ด export */
-    .exp-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-    @media (max-width: 640px) { .exp-cards { grid-template-columns: 1fr; } }
-    .exp-card { border: 1px solid var(--border); border-radius: 12px; padding: 18px; }
+    .exp-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; }
+    .exp-card { border: 1px solid var(--border); border-radius: 12px; padding: 18px; display: flex; flex-direction: column; }
     .exp-card .ic { font-size: 30px; }
     .exp-card h3 { font-size: 15px; margin: 8px 0 4px; }
     .exp-card p { color: var(--muted); font-size: 13px; line-height: 1.5; margin-bottom: 14px; }
-    .exp-card .btn { width: 100%; justify-content: center; }
+    .exp-card .btn { width: 100%; justify-content: center; margin-top: auto; }
     .rp-status { margin-top: 16px; font-size: 13px; color: var(--muted); min-height: 20px; }
   </style>
 </head>
@@ -116,6 +115,12 @@
           <h3>ข้อมูลคอมเมนต์ใต้โพสต์</h3>
           <p>โพสต์ที่เกี่ยวข้อง · ผู้แสดงความเห็น · ข้อความคอมเมนต์ · ไลก์ · วันเวลา · ระดับ (คอมเมนต์/ตอบกลับ)</p>
           <button class="btn" id="expComments">⬇ Export คอมเมนต์ (CSV)</button>
+        </div>
+        <div class="exp-card">
+          <div class="ic">📥</div>
+          <h3>ข้อมูลแชท Inbox (พร้อมสถานะ)</h3>
+          <p>ชื่อลูกค้า · <b>สถานะ (แดง/เหลือง/เขียว)</b> · ข้อความล่าสุด · จำนวนข้อความ · ยังไม่อ่าน · อัปเดตล่าสุด — ห้องที่เคลื่อนไหวในช่วงที่เลือก</p>
+          <button class="btn" id="expInbox">⬇ Export Inbox (CSV)</button>
         </div>
       </div>
       <div class="rp-status" id="rpStatus"></div>
@@ -199,7 +204,7 @@
     const fmt = (iso)=> new Date(iso).toLocaleString('th-TH',{dateStyle:'short',timeStyle:'short'});
     const stamp = ()=> new Date().toISOString().slice(0,10);
     function safeName(s){ return String(s||'page').slice(0,24).replace(/[^\wก-๙]+/g,'_'); }
-    function busy(on,msg){ $('expPosts').disabled=on; $('expComments').disabled=on; $('rpStatus').textContent=msg||''; }
+    function busy(on,msg){ $('expPosts').disabled=on; $('expComments').disabled=on; $('expInbox').disabled=on; $('rpStatus').textContent=msg||''; }
 
     async function exportPosts(){
       if(!selectedPage) return;
@@ -241,8 +246,27 @@
       }catch(err){ busy(false,'❌ '+err.message); }
     }
 
+    async function exportInbox(){
+      if(!selectedPage) return;
+      let rng; try { rng = rangeQuery(); } catch(e){ busy(false,'❌ '+e.message); return; }
+      busy(true,'⏳ กำลังดึงข้อมูลแชท inbox...');
+      try{
+        const d = await fetch(`/api/pages/${encodeURIComponent(selectedPage.id)}/report/inbox?${rng.q}`).then(r=>r.json());
+        if(d.error) throw new Error(d.error);
+        if(!d.rows.length){ busy(false,'ไม่พบแชทที่มีความเคลื่อนไหวในช่วงเวลานี้'); return; }
+        const rows = [['อัปเดตล่าสุด','เพจ','ชื่อลูกค้า','สถานะ','ที่มาสถานะ','ข้อความลูกค้าล่าสุด','ข้อความล่าสุดในห้อง','ผู้ส่งล่าสุด','จำนวนข้อความ','ข้อความจากลูกค้า','ยังไม่อ่าน','เริ่มคุยเมื่อ']];
+        for(const x of d.rows){
+          rows.push([ fmt(x.updatedTime), d.pageName, x.customerName, x.status, x.statusSource,
+            x.lastCustomerText, x.lastText, x.lastFrom, x.msgCount, x.custCount, x.unread, fmt(x.firstTime) ]);
+        }
+        downloadCSV(rows, `inbox_${safeName(d.pageName)}_${rng.label}_${stamp()}.csv`);
+        busy(false,`✓ ดาวน์โหลด ${d.rows.length} แชทแล้ว`);
+      }catch(err){ busy(false,'❌ '+err.message); }
+    }
+
     $('expPosts').addEventListener('click', exportPosts);
     $('expComments').addEventListener('click', exportComments);
+    $('expInbox').addEventListener('click', exportInbox);
     loadPages();
   </script>
 </body>

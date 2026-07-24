@@ -1028,6 +1028,48 @@ app.get('/api/pages/:pageId/report/comments', async (req, res) => {
   }
 });
 
+// รายงาน Inbox (ห้องแชท) พร้อมสถานะแดง/เหลือง/เขียว — อ่านจากข้อมูลที่ sync ไว้ (ไม่ยิง FB)
+app.get('/api/pages/:pageId/report/inbox', async (req, res) => {
+  const page = await pageOr404(req.params.pageId, res);
+  if (!page) return;
+  try {
+    const { since, until } = reportRange(req.query);
+    const sinceMs = since * 1000;
+    const untilMs = until ? until * 1000 : Date.now();
+    const LEVEL_TH = { red: 'แดง', yellow: 'เหลือง', green: 'เขียว' };
+    const [convs, statusMap] = await Promise.all([
+      store.getConversationsForPage(page.id),
+      store.getStatuses(),
+    ]);
+    const rows = [];
+    for (const c of convs) {
+      const upd = new Date(c.updatedTime).getTime();
+      if (!(upd >= sinceMs && upd <= untilMs)) continue; // เฉพาะห้องที่มีความเคลื่อนไหวในช่วงที่เลือก
+      let lastCust = null, custCount = 0;
+      for (const m of c.messages) if (!m.isFromPage) { lastCust = m; custCount++; }
+      const level = statusMap[c.id] || urgency.classify(lastCust ? lastCust.text : '');
+      const lastMsg = c.messages[c.messages.length - 1];
+      rows.push({
+        updatedTime: c.updatedTime,
+        customerName: c.customerName,
+        status: LEVEL_TH[level] || level,
+        statusSource: statusMap[c.id] ? 'ตั้งเอง' : 'อัตโนมัติ',
+        lastCustomerText: lastCust ? (lastCust.text || '') : '',
+        lastText: lastMsg ? (lastMsg.text || '') : '',
+        lastFrom: lastMsg ? (lastMsg.isFromPage ? 'เพจ' : 'ลูกค้า') : '',
+        msgCount: c.messages.length,
+        custCount,
+        unread: c.unreadCount || 0,
+        firstTime: c.messages[0] ? c.messages[0].createdTime : c.updatedTime,
+      });
+    }
+    rows.sort((a, b) => new Date(b.updatedTime) - new Date(a.updatedTime));
+    res.json({ pageName: page.name, rows });
+  } catch (err) {
+    res.status(400).json({ error: `ดึงข้อมูล inbox ไม่สำเร็จ: ${err.message}` });
+  }
+});
+
 // สถิติเชิงลึกของโพสต์ (reach / impressions / clicks)
 app.get('/api/posts/:postId/insights', async (req, res) => {
   const page = await pageOr404(String(req.query.pageId || ''), res);
