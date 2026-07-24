@@ -65,6 +65,10 @@
     .cap .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
     .cap span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .dnd-empty { color: var(--muted); font-size: 12px; text-align: center; padding: 24px 10px; }
+    /* กลุ่มช่องทางในคอลัมน์เลือกเพจ */
+    .dnd-group + .dnd-group { margin-top: 8px; }
+    .dnd-group-head { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; color: var(--muted); letter-spacing: .2px; padding: 4px 2px 7px; position: sticky; top: 0; background: var(--card); z-index: 1; }
+    .dnd-group-n { background: var(--bg); border-radius: 999px; padding: 0 7px; font-size: 11px; font-weight: 700; }
     .modal-foot { padding: 14px 20px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 10px; }
   </style>
 </head>
@@ -123,7 +127,7 @@
 
   <script>
     const $ = (id) => document.getElementById(id);
-    let pages = [], projects = [], editingId = null;
+    let pages = [], projects = [], editingId = null, dndSel = [], dragId = null, zonesBound = false;
 
     function toast(m){ const t=$('toast'); t.textContent=m; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),3000); }
     function esc(s){ return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -172,13 +176,26 @@
     function openProject(id){ location.href = 'index.html?project=' + encodeURIComponent(id); }
 
     // ---------- modal + drag & drop ----------
+    // ช่องทาง (platform) สำหรับจัดกลุ่มในคอลัมน์เลือกเพจ — เรียงตามนี้ กลุ่มที่ไม่มีสมาชิกจะไม่แสดง
+    const CHANNELS = [
+      ['facebook', '📘 Facebook'],
+      ['line', '💬 LINE'],
+      ['instagram', '📸 Instagram'],
+      ['tiktok', '🎵 TikTok'],
+      ['shopee', '🛒 Shopee'],
+      ['lazada', '🛍 Lazada'],
+    ];
+    const CHANNEL_LABEL = Object.fromEntries(CHANNELS);
+    function platformOf(p){ return p.platform || 'facebook'; }
+
     function openModal(project){
       editingId = project ? project.id : null;
       $('modalTitle').textContent = project ? 'แก้ไขโปรเจกต์' : 'สร้างโปรเจกต์ใหม่';
       $('mName').value = project ? project.name : '';
       $('mDesc').value = project ? project.description : '';
-      const selected = new Set(project ? project.pageIds : []);
-      renderDnd(selected);
+      dndSel = project ? [...(project.pageIds || [])] : [];
+      renderDnd();
+      bindZones();
       $('modalBg').classList.add('open');
       $('mName').focus();
     }
@@ -196,50 +213,55 @@
     function pageItemHtml(p){
       return `<div class="dnd-item" draggable="true" data-id="${esc(p.id)}">${ava(p)}<div class="dnd-meta"><span class="dnd-name">${esc(p.name)}</span>${pageCapsHtml(p.id)}</div></div>`;
     }
-    function renderDnd(selectedSet){
-      const sel = pages.filter(p=>selectedSet.has(p.id));
-      const pool = pages.filter(p=>!selectedSet.has(p.id));
-      $('poolList').innerHTML = pool.length ? pool.map(pageItemHtml).join('') : '<div class="dnd-empty">— ไม่มีเพจเหลือ —</div>';
-      $('selList').innerHTML = sel.length ? sel.map(pageItemHtml).join('') : '<div class="dnd-empty">ลากเพจมาวางที่นี่</div>';
-      $('selCount').textContent = sel.length;
-      bindDnd();
-    }
-    function currentSelectedIds(){ return [...$('selList').querySelectorAll('.dnd-item')].map(el=>el.dataset.id); }
 
-    function bindDnd(){
-      let dragEl = null;
-      document.querySelectorAll('.dnd-item').forEach(el=>{
-        el.addEventListener('dragstart', ()=>{ dragEl=el; el.classList.add('dragging'); });
-        el.addEventListener('dragend', ()=>{ el.classList.remove('dragging'); dragEl=null; });
-      });
-      ['poolList','selList'].forEach(zid=>{
-        const zone = $(zid);
-        zone.addEventListener('dragover', (e)=>{ e.preventDefault(); zone.classList.add('over'); });
-        zone.addEventListener('dragleave', ()=> zone.classList.remove('over'));
-        zone.addEventListener('drop', (e)=>{
-          e.preventDefault(); zone.classList.remove('over');
-          if(!dragEl) return;
-          const empty = zone.querySelector('.dnd-empty'); if(empty) empty.remove();
-          zone.appendChild(dragEl);
-          // อัปเดตข้อความ empty + count
-          syncEmpty(); $('selCount').textContent = currentSelectedIds().length;
-        });
-      });
-      // คลิกที่ item = ย้ายข้ามฝั่งเร็วๆ
-      document.querySelectorAll('.dnd-item').forEach(el=>{
+    // จัดกลุ่มรายการเพจตามช่องทาง — แสดงหัวข้อกลุ่มเฉพาะกลุ่มที่มีสมาชิก
+    function groupedHtml(list){
+      const known = CHANNELS.map(c=>c[0]);
+      const extra = [...new Set(list.map(platformOf))].filter(k=>!known.includes(k));
+      const keys = [...known, ...extra];
+      return keys.map(key=>{
+        const items = list.filter(p=>platformOf(p)===key);
+        if(!items.length) return '';
+        const label = CHANNEL_LABEL[key] || ('🔗 ' + key);
+        return `<div class="dnd-group"><div class="dnd-group-head">${label}<span class="dnd-group-n">${items.length}</span></div>${items.map(pageItemHtml).join('')}</div>`;
+      }).join('');
+    }
+
+    function renderDnd(){
+      const selSet = new Set(dndSel);
+      const sel = dndSel.map(id=>pages.find(p=>p.id===id)).filter(Boolean);
+      const pool = pages.filter(p=>!selSet.has(p.id));
+      $('poolList').innerHTML = pool.length ? groupedHtml(pool) : '<div class="dnd-empty">— ไม่มีเพจเหลือ —</div>';
+      $('selList').innerHTML = sel.length ? groupedHtml(sel) : '<div class="dnd-empty">ลากเพจมาวางที่นี่</div>';
+      $('selCount').textContent = sel.length;
+      bindItems();
+    }
+    function currentSelectedIds(){ return [...dndSel]; }
+
+    // คุมด้วย state dndSel แล้ว re-render → จัดกลุ่มใหม่อัตโนมัติ
+    function moveToSel(id){ if(!dndSel.includes(id)){ dndSel.push(id); renderDnd(); } }
+    function moveToPool(id){ const i=dndSel.indexOf(id); if(i>=0){ dndSel.splice(i,1); renderDnd(); } }
+
+    function bindItems(){
+      document.querySelectorAll('#poolList .dnd-item, #selList .dnd-item').forEach(el=>{
+        el.addEventListener('dragstart', ()=>{ dragId=el.dataset.id; el.classList.add('dragging'); });
+        el.addEventListener('dragend', ()=>{ el.classList.remove('dragging'); dragId=null; });
         el.addEventListener('dblclick', ()=>{
-          const inSel = el.closest('#selList');
-          $(inSel?'poolList':'selList').appendChild(el);
-          const t=$(inSel?'poolList':'selList').querySelector('.dnd-empty'); if(t) t.remove();
-          syncEmpty(); $('selCount').textContent = currentSelectedIds().length;
+          if(el.closest('#selList')) moveToPool(el.dataset.id); else moveToSel(el.dataset.id);
         });
       });
     }
-    function syncEmpty(){
-      [['poolList','— ไม่มีเพจเหลือ —'],['selList','ลากเพจมาวางที่นี่']].forEach(([id,msg])=>{
-        const z=$(id);
-        if(!z.querySelector('.dnd-item') && !z.querySelector('.dnd-empty')) z.innerHTML=`<div class="dnd-empty">${msg}</div>`;
-      });
+    // ผูก drop zone ครั้งเดียว (ตัว div คงอยู่แม้ re-render ข้างใน)
+    function bindZones(){
+      if(zonesBound) return; zonesBound = true;
+      const wire=(zid,fn)=>{
+        const zone=$(zid);
+        zone.addEventListener('dragover',(e)=>{ e.preventDefault(); zone.classList.add('over'); });
+        zone.addEventListener('dragleave',()=> zone.classList.remove('over'));
+        zone.addEventListener('drop',(e)=>{ e.preventDefault(); zone.classList.remove('over'); if(dragId) fn(dragId); });
+      };
+      wire('selList', moveToSel);
+      wire('poolList', moveToPool);
     }
 
     async function saveProject(){
