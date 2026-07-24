@@ -45,7 +45,7 @@
 
     <div class="ch-tabs" id="chTabs">
       <button class="ch-tab active" data-ch="facebook">📘 Facebook</button>
-      <button class="ch-tab" data-ch="line">💬 LINE <span class="soon">เร็วๆ นี้</span></button>
+      <button class="ch-tab" data-ch="line">💬 LINE</button>
       <button class="ch-tab" data-ch="instagram">📸 Instagram <span class="soon">เร็วๆ นี้</span></button>
       <button class="ch-tab" data-ch="tiktok">🎵 TikTok <span class="soon">เร็วๆ นี้</span></button>
       <button class="ch-tab" data-ch="shopee">🛒 Shopee <span class="soon">เร็วๆ นี้</span></button>
@@ -112,17 +112,34 @@
     <section class="ch-panel" data-ch="line">
       <div class="card">
         <h2 style="margin-bottom: 6px;">💬 LINE Official Account (Messaging API)</h2>
-        <p class="muted" style="margin-bottom: 4px;">ใส่ Channel access token + Channel secret จาก LINE Developers Console เพื่อดึงข้อความเข้าระบบ</p>
+        <p class="muted" style="margin-bottom: 14px;">
+          ใส่ค่าจาก <a href="https://developers.line.biz/console/" target="_blank">LINE Developers Console</a> (แท็บ <strong>Messaging API</strong> ของ Channel)
+          เพื่อรับข้อความจากลูกค้าเข้ากล่องข้อความรวม และตอบกลับได้จากที่นี่
+        </p>
         <div class="cn-form-row">
-          <input type="text" placeholder="Channel ID" disabled>
-          <input type="password" placeholder="Channel secret" disabled>
+          <input type="text" id="lineChannelId" placeholder="Channel ID (ตัวเลข)" autocomplete="off">
+          <input type="password" id="lineChannelSecret" placeholder="Channel secret" autocomplete="off">
         </div>
         <div class="cn-form-row">
-          <input type="password" placeholder="Channel access token (long-lived)" disabled>
-          <button class="btn" disabled>เชื่อมต่อ</button>
+          <input type="password" id="lineToken" placeholder="Channel access token (long-lived)" autocomplete="off">
+          <button class="btn" id="lineConnectBtn">เชื่อมต่อ</button>
         </div>
-        <p class="muted" style="margin-top: 12px;">🚧 ช่องทางนี้กำลังพัฒนา — โครงหน้าพร้อมแล้ว รอเปิดใช้งานเร็วๆ นี้</p>
+        <p id="lineError" class="error-text" style="margin-top: 10px; display: none;"></p>
+
+        <details style="margin-top: 14px;">
+          <summary class="muted" style="cursor: pointer;">วิธีตั้งค่าใน LINE Developers Console</summary>
+          <ol class="muted" style="margin: 10px 0 0 20px; line-height: 1.9;">
+            <li>สร้าง Provider → Channel แบบ <strong>Messaging API</strong></li>
+            <li>คัดลอก <strong>Channel ID</strong> และ <strong>Channel secret</strong> (แท็บ Basic settings)</li>
+            <li>ออก <strong>Channel access token (long-lived)</strong> (แท็บ Messaging API) แล้วนำมาวางด้านบน กด "เชื่อมต่อ"</li>
+            <li>ระบบจะสร้าง <strong>Webhook URL</strong> ให้ — นำไปวางในช่อง Webhook URL แล้วเปิด <strong>Use webhook</strong></li>
+            <li>ปิด <strong>Auto-reply messages</strong> / <strong>Greeting messages</strong> เพื่อให้ตอบเองผ่านระบบนี้</li>
+          </ol>
+        </details>
       </div>
+
+      <h3 style="margin-top: 28px;">LINE OA ที่เชื่อมต่อแล้ว</h3>
+      <div class="page-list" id="lineList"><p class="muted">กำลังโหลด...</p></div>
     </section>
 
     <!-- ============ IG / TikTok / Shopee / Lazada ============ -->
@@ -378,8 +395,79 @@
         : '⚠️ ยังไม่ได้ตั้งค่า <code>FB_APP_ID</code> / <code>FB_APP_SECRET</code> — token ที่วางจะหมดอายุภายในไม่กี่ชั่วโมงถึง 1 วัน ต้องวางใหม่เรื่อยๆ';
     }).catch(() => {});
 
+    // ---------- LINE ----------
+    async function loadLine() {
+      const list = await fetch('/api/connections/line').then((r) => r.json()).catch(() => []);
+      const box = $('lineList');
+      if (!Array.isArray(list) || !list.length) {
+        box.innerHTML = '<div class="card"><p class="muted">ยังไม่มี LINE OA ที่เชื่อมต่อ — กรอกข้อมูลด้านบนเพื่อเชื่อมต่อ</p></div>';
+        return;
+      }
+      box.innerHTML = list.map((c) => `
+        <div class="page-item" style="flex-wrap: wrap;">
+          ${c.pictureUrl ? `<img class="avatar" src="${esc(c.pictureUrl)}" alt="">` : `<div class="avatar-fallback">L</div>`}
+          <div class="info">
+            <div class="name">${esc(c.name)} ${c.basicId ? `<span class="muted">${esc(c.basicId)}</span>` : ''}</div>
+            <div class="muted">Channel ID: ${esc(c.channelId)} · รับข้อความล่าสุด: ${fmtTime(c.lastSyncAt)}</div>
+          </div>
+          <span class="badge green">เชื่อมต่อแล้ว</span>
+          <button class="btn small danger" onclick="removeLine('${esc(c.id)}','${esc(c.name).replace(/'/g,"\\'")}')">ลบ</button>
+          <div style="flex-basis: 100%; margin-top: 10px;">
+            <div class="muted" style="margin-bottom: 4px;">📌 Webhook URL (วางใน LINE Console แล้วเปิด Use webhook):</div>
+            <div style="display: flex; gap: 8px;">
+              <input type="text" readonly value="${esc(c.webhookUrl)}" onclick="this.select()" style="font-size:12.5px;">
+              <button class="btn small secondary" onclick="copyText('${esc(c.webhookUrl)}', this)">คัดลอก</button>
+            </div>
+          </div>
+        </div>`).join('');
+    }
+
+    function copyText(t, btn) {
+      navigator.clipboard.writeText(t).then(() => {
+        const o = btn.textContent; btn.textContent = '✓ คัดลอกแล้ว';
+        setTimeout(() => (btn.textContent = o), 1500);
+      }).catch(() => toast('คัดลอกไม่สำเร็จ'));
+    }
+
+    async function connectLine() {
+      const channelId = $('lineChannelId').value.trim();
+      const channelSecret = $('lineChannelSecret').value.trim();
+      const accessToken = $('lineToken').value.trim();
+      const err = $('lineError'); err.style.display = 'none';
+      if (!channelId || !channelSecret || !accessToken) {
+        err.textContent = 'กรุณากรอก Channel ID, Channel secret และ Channel access token ให้ครบ';
+        err.style.display = 'block'; return;
+      }
+      const btn = $('lineConnectBtn');
+      btn.disabled = true; btn.textContent = 'กำลังตรวจสอบ...';
+      try {
+        const res = await fetch('/api/connections/line', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ channelId, channelSecret, accessToken }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        toast(`เชื่อมต่อ "${data.connection.name}" สำเร็จ`);
+        $('lineChannelId').value = ''; $('lineChannelSecret').value = ''; $('lineToken').value = '';
+        await loadLine();
+      } catch (e) {
+        err.textContent = e.message; err.style.display = 'block';
+      } finally {
+        btn.disabled = false; btn.textContent = 'เชื่อมต่อ';
+      }
+    }
+
+    async function removeLine(id, name) {
+      if (!confirm(`ลบการเชื่อมต่อ LINE "${name}"? ข้อความที่รับมาแล้วจะถูกลบด้วย`)) return;
+      await fetch('/api/connections/line/' + encodeURIComponent(id), { method: 'DELETE' });
+      toast('ลบแล้ว'); loadLine();
+    }
+
+    $('lineConnectBtn').addEventListener('click', connectLine);
+
     loadPages();
     loadHistory();
+    loadLine();
   </script>
 </body>
 </html>

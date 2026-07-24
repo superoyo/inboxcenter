@@ -1,6 +1,7 @@
 const express = require('express');
 const path = require('path');
 const fb = require('./lib/facebook');
+const line = require('./lib/line');
 const store = require('./lib/store');
 const urgency = require('./lib/urgency');
 const keywords = require('./lib/keywords');
@@ -8,7 +9,11 @@ const keywords = require('./lib/keywords');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(express.json({ limit: '6mb' })); // เผื่อรูปแพ็กเกจ (data URL) ในตั้งค่ารายเพจ
+app.use(express.json({
+  limit: '6mb', // เผื่อรูปแพ็กเกจ (data URL) ในตั้งค่ารายเพจ
+  // เก็บ raw body ไว้เฉพาะ webhook ของ LINE เพื่อตรวจลายเซ็น (HMAC ต้องใช้ body ดิบ)
+  verify: (req, _res, buf) => { if (req.url.startsWith('/api/line/webhook')) req.rawBody = buf; },
+}));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ---------- Helpers ----------
@@ -77,6 +82,7 @@ const AUTH_PUBLIC_PATHS = new Set(['/api/auth/login', '/api/config']);
 function requireAuth(req, res, next) {
   if (!req.path.startsWith('/api/')) return next();     // static/html ผ่านได้
   if (AUTH_PUBLIC_PATHS.has(req.path)) return next();    // login + config เปิด
+  if (req.path.startsWith('/api/line/webhook/')) return next(); // LINE เรียกเอง (ยืนยันด้วยลายเซ็น)
   const m = /^Bearer\s+(.+)$/i.exec(req.headers.authorization || '');
   if (!m) return res.status(401).json({ error: 'ต้องเข้าสู่ระบบก่อน' });
   const exp = decodeJwtExp(m[1]);
@@ -240,13 +246,138 @@ app.put('/api/pages/:id/config', async (req, res) => {
   res.json({ ok: true, config });
 });
 
+// ---------- LINE Messaging API (เชื่อมต่อผ่าน webhook) ----------
+// URL ฐานของเซิร์ฟเวอร์ (สำหรับสร้าง webhook URL ให้ผู้ใช้ไปวางใน LINE Console)
+function baseUrl(req) {
+  if (process.env.PUBLIC_BASE_URL) return process.env.PUBLIC_BASE_URL.replace(/\/$/, '');
+  const proto = (req.headers['x-forwarded-proto'] || req.protocol || 'https').split(',')[0].trim();
+  return `${proto}://${req.get('host')}`;
+}
+const lineWebhookUrl = (req, channelId) => `${baseUrl(req)}/api/line/webhook/${channelId}`;
+const linePageId = (channelId) => `line_${channelId}`;
+
+// รายชื่อ LINE OA ที่เชื่อมต่อแล้ว (ตัด secret/token ออก)
+app.get('/api/connections/line', async (req, res) => {
+  const list = (await store.getPages())
+    .filter((p) => p.platform === 'line')
+    .map(({ accessToken, channelSecret, ...p }) => ({ ...p, webhookUrl: lineWebhookUrl(req, p.channelId) }));
+  res.json(list);
+});
+
+// เชื่อมต่อ LINE OA ใหม่ — ตรวจ token กับ LINE ก่อน แล้วเก็บเป็น "เพจ" platform=line
+app.post('/api/connections/line', async (req, res) => {
+  const channelId = String((req.body && req.body.channelId) || '').trim();
+  const channelSecret = String((req.body && req.body.channelSecret) || '').trim();
+  const accessToken = String((req.body && req.body.accessToken) || '').trim();
+  if (!channelId || !channelSecret || !accessToken) {
+    return res.status(400).json({ error: 'ต้องระบุ Channel ID, Channel secret และ Channel access token' });
+  }
+  try {
+    const info = await line.getBotInfo(accessToken); // ยืนยัน token ใช้ได้จริง
+    const id = linePageId(channelId);
+    const existing = (await store.getPages()).find((p) => p.id === id);
+    const page = await store.savePage({
+      id,
+      platform: 'line',
+      name: info.displayName || `LINE OA ${channelId}`,
+      pictureUrl: info.pictureUrl || '',
+      basicId: info.basicId || '',
+      channelId,
+      channelSecret,
+      accessToken,
+      connectedAt: existing ? existing.connectedAt : new Date().toISOString(),
+      lastSyncAt: existing ? existing.lastSyncAt : null,
+    });
+    const { accessToken: _a, channelSecret: _s, ...safe } = page;
+    res.json({ ok: true, connection: { ...safe, webhookUrl: lineWebhookUrl(req, channelId) } });
+  } catch (err) {
+    res.status(400).json({ error: `เชื่อมต่อ LINE ไม่สำเร็จ: ${err.message}` });
+  }
+});
+
+app.delete('/api/connections/line/:id', async (req, res) => {
+  await store.deletePage(req.params.id);
+  res.json({ ok: true });
+});
+
+// Webhook รับ event จาก LINE (LINE เรียกเอง — ยืนยันด้วยลายเซ็น ไม่ผ่าน requireAuth)
+app.post('/api/line/webhook/:channelId', async (req, res) => {
+  const page = (await store.getPages()).find((p) => p.id === linePageId(req.params.channelId));
+  if (!page) return res.status(404).end();
+  const sig = req.headers['x-line-signature'];
+  if (!line.verifySignature(page.channelSecret, req.rawBody, sig)) {
+    return res.status(401).end();
+  }
+  res.status(200).end(); // ตอบ LINE ทันที แล้วค่อยประมวลผล event
+  const events = Array.isArray(req.body && req.body.events) ? req.body.events : [];
+  for (const ev of events) {
+    try { await handleLineEvent(page, ev); }
+    catch (err) { console.error('[line webhook]', err.message); }
+  }
+});
+
+// จำชื่อ/รูปผู้ใช้ LINE ไว้ 6 ชั่วโมง กันยิง profile API ถี่เกินไป
+const lineProfileCache = new Map(); // userId -> { at, displayName, pictureUrl }
+async function lineProfile(page, userId) {
+  const hit = lineProfileCache.get(userId);
+  if (hit && Date.now() - hit.at < 6 * 3600e3) return hit;
+  try {
+    const p = await line.getProfile(page.accessToken, userId);
+    const val = { at: Date.now(), displayName: p.displayName || 'ผู้ใช้ LINE', pictureUrl: p.pictureUrl || '' };
+    lineProfileCache.set(userId, val);
+    return val;
+  } catch {
+    return { at: Date.now(), displayName: 'ผู้ใช้ LINE', pictureUrl: '' };
+  }
+}
+
+async function handleLineEvent(page, ev) {
+  if (ev.type !== 'message' || !ev.source || ev.source.type !== 'user') return;
+  const userId = ev.source.userId;
+  if (!userId) return;
+  const prof = await lineProfile(page, userId);
+  const convId = `${page.id}_${userId}`;
+  const createdTime = new Date(ev.timestamp || Date.now()).toISOString();
+  const message = {
+    id: ev.message.id || `line_${ev.timestamp}`,
+    text: line.messageTextFromEvent(ev),
+    fromId: userId,
+    fromName: prof.displayName,
+    isFromPage: false,
+    createdTime,
+    attachments: [],
+  };
+  const convs = await store.getConversationsForPage(page.id);
+  let conv = convs.find((c) => c.id === convId);
+  if (conv) {
+    if (!conv.messages.some((m) => m.id === message.id)) conv.messages.push(message);
+    conv.customerName = prof.displayName;
+    conv.customerPic = prof.pictureUrl;
+    conv.updatedTime = createdTime;
+  } else {
+    conv = {
+      id: convId,
+      pageId: page.id,
+      pageName: page.name,
+      customerId: userId,
+      customerName: prof.displayName,
+      customerPic: prof.pictureUrl,
+      updatedTime: createdTime,
+      unreadCount: 1,
+      messages: [message],
+    };
+  }
+  await store.saveConversation(conv);
+  await store.savePage({ ...page, lastSyncAt: createdTime });
+}
+
 // ---------- Pages ----------
 
 // รายชื่อเพจที่เชื่อมต่อแล้ว (ไม่ส่ง token กลับไปหน้าเว็บ)
 // พร้อมจำนวนข้อความใหม่จากลูกค้า "วันนี้" ต่อเพจ — ?tz=นาที offset จาก UTC ของฝั่งผู้ใช้ (ไทย = 420)
 app.get('/api/pages', async (req, res) => {
   const inProject = await projectPageIds(req.query.project);
-  let pages = (await store.getPages()).map(({ accessToken, ...p }) => p);
+  let pages = (await store.getPages()).map(({ accessToken, channelSecret, ...p }) => p);
   if (inProject) pages = pages.filter((p) => inProject.has(p.id));
 
   const localDayKey = dayKeyFactory(parseInt(req.query.tz, 10));
@@ -415,7 +546,7 @@ async function syncAllPages(trigger = 'manual') {
   syncStatus.running = true;
   const startedAt = new Date().toISOString();
   try {
-    const pages = await store.getPages();
+    const pages = (await store.getPages()).filter((p) => p.platform !== 'line'); // LINE รับผ่าน webhook ไม่ต้อง sync
     const results = await Promise.all(
       pages.map(async (page) => {
         try {
@@ -497,6 +628,7 @@ app.put('/api/settings/sync-interval', async (req, res) => {
 app.post('/api/pages/:id/sync', async (req, res) => {
   const page = (await store.getPages()).find((p) => p.id === req.params.id);
   if (!page) return res.status(404).json({ error: 'ไม่พบเพจนี้ในระบบ' });
+  if (page.platform === 'line') return res.json({ ok: true, pageId: page.id, conversations: 0 }); // LINE รับสดผ่าน webhook
   try {
     const count = await syncPage(page);
     res.json({ ok: true, pageId: page.id, conversations: count });
@@ -1201,11 +1333,18 @@ app.post('/api/conversations/:convId/reply', async (req, res) => {
   if (!conv.customerId) return res.status(400).json({ error: 'ไม่ทราบตัวตนลูกค้าในการสนทนานี้' });
 
   try {
-    const sent = await fb.sendMessage(conv.customerId, String(text).trim(), page.accessToken);
+    let messageId;
+    if (page.platform === 'line') {
+      await line.pushMessage(page.accessToken, conv.customerId, String(text).trim());
+      messageId = 'line_out_' + Date.now(); // LINE push ไม่คืน message id
+    } else {
+      const sent = await fb.sendMessage(conv.customerId, String(text).trim(), page.accessToken);
+      messageId = sent.message_id;
+    }
 
     // บันทึกข้อความลง local ทันที ไม่ต้องรอ sync รอบใหม่
     const message = {
-      id: sent.message_id,
+      id: messageId,
       text: String(text).trim(),
       fromId: page.id,
       fromName: page.name,
