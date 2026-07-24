@@ -43,7 +43,33 @@
     .chip { display: inline-flex; align-items: center; gap: 5px; background: var(--bg); border-radius: 999px; padding: 3px 6px 3px 10px; font-size: 12.5px; }
     .chip b { cursor: pointer; color: var(--muted); font-weight: 700; }
     .chip b:hover { color: var(--red); }
-    .team-input { border: none; background: none; font-size: 12.5px; padding: 4px; outline: none; min-width: 90px; font-family: inherit; }
+    .team-empty { font-size: 12px; color: var(--muted); }
+    /* ค้นหา + dropdown เลือกพนักงาน */
+    .team-search-wrap { position: relative; margin-top: 8px; }
+    .team-search { width: 100%; box-sizing: border-box; border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; font-size: 12.5px; font-family: inherit; }
+    .team-search:focus { border-color: var(--primary); outline: none; }
+    .team-dd {
+      position: absolute; top: calc(100% + 2px); left: 0; right: 0; z-index: 50;
+      background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+      box-shadow: 0 6px 22px rgba(0,0,0,0.16); max-height: 220px; overflow-y: auto;
+    }
+    .team-dd-item { display: flex; align-items: center; gap: 8px; padding: 7px 10px; cursor: pointer; }
+    .team-dd-item:hover { background: var(--bg); }
+    .team-dd-item .dd-txt { min-width: 0; }
+    .team-dd-item .nm { font-size: 12.5px; font-weight: 600; }
+    .team-dd-item .sub { font-size: 11px; color: var(--muted); }
+    .team-dd-empty { padding: 8px 10px; font-size: 12px; color: var(--muted); }
+    .dd-ava { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; flex-shrink: 0; background: var(--bg); }
+    .dd-ava.fb { display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 12px; }
+    /* รูปโปรไฟล์ซ้อนทับกัน (face pile) ในกล่องทีม */
+    .team-stack { display: flex; align-items: center; flex-wrap: wrap; min-height: 36px; }
+    .stack-item { position: relative; margin-left: -9px; }
+    .stack-item:first-child { margin-left: 0; }
+    .stack-item:hover { z-index: 10; }
+    .stack-ava { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; box-sizing: border-box; border: 2px solid var(--card); background: var(--bg); display: block; }
+    .stack-ava.fb { display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 13px; }
+    .stack-x { position: absolute; top: 0; right: 0; width: 16px; height: 16px; border-radius: 50%; background: var(--red); color: #fff; font-size: 11px; font-weight: 700; line-height: 15px; text-align: center; cursor: pointer; display: none; box-shadow: 0 0 0 2px var(--card); }
+    .stack-item:hover .stack-x { display: block; }
     .ad-startdate { max-width: 220px; }
   </style>
 </head>
@@ -69,7 +95,7 @@
 
   <script>
     const $ = (id) => document.getElementById(id);
-    let pages = [], configs = {};
+    let pages = [], configs = {}, employees = [];
     const TEAMS = [
       ['content', '✍️ Content Team'],
       ['graphic', '🎨 Graphic Team'],
@@ -84,12 +110,28 @@
     function ava(p){ return p.pictureUrl ? `<img class="pg-ava" src="${esc(p.pictureUrl)}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><span class="pg-ava-fb" style="display:none;background:${avatarColor(p.id)}">${esc((p.name||'?')[0])}</span>` : `<span class="pg-ava-fb" style="background:${avatarColor(p.id)}">${esc((p.name||'?')[0])}</span>`; }
 
     async function load(){
-      [pages, configs] = await Promise.all([
+      const [pg, cf, emp] = await Promise.all([
         fetch('/api/pages').then(r=>r.json()),
         fetch('/api/page-config').then(r=>r.json()),
+        fetch('/api/employees').then(r=>r.ok?r.json():[]).catch(()=>[]),
       ]);
+      pages = pg; configs = cf; employees = Array.isArray(emp) ? emp : [];
       pages.sort((a,b)=>a.name.localeCompare(b.name,'th'));
       render();
+    }
+
+    // สมาชิกทีมเก็บเป็น { empCode, name } — แต่รองรับข้อมูลเก่าที่เป็น string ด้วย
+    function memberName(m){ return typeof m==='string' ? m : ((m && m.name) || ''); }
+    function memberCode(m){ return typeof m==='string' ? '' : ((m && m.empCode) || ''); }
+    // รูปโปรไฟล์: หาสดจากรายชื่อพนักงานตาม empCode (ไม่เก็บ URL ซ้ำใน config)
+    function memberPhoto(m){ const c=memberCode(m); if(!c) return ''; const e=employees.find(x=>x.empCode===c); return e ? e.photo : ''; }
+    // avatar วงกลม (รูป + fallback อักษรย่อสีพื้น) — cls: 'dd-ava' (dropdown) หรือ 'stack-ava' (ซ้อนในกล่อง)
+    function avaHtml(cls, photo, name){
+      const initial = esc(((name||'?').trim()[0]) || '?');
+      const color = avatarColor(name);
+      return photo
+        ? `<img class="${cls}" src="${esc(photo)}" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><span class="${cls} fb" style="display:none;background:${color}">${initial}</span>`
+        : `<span class="${cls} fb" style="background:${color}">${initial}</span>`;
     }
 
     function cfg(id){ const c = configs[id] || {}; return { packageImage: c.packageImage||'', startDate: c.startDate||'', teams: Object.assign({content:[],graphic:[],chatInbox:[],am:[]}, c.teams||{}) }; }
@@ -118,14 +160,20 @@
               </div>
             </div>
             <div class="ad-field">
-              <label>ทีมที่ดูแล (ใส่ได้หลายคน — พิมพ์แล้วกด Enter)</label>
+              <label>ทีมที่ดูแล (ค้นหาชื่อแล้วเลือกจากรายการ)</label>
               <div class="teams-grid">
                 ${TEAMS.map(([key,label])=>`
                   <div class="team-box">
                     <div class="tl">${label}</div>
-                    <div class="chips" id="team-${esc(p.id)}-${key}">
-                      ${c.teams[key].map((n,i)=>chipHtml(p.id,key,n,i)).join('')}
-                      <input class="team-input" placeholder="+ เพิ่มชื่อ" onkeydown="teamKey(event,'${esc(p.id)}','${key}')">
+                    <div class="team-stack" id="team-${esc(p.id)}-${key}">
+                      ${c.teams[key].length ? c.teams[key].map((m,i)=>memberChip(p.id,key,m,i)).join('') : '<span class="team-empty">ยังไม่มีสมาชิก</span>'}
+                    </div>
+                    <div class="team-search-wrap">
+                      <input class="team-search" id="search-${esc(p.id)}-${key}" placeholder="🔍 ค้นชื่อพนักงาน..." autocomplete="off"
+                        oninput="teamSearch('${esc(p.id)}','${key}',this.value)"
+                        onkeydown="teamSearchKey(event,'${esc(p.id)}','${key}')"
+                        onblur="setTimeout(()=>teamCloseDD('${esc(p.id)}','${key}'),150)">
+                      <div class="team-dd" id="dd-${esc(p.id)}-${key}" style="display:none"></div>
                     </div>
                   </div>`).join('')}
               </div>
@@ -135,7 +183,9 @@
       }).join('');
     }
 
-    function chipHtml(pid,key,name,idx){ return `<span class="chip">${esc(name)}<b onclick="removeMember('${esc(pid)}','${key}',${idx})">×</b></span>`; }
+    function memberChip(pid,key,m,idx){
+      return `<span class="stack-item" title="${esc(memberName(m))}">${avaHtml('stack-ava', memberPhoto(m), memberName(m))}<b class="stack-x" title="ลบ" onclick="removeMember('${esc(pid)}','${key}',${idx})">×</b></span>`;
+    }
 
     function saved(pid){ const el=$('ss-'+pid); if(el){ el.textContent='✓ บันทึกแล้ว'; setTimeout(()=>el.textContent='',1500);} }
     async function save(pid){
@@ -158,11 +208,45 @@
       r.onload=()=>{ ensure(pid).packageImage=r.result; save(pid).then(()=>render()); };
       r.readAsDataURL(f);
     }
-    function teamKey(e,pid,key){
-      if(e.key!=='Enter') return;
-      const v=e.target.value.trim(); if(!v) return;
+    // ---- ค้นหา + เลือกพนักงานเข้าทีม ----
+    function teamCloseDD(pid,key){ const dd=$('dd-'+pid+'-'+key); if(dd) dd.style.display='none'; }
+
+    function teamSearch(pid,key,q){
+      const dd=$('dd-'+pid+'-'+key); if(!dd) return;
+      const query=q.trim().toLowerCase();
+      if(!query){ dd.style.display='none'; dd.innerHTML=''; return; }
+      // กันเลือกซ้ำ: เก็บ empCode (ของใหม่) และชื่อ (ของเก่าที่เป็น string) ที่มีอยู่แล้ว
+      const chosen=new Set((cfg(pid).teams[key]||[]).flatMap(m=>[memberCode(m),memberName(m)].filter(Boolean)));
+      const matches=employees.filter(e=>{
+        if(chosen.has(e.empCode) || chosen.has(e.thaiName)) return false;
+        return (e.thaiName+' '+e.engName+' '+e.nickName+' '+e.empCode).toLowerCase().includes(query);
+      }).slice(0,8);
+      dd.innerHTML = matches.length ? matches.map(e=>`
+        <div class="team-dd-item" data-code="${esc(e.empCode)}" onmousedown="teamPick('${esc(pid)}','${key}','${esc(e.empCode)}')">
+          ${avaHtml('dd-ava', e.photo, e.thaiName||e.engName)}
+          <div class="dd-txt">
+            <div class="nm">${esc(e.thaiName||e.engName)}${e.nickName?` (${esc(e.nickName)})`:''}</div>
+            <div class="sub">${esc([e.position,e.department].filter(Boolean).join(' · '))}</div>
+          </div>
+        </div>`).join('')
+        : '<div class="team-dd-empty">ไม่พบชื่อที่ค้นหา</div>';
+      dd.style.display='block';
+    }
+
+    function teamSearchKey(e,pid,key){
+      if(e.key==='Escape'){ teamCloseDD(pid,key); return; }
+      if(e.key==='Enter'){
+        e.preventDefault();
+        const first=$('dd-'+pid+'-'+key).querySelector('.team-dd-item[data-code]');
+        if(first) teamPick(pid,key,first.getAttribute('data-code'));
+      }
+    }
+
+    function teamPick(pid,key,empCode){
+      const e=employees.find(x=>x.empCode===empCode); if(!e) return;
       ensure(pid); if(!configs[pid].teams[key]) configs[pid].teams[key]=[];
-      configs[pid].teams[key].push(v); e.target.value='';
+      if(configs[pid].teams[key].some(m=>memberCode(m)===e.empCode)) return; // มีแล้ว
+      configs[pid].teams[key].push({ empCode:e.empCode, name:(e.thaiName||e.engName||e.nickName) });
       save(pid).then(render);
     }
     function removeMember(pid,key,idx){

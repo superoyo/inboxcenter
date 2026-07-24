@@ -121,6 +121,41 @@ app.get('/api/auth/profile', async (req, res) => {
   }
 });
 
+// รายชื่อพนักงานทั้งบริษัท (สำหรับ team picker หน้า Admin)
+// proxy EmployeeAll แล้ว "ตัดข้อมูลอ่อนไหวทิ้ง" ก่อนส่งให้หน้าเว็บ:
+//   - birthdayDate = รหัสผ่าน login ของแต่ละคน → ห้ามส่งออกเด็ดขาด
+//   - email / aspNetUsers* = PII ที่ picker ไม่ต้องใช้
+// cache รวม 10 นาที (รายชื่อไม่ค่อยเปลี่ยน + ไม่ต้องยิง Wazzup ทุกครั้ง) — requireAuth กันเส้นนี้อยู่แล้ว
+let employeesCache = null; // { at, data }
+const EMPLOYEES_TTL = 10 * 60 * 1000;
+app.get('/api/employees', async (req, res) => {
+  try {
+    if (employeesCache && Date.now() - employeesCache.at < EMPLOYEES_TTL) {
+      return res.json(employeesCache.data);
+    }
+    const r = await fetch(`${WAZZUP_BASE_URL}/api/EmployeeAll/`, {
+      headers: { Authorization: req.headers.authorization || '' },
+    });
+    if (r.status === 401) return res.status(401).json({ error: 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่' });
+    if (!r.ok) return res.status(502).json({ error: 'โหลดรายชื่อพนักงานไม่สำเร็จ' });
+    const raw = await r.json();
+    const list = Array.isArray(raw) ? raw : (raw.data || raw.employees || []);
+    const safe = list.map((e) => ({
+      empCode: String(e.empCode || ''),
+      thaiName: String(e.empThaiName || ''),
+      engName: String(e.empEngName || ''),
+      nickName: String(e.nickName || ''),
+      position: String(e.positionName || ''),
+      department: String(e.departmentName || ''),
+      photo: String(e.profileURL || ''), // รูปโปรไฟล์ (URL สาธารณะ ไม่ใช่ข้อมูลอ่อนไหว)
+    })).filter((e) => e.empCode || e.thaiName || e.engName);
+    employeesCache = { at: Date.now(), data: safe };
+    res.json(safe);
+  } catch {
+    res.status(502).json({ error: 'โหลดรายชื่อพนักงานไม่สำเร็จ' });
+  }
+});
+
 // การตั้งค่าที่หน้าเว็บต้องรู้ (ไม่เปิดเผยค่า secret)
 app.get('/api/config', (req, res) => {
   res.json({
@@ -181,7 +216,16 @@ app.get('/api/page-config', async (req, res) => {
 
 app.put('/api/pages/:id/config', async (req, res) => {
   const b = req.body || {};
-  const cleanTeam = (arr) => Array.isArray(arr) ? arr.map((s) => String(s).trim().slice(0, 60)).filter(Boolean).slice(0, 30) : [];
+  // สมาชิกทีมเก็บเป็น { empCode, name } — รองรับข้อมูลเก่าที่เป็น string (แปลงเป็น object ให้เลย)
+  const cleanTeam = (arr) => Array.isArray(arr) ? arr.map((m) => {
+    if (typeof m === 'string') { const name = m.trim().slice(0, 60); return name ? { empCode: '', name } : null; }
+    if (m && typeof m === 'object') {
+      const name = String(m.name || '').trim().slice(0, 60);
+      const empCode = String(m.empCode || '').trim().slice(0, 30);
+      return name ? { empCode, name } : null;
+    }
+    return null;
+  }).filter(Boolean).slice(0, 30) : [];
   const config = {
     packageImage: typeof b.packageImage === 'string' ? b.packageImage.slice(0, 4_000_000) : '',
     startDate: typeof b.startDate === 'string' ? b.startDate.slice(0, 20) : '',
