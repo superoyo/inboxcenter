@@ -44,6 +44,10 @@
     }
     .period-opt:hover { background: var(--bg); }
     .period-opt.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+    /* ช่วงเวลากำหนดเอง */
+    .rp-custom { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; }
+    .rp-custom label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600; color: var(--muted); }
+    .rp-custom input[type=date] { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 14px; font-family: inherit; color: var(--text); background: var(--card); }
     /* การ์ด export */
     .exp-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
     @media (max-width: 640px) { .exp-cards { grid-template-columns: 1fr; } }
@@ -90,6 +94,11 @@
         <button class="period-opt" data-m="3">1 ไตรมาส</button>
         <button class="period-opt" data-m="12">1 ปี</button>
         <button class="period-opt" data-m="36">3 ปี</button>
+        <button class="period-opt" data-custom="1">📅 กำหนดเอง</button>
+      </div>
+      <div class="rp-custom" id="rpCustom" style="display:none;">
+        <label>จาก <input type="date" id="fromDate"></label>
+        <label>ถึง <input type="date" id="toDate"></label>
       </div>
     </div>
 
@@ -118,6 +127,7 @@
     let pages = [];
     let selectedPage = null;
     let months = 1;
+    let mode = 'months'; // 'months' | 'custom'
 
     function esc(s) {
       return String(s ?? '').replace(/[&<>"']/g, (c) =>
@@ -150,9 +160,33 @@
 
     $('periodOpts').addEventListener('click',(e)=>{
       const b = e.target.closest('.period-opt'); if(!b) return;
-      months = +b.dataset.m;
       [...$('periodOpts').children].forEach(x=>x.classList.toggle('active', x===b));
+      if (b.dataset.custom) {
+        mode = 'custom';
+        $('rpCustom').style.display = 'flex';
+        // ตั้งค่าเริ่มต้นถ้ายังว่าง: ถึง = วันนี้, จาก = 1 เดือนก่อน
+        const iso = (d)=> d.toISOString().slice(0,10);
+        if (!$('toDate').value) $('toDate').value = iso(new Date());
+        if (!$('fromDate').value) { const d=new Date(); d.setMonth(d.getMonth()-1); $('fromDate').value = iso(d); }
+      } else {
+        mode = 'months';
+        months = +b.dataset.m;
+        $('rpCustom').style.display = 'none';
+      }
     });
+
+    // สร้าง query string + label ของช่วงเวลา (โยน error ถ้ากรอกไม่ครบ)
+    function rangeQuery(){
+      if (mode === 'custom') {
+        const from = $('fromDate').value, to = $('toDate').value;
+        if (!from || !to) throw new Error('กรุณาเลือกวันที่เริ่มและสิ้นสุด');
+        let since = Math.floor(new Date(from+'T00:00:00').getTime()/1000);
+        let until = Math.floor(new Date(to+'T23:59:59').getTime()/1000);
+        if (since > until) { const t=since; since=until; until=t; } // สลับถ้ากรอกกลับกัน
+        return { q: `from=${since}&to=${until}`, label: `${from}_ถึง_${to}` };
+      }
+      return { q: `months=${months}`, label: ({1:'1เดือน',3:'1ไตรมาส',12:'1ปี',36:'3ปี'}[months]||months+'ด') };
+    }
 
     // ---------- CSV helper ----------
     function csvCell(v){ const s=String(v==null?'':v); return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; }
@@ -164,15 +198,15 @@
     }
     const fmt = (iso)=> new Date(iso).toLocaleString('th-TH',{dateStyle:'short',timeStyle:'short'});
     const stamp = ()=> new Date().toISOString().slice(0,10);
-    const periodLabel = ()=> ({1:'1เดือน',3:'1ไตรมาส',12:'1ปี',36:'3ปี'}[months]||months+'ด');
     function safeName(s){ return String(s||'page').slice(0,24).replace(/[^\wก-๙]+/g,'_'); }
     function busy(on,msg){ $('expPosts').disabled=on; $('expComments').disabled=on; $('rpStatus').textContent=msg||''; }
 
     async function exportPosts(){
       if(!selectedPage) return;
+      let rng; try { rng = rangeQuery(); } catch(e){ busy(false,'❌ '+e.message); return; }
       busy(true,'⏳ กำลังดึงข้อมูลโพสต์... (ช่วงยาวอาจใช้เวลาสักครู่)');
       try{
-        const d = await fetch(`/api/pages/${encodeURIComponent(selectedPage.id)}/report/posts?months=${months}`).then(r=>r.json());
+        const d = await fetch(`/api/pages/${encodeURIComponent(selectedPage.id)}/report/posts?${rng.q}`).then(r=>r.json());
         if(d.error) throw new Error(d.error);
         if(!d.posts.length){ busy(false,'ไม่พบโพสต์ในช่วงเวลานี้'); return; }
         const rows = [['วันที่โพสต์','เพจ','ข้อความ','จำนวนคำ','จำนวนตัวอักษร','มีรูป','Reactions','Comments','Shares','Engagement รวม','ลิงก์โพสต์']];
@@ -183,16 +217,17 @@
             p.picture?'มี':'ไม่มี', p.reactionCount, p.commentCount, p.shareCount,
             p.engagementTotal, p.permalink ]);
         }
-        downloadCSV(rows, `posts_${safeName(d.pageName)}_${periodLabel()}_${stamp()}.csv`);
+        downloadCSV(rows, `posts_${safeName(d.pageName)}_${rng.label}_${stamp()}.csv`);
         busy(false,`✓ ดาวน์โหลด ${d.posts.length} โพสต์แล้ว`);
       }catch(err){ busy(false,'❌ '+err.message); }
     }
 
     async function exportComments(){
       if(!selectedPage) return;
+      let rng; try { rng = rangeQuery(); } catch(e){ busy(false,'❌ '+e.message); return; }
       busy(true,'⏳ กำลังดึงคอมเมนต์ของทุกโพสต์... (อาจใช้เวลาหลายสิบวินาทีสำหรับช่วงยาว)');
       try{
-        const d = await fetch(`/api/pages/${encodeURIComponent(selectedPage.id)}/report/comments?months=${months}`).then(r=>r.json());
+        const d = await fetch(`/api/pages/${encodeURIComponent(selectedPage.id)}/report/comments?${rng.q}`).then(r=>r.json());
         if(d.error) throw new Error(d.error);
         if(!d.rows.length){ busy(false,'ไม่พบคอมเมนต์ในช่วงเวลานี้'); return; }
         const rows = [['วันที่โพสต์','โพสต์ (ย่อ)','ระดับ','ผู้แสดงความเห็น','ข้อความคอมเมนต์','ไลก์','วันเวลาคอมเมนต์','ตอบใต้คอมเมนต์ของ']];
@@ -200,7 +235,7 @@
           rows.push([ fmt(x.post.createdTime), (x.post.message||'').slice(0,60), x.level,
             x.c.fromName, x.c.message, x.c.likeCount, fmt(x.c.createdTime), x.parent ]);
         }
-        downloadCSV(rows, `comments_${safeName(d.pageName)}_${periodLabel()}_${stamp()}.csv`);
+        downloadCSV(rows, `comments_${safeName(d.pageName)}_${rng.label}_${stamp()}.csv`);
         const trunc = d.meta.truncated ? ` (จำกัด ${d.meta.postsProcessed}/${d.meta.postsTotal} โพสต์ล่าสุด)` : '';
         busy(false,`✓ ดาวน์โหลด ${d.rows.length} คอมเมนต์ จาก ${d.meta.postsProcessed} โพสต์แล้ว${trunc}`);
       }catch(err){ busy(false,'❌ '+err.message); }

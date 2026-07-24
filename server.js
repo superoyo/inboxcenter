@@ -973,12 +973,21 @@ function sinceUnixFromMonths(months) {
   return Math.floor(d.getTime() / 1000);
 }
 
+// ช่วงเวลาของรายงาน: มี from/to (unix วินาที) = ช่วงกำหนดเอง, ไม่งั้นย้อนหลังตาม months
+function reportRange(q) {
+  const from = parseInt(q.from, 10);
+  const to = parseInt(q.to, 10);
+  if (from > 0 && to > 0 && from < to) return { since: from, until: to };
+  return { since: sinceUnixFromMonths(q.months), until: undefined };
+}
+
 // รายงานโพสต์ย้อนหลัง (สำหรับ content analysis)
 app.get('/api/pages/:pageId/report/posts', async (req, res) => {
   const page = await pageOr404(req.params.pageId, res);
   if (!page) return;
   try {
-    const posts = await fb.getPostsSince(page.id, page.accessToken, sinceUnixFromMonths(req.query.months));
+    const { since, until } = reportRange(req.query);
+    const posts = await fb.getPostsSince(page.id, page.accessToken, since, until);
     res.json({ pageName: page.name, posts });
   } catch (err) {
     res.status(400).json({ error: `ดึงโพสต์ไม่สำเร็จ: ${err.message}` });
@@ -991,7 +1000,8 @@ app.get('/api/pages/:pageId/report/comments', async (req, res) => {
   if (!page) return;
   const MAX_POSTS = 200; // เพดานโพสต์ที่ดึงคอมเมนต์ (กัน API หนัก/timeout)
   try {
-    const allPosts = await fb.getPostsSince(page.id, page.accessToken, sinceUnixFromMonths(req.query.months));
+    const { since, until } = reportRange(req.query);
+    const allPosts = await fb.getPostsSince(page.id, page.accessToken, since, until);
     const posts = allPosts.slice(0, MAX_POSTS);
     const rows = [];
     // ดึงคอมเมนต์ทีละ 4 โพสต์พร้อมกัน
