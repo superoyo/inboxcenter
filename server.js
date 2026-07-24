@@ -1012,7 +1012,7 @@ function cleanReplyTags(tags) {
 }
 
 app.post('/api/pages/:pageId/saved-replies', async (req, res) => {
-  const { text, tags } = req.body || {};
+  const { title, text, tags } = req.body || {};
   const clean = String(text || '').trim().slice(0, 1000);
   if (!clean) return res.status(400).json({ error: 'กรุณาใส่ข้อความคำตอบ' });
 
@@ -1023,6 +1023,7 @@ app.post('/api/pages/:pageId/saved-replies', async (req, res) => {
 
   const entry = {
     id: 'sr_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+    title: String(title || '').trim().slice(0, 120),
     text: clean,
     tags: cleanReplyTags(tags),
     createdAt: new Date().toISOString(),
@@ -1034,6 +1035,7 @@ app.post('/api/pages/:pageId/saved-replies', async (req, res) => {
 // แก้ไขคำตอบ/แท็กหมวดหมู่
 app.put('/api/pages/:pageId/saved-replies/:replyId', async (req, res) => {
   const fields = {};
+  if (req.body && req.body.title !== undefined) fields.title = String(req.body.title).trim().slice(0, 120);
   if (req.body && req.body.tags !== undefined) fields.tags = cleanReplyTags(req.body.tags);
   if (req.body && req.body.text !== undefined) {
     const t = String(req.body.text).trim().slice(0, 1000);
