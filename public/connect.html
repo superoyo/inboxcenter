@@ -3,62 +3,141 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>เชื่อมต่อเพจ — Facebook Inbox Center</title>
+  <title>Connect — FB Inbox Center</title>
   <link rel="stylesheet" href="style.css">
   <script src="auth.js"></script>
+  <style>
+    .cn-wrap { max-width: 920px; margin: 0 auto; padding: 24px; }
+    .cn-wrap h1 { font-size: 24px; margin-bottom: 4px; }
+    .cn-wrap .sub { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+    /* แท็บช่องทาง */
+    .ch-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 22px; }
+    .ch-tab {
+      display: flex; align-items: center; gap: 8px; border: 1px solid var(--border);
+      background: var(--card); border-radius: 10px; padding: 9px 14px; cursor: pointer;
+      font-size: 14px; font-family: inherit; position: relative;
+    }
+    .ch-tab .soon { font-size: 10px; background: var(--bg); color: var(--muted); border-radius: 999px; padding: 1px 6px; }
+    .ch-tab:hover { border-color: var(--primary); }
+    .ch-tab.active { border-color: var(--primary); background: #eaf2fe; color: var(--primary); font-weight: 700; }
+    .ch-panel { display: none; }
+    .ch-panel.active { display: block; }
+    .soon-box { border: 2px dashed var(--border); border-radius: 14px; padding: 40px 24px; text-align: center; color: var(--muted); }
+    .soon-box .big { font-size: 46px; display: block; margin-bottom: 10px; }
+    .soon-box h3 { color: var(--text); font-size: 18px; margin-bottom: 6px; }
+    .cn-form-row { display: flex; gap: 10px; margin-top: 12px; }
+    .cn-form-row input { flex: 1; }
+    .hist-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
+    .hist-head h3 { font-size: 16px; }
+    .hist-list { max-height: 340px; overflow-y: auto; border: 1px solid var(--border); border-radius: 10px; margin-top: 10px; }
+  </style>
 </head>
 <body>
   <nav class="navbar">
-    <a class="logo" href="projects.html">📥 Facebook Inbox Center</a>
-    <a class="nav-link" href="index.html">Inbox</a>
-    <a class="nav-link" href="comments.html">Content</a>
-    <a class="nav-link" href="analytics.html">Analytics</a>
-    <a class="nav-link" href="report.html">Report</a>
-    <a class="nav-link active" href="connect.html">Connect</a>
+    <a class="logo" href="projects.html">📥 FB Inbox Center</a>
     <span class="spacer"></span>
-    <button class="btn small" id="syncAllBtn">🔄 ดึง inbox ทุกเพจ</button>
+    <a class="nav-link active" href="connect.html">Connect</a>
   </nav>
 
-  <div class="container" style="max-width: 720px;">
-    <div class="card">
-      <h2 style="margin-bottom: 6px;">เพิ่มเพจใหม่</h2>
-      <p class="muted" style="margin-bottom: 16px;">
-        วาง <strong>Access Token</strong> ได้ทั้งแบบ <strong>User token</strong> (ระบบจะแสดงรายชื่อเพจให้เลือก)
-        หรือ <strong>Page token</strong> (เชื่อมต่อทันที) — ต้องมีสิทธิ์ <code>pages_show_list</code> และ <code>pages_messaging</code>
-      </p>
-      <div style="display: flex; gap: 10px;">
-        <input type="password" id="tokenInput" placeholder="EAAG... (Access Token)">
-        <button class="btn" id="addBtn">เชื่อมต่อ</button>
-      </div>
-      <p id="addError" class="error-text" style="margin-top: 10px; display: none;"></p>
-      <p id="tokenModeNote" class="muted" style="margin-top: 10px;"></p>
+  <div class="cn-wrap">
+    <h1>🔌 Connect</h1>
+    <div class="sub">ศูนย์รวมการเชื่อมต่อทุกช่องทาง — ทุกโปรเจกต์ใช้ทุก connection ที่นี่ร่วมกันได้ · เพิ่มได้หลายบัญชี/หลาย Token</div>
 
-      <!-- รายชื่อเพจให้เลือก (กรณีวาง User token) -->
-      <div id="pageSelect" style="display: none; margin-top: 16px;">
-        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
-          <strong>เลือกเพจที่ต้องการดึง inbox</strong>
-          <button class="btn small secondary" id="selectAllBtn">เลือกทั้งหมด</button>
-          <span class="muted" id="selectCount"></span>
+    <div class="ch-tabs" id="chTabs">
+      <button class="ch-tab active" data-ch="facebook">📘 Facebook</button>
+      <button class="ch-tab" data-ch="line">💬 LINE <span class="soon">เร็วๆ นี้</span></button>
+      <button class="ch-tab" data-ch="instagram">📸 Instagram <span class="soon">เร็วๆ นี้</span></button>
+      <button class="ch-tab" data-ch="tiktok">🎵 TikTok <span class="soon">เร็วๆ นี้</span></button>
+      <button class="ch-tab" data-ch="shopee">🛒 Shopee <span class="soon">เร็วๆ นี้</span></button>
+      <button class="ch-tab" data-ch="lazada">🛍 Lazada <span class="soon">เร็วๆ นี้</span></button>
+    </div>
+
+    <!-- ============ FACEBOOK ============ -->
+    <section class="ch-panel active" data-ch="facebook">
+      <div class="card">
+        <h2 style="margin-bottom: 6px;">เพิ่มเพจ Facebook (รองรับหลาย Token)</h2>
+        <p class="muted" style="margin-bottom: 16px;">
+          วาง <strong>Access Token</strong> ได้ทั้งแบบ <strong>User token</strong> (ระบบจะแสดงรายชื่อเพจให้เลือก)
+          หรือ <strong>Page token</strong> (เชื่อมต่อทันที) — ต้องมีสิทธิ์ <code>pages_show_list</code> และ <code>pages_messaging</code>.
+          เพิ่ม Token ได้หลายชุด แต่ละชุดจะดึงเพจของตัวเองเข้ามารวมกัน
+        </p>
+        <div style="display: flex; gap: 10px;">
+          <input type="password" id="tokenInput" placeholder="EAAG... (Access Token)">
+          <button class="btn" id="addBtn">เชื่อมต่อ</button>
         </div>
-        <div id="pageSelectList" style="max-height: 320px; overflow-y: auto; border: 1px solid var(--border); border-radius: 10px;"></div>
-        <button class="btn" id="connectSelectedBtn" style="margin-top: 12px;">เชื่อมต่อเพจที่เลือก</button>
+        <p id="addError" class="error-text" style="margin-top: 10px; display: none;"></p>
+        <p id="tokenModeNote" class="muted" style="margin-top: 10px;"></p>
+
+        <!-- รายชื่อเพจให้เลือก (กรณีวาง User token) -->
+        <div id="pageSelect" style="display: none; margin-top: 16px;">
+          <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+            <strong>เลือกเพจที่ต้องการดึง inbox</strong>
+            <button class="btn small secondary" id="selectAllBtn">เลือกทั้งหมด</button>
+            <span class="muted" id="selectCount"></span>
+          </div>
+          <div id="pageSelectList" style="max-height: 320px; overflow-y: auto; border: 1px solid var(--border); border-radius: 10px;"></div>
+          <button class="btn" id="connectSelectedBtn" style="margin-top: 12px;">เชื่อมต่อเพจที่เลือก</button>
+        </div>
+
+        <details style="margin-top: 16px;">
+          <summary class="muted" style="cursor: pointer;">วิธีหา Page Access Token</summary>
+          <ol class="muted" style="margin: 10px 0 0 20px; line-height: 1.9;">
+            <li>เข้า <a href="https://developers.facebook.com/tools/explorer/" target="_blank">Graph API Explorer</a></li>
+            <li>เลือกแอปของคุณ แล้วเลือก <strong>Get Page Access Token</strong> จากเมนู User or Page</li>
+            <li>เพิ่มสิทธิ์ <code>pages_messaging</code>, <code>pages_read_engagement</code>, <code>pages_show_list</code></li>
+            <li>เลือกเพจที่ต้องการ แล้วคัดลอก token มาวางที่นี่</li>
+          </ol>
+        </details>
       </div>
 
-      <details style="margin-top: 16px;">
-        <summary class="muted" style="cursor: pointer;">วิธีหา Page Access Token</summary>
-        <ol class="muted" style="margin: 10px 0 0 20px; line-height: 1.9;">
-          <li>เข้า <a href="https://developers.facebook.com/tools/explorer/" target="_blank">Graph API Explorer</a></li>
-          <li>เลือกแอปของคุณ แล้วเลือก <strong>Get Page Access Token</strong> จากเมนู User or Page</li>
-          <li>เพิ่มสิทธิ์ <code>pages_messaging</code>, <code>pages_read_engagement</code>, <code>pages_show_list</code></li>
-          <li>เลือกเพจที่ต้องการ แล้วคัดลอก token มาวางที่นี่</li>
-        </ol>
-      </details>
-    </div>
+      <h3 style="margin-top: 28px;">เพจที่เชื่อมต่อแล้ว</h3>
+      <div class="page-list" id="pageList">
+        <p class="muted">กำลังโหลด...</p>
+      </div>
 
-    <h3 style="margin-top: 28px;">เพจที่เชื่อมต่อแล้ว</h3>
-    <div class="page-list" id="pageList">
-      <p class="muted">กำลังโหลด...</p>
-    </div>
+      <!-- ประวัติการดึงข้อมูล + ปุ่มดึงทุกเพจ -->
+      <div class="card" style="margin-top: 28px;">
+        <div class="hist-head">
+          <div>
+            <h3>📜 ประวัติการดึงข้อมูล</h3>
+            <div class="muted" id="lastSyncLabel" style="font-size: 12px; margin-top: 2px;">กำลังโหลด...</div>
+          </div>
+          <button class="btn" id="syncAllBtn">🔄 ดึง inbox ทุกเพจ</button>
+        </div>
+        <div class="hist-list sync-history" id="connHistory"></div>
+      </div>
+    </section>
+
+    <!-- ============ LINE ============ -->
+    <section class="ch-panel" data-ch="line">
+      <div class="card">
+        <h2 style="margin-bottom: 6px;">💬 LINE Official Account (Messaging API)</h2>
+        <p class="muted" style="margin-bottom: 4px;">ใส่ Channel access token + Channel secret จาก LINE Developers Console เพื่อดึงข้อความเข้าระบบ</p>
+        <div class="cn-form-row">
+          <input type="text" placeholder="Channel ID" disabled>
+          <input type="password" placeholder="Channel secret" disabled>
+        </div>
+        <div class="cn-form-row">
+          <input type="password" placeholder="Channel access token (long-lived)" disabled>
+          <button class="btn" disabled>เชื่อมต่อ</button>
+        </div>
+        <p class="muted" style="margin-top: 12px;">🚧 ช่องทางนี้กำลังพัฒนา — โครงหน้าพร้อมแล้ว รอเปิดใช้งานเร็วๆ นี้</p>
+      </div>
+    </section>
+
+    <!-- ============ IG / TikTok / Shopee / Lazada ============ -->
+    <section class="ch-panel" data-ch="instagram">
+      <div class="soon-box"><span class="big">📸</span><h3>Instagram</h3><p>เชื่อมต่อ Instagram Messaging ผ่าน Facebook Business — เปิดให้ใช้งานเร็วๆ นี้</p></div>
+    </section>
+    <section class="ch-panel" data-ch="tiktok">
+      <div class="soon-box"><span class="big">🎵</span><h3>TikTok</h3><p>เชื่อมต่อ TikTok — เปิดให้ใช้งานเร็วๆ นี้</p></div>
+    </section>
+    <section class="ch-panel" data-ch="shopee">
+      <div class="soon-box"><span class="big">🛒</span><h3>Shopee</h3><p>เชื่อมต่อ Shopee Chat ผ่าน Open Platform — เปิดให้ใช้งานเร็วๆ นี้</p></div>
+    </section>
+    <section class="ch-panel" data-ch="lazada">
+      <div class="soon-box"><span class="big">🛍</span><h3>Lazada</h3><p>เชื่อมต่อ Lazada Chat ผ่าน Open Platform — เปิดให้ใช้งานเร็วๆ นี้</p></div>
+    </section>
   </div>
 
   <div class="toast" id="toast"></div>
@@ -73,16 +152,31 @@
       setTimeout(() => t.classList.remove('show'), 3000);
     }
 
+    function esc(s) {
+      return String(s ?? '').replace(/[&<>"']/g, (c) =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
     function fmtTime(iso) {
       if (!iso) return 'ยังไม่เคยดึง';
       return new Date(iso).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' });
     }
 
+    // ---------- สลับช่องทาง ----------
+    $('chTabs').addEventListener('click', (e) => {
+      const btn = e.target.closest('.ch-tab');
+      if (!btn) return;
+      const ch = btn.dataset.ch;
+      document.querySelectorAll('.ch-tab').forEach((t) => t.classList.toggle('active', t === btn));
+      document.querySelectorAll('.ch-panel').forEach((p) => p.classList.toggle('active', p.dataset.ch === ch));
+    });
+
+    // ---------- Facebook: เพจที่เชื่อมต่อแล้ว ----------
     async function loadPages() {
       const pages = await fetch('/api/pages').then((r) => r.json());
       const list = $('pageList');
       if (!pages.length) {
-        list.innerHTML = '<div class="card"><p class="muted">ยังไม่มีเพจที่เชื่อมต่อ — เพิ่มเพจแรกด้วย Page Access Token ด้านบน</p></div>';
+        list.innerHTML = '<div class="card"><p class="muted">ยังไม่มีเพจที่เชื่อมต่อ — เพิ่มเพจแรกด้วย Access Token ด้านบน</p></div>';
         return;
       }
       list.innerHTML = pages.map((p) => `
@@ -91,8 +185,8 @@
             ? `<img class="avatar" src="${p.pictureUrl}" alt="">`
             : `<div class="avatar-fallback">${(p.name || '?')[0]}</div>`}
           <div class="info">
-            <div class="name">${p.name}</div>
-            <div class="muted">ID: ${p.id} · ดึงล่าสุด: ${fmtTime(p.lastSyncAt)}</div>
+            <div class="name">${esc(p.name)}</div>
+            <div class="muted">ID: ${esc(p.id)} · ดึงล่าสุด: ${fmtTime(p.lastSyncAt)}</div>
           </div>
           <span class="badge green">เชื่อมต่อแล้ว</span>
           <button class="btn small secondary" onclick="syncPage('${p.id}', this)">🔄 ดึง inbox</button>
@@ -102,11 +196,6 @@
     }
 
     let pendingUserToken = null;
-
-    function esc(s) {
-      return String(s ?? '').replace(/[&<>"']/g, (c) =>
-        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-    }
 
     async function addPage() {
       const token = $('tokenInput').value.trim();
@@ -127,7 +216,6 @@
         if (!res.ok) throw new Error(data.error);
 
         if (data.needsSelection) {
-          // User token: แสดงรายชื่อเพจให้เลือก
           pendingUserToken = token;
           renderPageSelect(data.pages);
           return;
@@ -139,6 +227,7 @@
         await fetch(`/api/pages/${data.id}/sync`, { method: 'POST' });
         toast(`ดึง inbox ของ "${data.name}" เรียบร้อย`);
         await loadPages();
+        loadHistory();
       } catch (err) {
         errEl.textContent = err.message;
         errEl.style.display = 'block';
@@ -193,6 +282,7 @@
         await fetch('/api/sync-all', { method: 'POST' });
         toast('ดึง inbox เรียบร้อย');
         await loadPages();
+        loadHistory();
       } catch (err) {
         toast(err.message);
       } finally {
@@ -208,6 +298,7 @@
         if (!res.ok) throw new Error(data.error);
         toast(`ดึงสำเร็จ ${data.conversations} การสนทนา`);
         await loadPages();
+        loadHistory();
       } catch (err) {
         toast(err.message);
         btn.disabled = false; btn.textContent = '🔄 ดึง inbox';
@@ -221,15 +312,60 @@
       loadPages();
     }
 
+    // ---------- ประวัติการดึงข้อมูล ----------
+    async function loadHistory() {
+      try {
+        const s = await fetch('/api/sync-status').then((r) => r.json());
+        const fmt = (iso) => new Date(iso).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' });
+        $('lastSyncLabel').textContent = s.running
+          ? '⏳ กำลังดึงข้อมูล...'
+          : (s.lastRefreshAt
+              ? `ดึงล่าสุด ${fmt(s.lastRefreshAt)} น. · รอบอัตโนมัติถัดไป ${fmt(s.nextRefreshAt)} น.`
+              : `ยังไม่เคยดึง · รอบอัตโนมัติถัดไป ${fmt(s.nextRefreshAt)} น.`);
+      } catch { $('lastSyncLabel').textContent = ''; }
+      renderHistory(await fetch('/api/sync-history').then((r) => r.json()).catch(() => []));
+    }
+
+    function renderHistory(runs) {
+      $('connHistory').innerHTML = runs.length ? runs.map((r) => {
+        const ok = r.results.filter((x) => x.ok);
+        const fail = r.results.filter((x) => !x.ok);
+        const updated = r.results.reduce((s, x) => s + (x.conversations || 0), 0);
+        const t = new Date(r.startedAt);
+        return `
+          <div class="sync-run" onclick="this.classList.toggle('exp')">
+            <div class="sync-run-head">
+              <span class="sr-time">${t.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })} ${t.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.</span>
+              <span>${r.trigger === 'auto' ? '🤖 อัตโนมัติ' : '👆 กดเอง'}</span>
+              <span class="sr-sum">${ok.length}/${r.results.length} เพจ · ${updated} ห้อง</span>
+              ${fail.length ? `<span style="color:var(--red); font-weight:700;">⚠ ${fail.length}</span>` : '<span style="color:var(--green);">✓</span>'}
+            </div>
+            <div class="sync-run-det">
+              ${r.results.map((x) => x.ok
+                ? `<div>✓ ${esc(x.pageName)} — ${x.conversations} ห้องที่ขยับ</div>`
+                : `<div style="color:var(--red);">✗ ${esc(x.pageName)} — ${esc(x.error || '')}</div>`).join('')}
+            </div>
+          </div>`;
+      }).join('') : '<div class="muted" style="padding: 12px;">ยังไม่มีประวัติการดึง</div>';
+    }
+
     $('syncAllBtn').addEventListener('click', async () => {
       const btn = $('syncAllBtn');
-      btn.disabled = true; btn.textContent = 'กำลังดึงทุกเพจ...';
-      const { results } = await fetch('/api/sync-all', { method: 'POST' }).then((r) => r.json());
-      const ok = results.filter((r) => r.ok).length;
-      const fail = results.filter((r) => !r.ok);
-      toast(fail.length ? `สำเร็จ ${ok} เพจ, ล้มเหลว ${fail.length} เพจ (${fail[0].error})` : `ดึงครบ ${ok} เพจ`);
-      btn.disabled = false; btn.textContent = '🔄 ดึง inbox ทุกเพจ';
-      loadPages();
+      btn.disabled = true; btn.textContent = '⏳ กำลังดึงทุกเพจ...';
+      try {
+        const { results } = await fetch('/api/sync-all', { method: 'POST' }).then((r) => r.json());
+        const ok = results.filter((r) => r.ok).length;
+        const fail = results.filter((r) => !r.ok);
+        toast(results.length === 0
+          ? 'ยังไม่มีเพจในระบบ'
+          : (fail.length ? `สำเร็จ ${ok} เพจ, ล้มเหลว ${fail.length} เพจ (${fail[0].error})` : `ดึงครบ ${ok} เพจ`));
+        await loadPages();
+      } catch (err) {
+        toast('❌ ' + (err.message || 'ดึงไม่สำเร็จ'));
+      } finally {
+        btn.disabled = false; btn.textContent = '🔄 ดึง inbox ทุกเพจ';
+        loadHistory();
+      }
     });
 
     $('addBtn').addEventListener('click', addPage);
@@ -243,6 +379,7 @@
     }).catch(() => {});
 
     loadPages();
+    loadHistory();
   </script>
 </body>
 </html>

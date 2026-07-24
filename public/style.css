@@ -160,6 +160,14 @@ input:focus, textarea:focus, select:focus { outline: 2px solid var(--primary); b
 .cal-panel {
   border-right: 1px solid var(--border);
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+.cal-history {
+  margin-top: auto;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+  flex-shrink: 0;
 }
 
 /* ---------- Page list (เหนือปฏิทิน) ---------- */
