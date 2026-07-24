@@ -28,6 +28,16 @@
     .pj-thumb { height: 120px; background: linear-gradient(135deg, #2a78d6, #6da7ec); display: flex; align-items: center; justify-content: center; position: relative; }
     .pj-thumb .pj-emoji { font-size: 44px; }
     .pj-avatars { position: absolute; bottom: 8px; left: 10px; display: flex; }
+    /* กระดิ่งแจ้งจำนวนห้องที่มีข้อความวันนี้ (มุมขวาบนของการ์ด) */
+    .pj-bell {
+      position: absolute; top: 10px; right: 10px;
+      display: inline-flex; align-items: center; gap: 4px;
+      background: #fff; color: var(--text);
+      border-radius: 999px; padding: 3px 10px;
+      font-size: 12.5px; font-weight: 700;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+    }
+    .pj-bell.zero { background: rgba(255,255,255,0.55); color: rgba(0,0,0,0.55); font-weight: 600; }
     .pj-avatars img, .pj-avatars .fb { width: 26px; height: 26px; border-radius: 50%; border: 2px solid #fff; object-fit: cover; margin-left: -8px; background: var(--primary); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; }
     .pj-avatars img:first-child, .pj-avatars .fb:first-child { margin-left: 0; }
     .pj-body { padding: 14px 16px; flex: 1; }
@@ -138,7 +148,8 @@
 
     async function load(){
       [pages, projects] = await Promise.all([
-        fetch('/api/pages').then(r=>r.json()),
+        // ส่ง tz ไปให้ server นับ "ข้อความวันนี้" ตามเวลาท้องถิ่น (ใช้ทำตัวเลขบนกระดิ่ง)
+        fetch('/api/pages?tz=' + (-new Date().getTimezoneOffset())).then(r=>r.json()),
         fetch('/api/projects').then(r=>r.json()),
       ]);
       pages.sort((a,b)=>a.name.localeCompare(b.name,'th'));
@@ -150,10 +161,13 @@
         const inPages = pj.pageIds.map(id=>pages.find(p=>p.id===id)).filter(Boolean);
         const avatars = inPages.slice(0,5).map(p=>ava(p)).join('');
         const emoji = ['🗂','📁','🏢','🌐','📊','✨'][ (pj.name.charCodeAt(0)||0) % 6 ];
+        // กระดิ่ง = จำนวนห้องที่มีข้อความ "วันนี้" รวมทุกเพจในโปรเจกต์ (หน่วยเดียวกับ badge ในหน้า Inbox)
+        const today = inPages.reduce((s,p)=>s + (p.todayNewMessages || 0), 0);
         return `
           <div class="pj-card" onclick="openProject('${esc(pj.id)}')">
             <div class="pj-thumb" style="background:linear-gradient(135deg, ${avatarColor(pj.id)}, #6da7ec)">
               <span class="pj-emoji">${emoji}</span>
+              <span class="pj-bell ${today ? '' : 'zero'}" title="ห้องที่มีข้อความวันนี้">🔔 ${today}</span>
               <div class="pj-avatars">${avatars || ''}</div>
             </div>
             <div class="pj-body">
