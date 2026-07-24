@@ -155,7 +155,7 @@
     let pages = [];
     let selectedPageId = ''; // '' = ทุกเพจ
     // ลำดับการแสดงเพจ: 'connected' (เชื่อมต่อล่าสุดอยู่บน = ค่าเริ่มต้น) | 'name' (A–Z) | 'today' (ข้อความใหม่วันนี้มากสุด)
-    let pageSort = localStorage.getItem('pageSort') || 'connected';
+    let pageSort = localStorage.getItem('pageSort') || 'today';
 
     // ห้องปัจจุบันสำหรับแก้ tag/remark/status: ใช้ข้อมูลห้องที่เปิดอยู่ (มีข้อความเต็ม) ถ้าตรง id
     // ไม่งั้นใช้สรุปในรายการ
