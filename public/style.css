@@ -559,10 +559,10 @@ input:focus, textarea:focus, select:focus { outline: 2px solid var(--primary); b
   font-size: 13px;
 }
 .srp-item:hover { background: var(--bg); }
-.srp-title { font-weight: 600; font-size: 13px; color: var(--text); cursor: text; margin-bottom: 2px; word-break: break-word; }
+.srp-title { font-weight: 600; font-size: 15px; color: var(--text); cursor: text; margin-bottom: 2px; word-break: break-word; }
 .srp-title.empty { font-weight: 400; font-size: 12px; color: var(--muted); }
 .srp-title:hover { color: var(--primary); }
-.srp-title-input { width: 100%; box-sizing: border-box; font-size: 13px; font-weight: 600; font-family: inherit; padding: 4px 8px; border: 1px solid var(--primary); border-radius: 6px; margin-bottom: 4px; }
+.srp-title-input { width: 100%; box-sizing: border-box; font-size: 15px; font-weight: 600; font-family: inherit; padding: 4px 8px; border: 1px solid var(--primary); border-radius: 6px; margin-bottom: 4px; }
 .srp-text { cursor: pointer; white-space: pre-wrap; word-break: break-word; }
 .srp-text:hover { color: var(--primary); }
 .srp-tags { margin-top: 4px; display: flex; flex-wrap: wrap; align-items: center; gap: 2px; }
