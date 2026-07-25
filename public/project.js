@@ -1,38 +1,55 @@
-// สคริปต์บริบทโปรเจกต์ — โหลดหลัง auth.js ในหน้า Inbox/Content/Analytics/Report
-// (1) อ่าน project id จาก URL, (2) auto-append ?project ให้ทุก fetch /api GET,
-// (3) พา project id ไปกับลิงก์เมนู, (4) แสดงชื่อโปรเจกต์ + ปุ่มกลับหน้าโปรเจกต์บน navbar
+// สคริปต์บริบทโปรเจกต์/เพจ — โหลดหลัง auth.js ในหน้า Inbox/Content/Analytics/Report/Admin
+// (1) อ่าน project id (?project=) และเพจที่ล็อก (?page=) จาก URL
+// (2) auto-append ?project / ?pageId ให้ทุก fetch /api อัตโนมัติ
+// (3) พาพารามิเตอร์ (project/page/embed) ไปกับลิงก์เมนู
+// (4) แสดงชื่อโปรเจกต์ + ปุ่มกลับหน้าโปรเจกต์บน navbar
+//
+// โหมดล็อกเพจเดียว (?page=PAGE_ID): ใช้ตอนระบบอื่นฝังแบบ "เชื่อมทีละเพจ" เช่น
+// /index.html?embed=1&page=123456 → ทุก API ถูก scope เป็นเพจนั้นเพจเดียว
+// (/api/pages ก็คืนเพจเดียว → รายการเพจ/dropdown ทุกหน้าเหลือเพจเดียวโดยอัตโนมัติ)
 (function () {
   'use strict';
   const params = new URLSearchParams(location.search);
   const pid = params.get('project') || '';
+  const lockedPage = params.get('page') || '';
+  const isEmbed = params.get('embed') === '1';
   window.ActiveProjectId = pid;
+  window.LockedPageId = lockedPage;
 
-  // endpoint ที่ไม่ผูกกับโปรเจกต์
-  const GLOBAL_API = /\/api\/(projects|auth|config)(\/|$|\?)/;
+  // endpoint ที่ไม่ผูกกับโปรเจกต์/เพจ
+  const GLOBAL_API = /\/api\/(projects|auth|config|employees)(\/|$|\?)/;
 
-  if (pid) {
+  if (pid || lockedPage) {
     const _fetch = window.fetch.bind(window);
     window.fetch = function (input, init) {
-      const url = typeof input === 'string' ? input : (input && input.url) || '';
-      const isApi = url.includes('/api/');
-      if (isApi && !GLOBAL_API.test(url) && !/[?&]project=/.test(url)) {
-        const sep = url.includes('?') ? '&' : '?';
-        const newUrl = url + sep + 'project=' + encodeURIComponent(pid);
-        if (typeof input === 'string') input = newUrl;
-        else input = new Request(newUrl, input);
+      let url = typeof input === 'string' ? input : (input && input.url) || '';
+      if (url.includes('/api/') && !GLOBAL_API.test(url)) {
+        if (pid && !/[?&]project=/.test(url)) {
+          url += (url.includes('?') ? '&' : '?') + 'project=' + encodeURIComponent(pid);
+        }
+        if (lockedPage && !/[?&]pageId=/.test(url)) {
+          url += (url.includes('?') ? '&' : '?') + 'pageId=' + encodeURIComponent(lockedPage);
+        }
+        if (typeof input === 'string') input = url;
+        else input = new Request(url, input);
       }
       return _fetch(input, init);
     };
 
-    // พา project id ไปกับลิงก์เมนูภายในโปรเจกต์ (ไม่รวม Setting = ระดับบนสุด)
+    // พาพารามิเตอร์ไปกับลิงก์เมนูภายใน (ไม่รวม Connect/โปรเจกต์ = ระดับบนสุด)
     document.addEventListener('DOMContentLoaded', () => {
       document.querySelectorAll('.navbar a.nav-link').forEach((a) => {
-        const href = a.getAttribute('href') || '';
-        if (/^(index|comments|analytics|report|admin)\.html/.test(href) && !href.includes('project=')) {
-          a.setAttribute('href', href + (href.includes('?') ? '&' : '?') + 'project=' + encodeURIComponent(pid));
-        }
+        let href = a.getAttribute('href') || '';
+        if (!/^(index|comments|analytics|report|admin)\.html/.test(href)) return;
+        const add = (k, v) => {
+          if (!href.includes(k + '=')) href += (href.includes('?') ? '&' : '?') + k + '=' + encodeURIComponent(v);
+        };
+        if (pid) add('project', pid);
+        if (lockedPage) add('page', lockedPage);
+        if (isEmbed) add('embed', '1');
+        a.setAttribute('href', href);
       });
-      renderProjectChip();
+      if (pid) renderProjectChip();
     });
   }
 
