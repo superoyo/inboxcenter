@@ -16,6 +16,10 @@
   window.ActiveProjectId = pid;
   window.LockedPageId = lockedPage;
 
+  // โหมดล็อกเพจเดียว: ติดคลาสที่ <html> ให้ CSS ซ่อน UI เลือกเพจที่ซ้ำซ้อน
+  // (รายการเพจ/ตัวกรองเพจ เหลือเพจเดียวอยู่แล้ว — ระบบที่ฝังส่ง ?page= มากำหนดให้)
+  if (lockedPage) document.documentElement.classList.add('locked-page');
+
   // endpoint ที่ไม่ผูกกับโปรเจกต์/เพจ
   const GLOBAL_API = /\/api\/(projects|auth|config|employees)(\/|$|\?)/;
 

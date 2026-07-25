@@ -62,6 +62,12 @@ body {
 html.embed .navbar { display: none; }
 html.embed .inbox-layout { height: 100vh; }
 
+/* ---------- โหมดล็อกเพจเดียว (?page=PAGE_ID) ---------- */
+/* ระบบที่ฝังกำหนดเพจมาแล้ว → UI เลือกเพจซ้ำซ้อน (เหลือเพจเดียว) จึงซ่อนทิ้ง
+   ซ่อนด้วย CSS เท่านั้น ไม่ลบ element เพราะ JS ยังอ่านค่า input/select เหล่านี้อยู่ */
+html.locked-page .page-list-panel { display: none; }
+html.locked-page #pageFilter { display: none; }
+
 .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
 
 /* ---------- Buttons / forms ---------- */
