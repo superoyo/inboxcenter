@@ -67,6 +67,8 @@ html.embed .inbox-layout { height: 100vh; }
    ซ่อนด้วย CSS เท่านั้น ไม่ลบ element เพราะ JS ยังอ่านค่า input/select เหล่านี้อยู่ */
 html.locked-page .page-list-panel { display: none; }
 html.locked-page #pageFilter { display: none; }
+/* ตัวเลือก scope "ทุกเพจ (ภาพรวม)" ในหน้า Analytics — ล็อกเพจเดียวแล้วไม่มีอะไรให้เลือก */
+html.locked-page .scope-picker { display: none; }
 
 .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
 
