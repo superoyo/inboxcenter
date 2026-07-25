@@ -379,8 +379,18 @@ app.get('/api/pages', async (req, res) => {
   const inProject = await projectPageIds(req.query.project);
   let pages = (await store.getPages()).map(({ accessToken, channelSecret, ...p }) => p);
   if (inProject) pages = pages.filter((p) => inProject.has(p.id));
-  // โหมดล็อกเพจเดียว (?pageId=) — ใช้ตอนระบบอื่นฝังแบบเชื่อมทีละเพจ (embed &page=)
-  if (req.query.pageId) pages = pages.filter((p) => p.id === String(req.query.pageId));
+  // โหมดล็อกเพจ (?pageId=) — ใช้ตอนระบบอื่นฝังแบบเชื่อมเฉพาะเพจ (embed &page=)
+  // รับได้ทั้งเพจเดียว ("123") และหลายเพจคั่นด้วยคอมมา ("123,456") — กรณีหลาย
+  // เพจ UI จะทำงานเหมือนปกติ (รายการเพจ/ทุกเพจ/ปฏิทินรวม) แต่เห็นเฉพาะเพจที่ล็อก
+  if (req.query.pageId) {
+    const locked = new Set(
+      String(req.query.pageId)
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+    );
+    pages = pages.filter((p) => locked.has(p.id));
+  }
 
   const localDayKey = dayKeyFactory(parseInt(req.query.tz, 10));
   const todayKey = localDayKey(Date.now());
