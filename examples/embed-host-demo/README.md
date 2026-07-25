@@ -1,4 +1,24 @@
-# ฝังหน้า Inbox Center ในระบบอื่นแบบไม่ใช้ iframe (Reverse Proxy + โหมด embed)
+# ฝังหน้า Inbox Center ในเว็บ/ระบบอื่น
+
+## ทางลัด: ฝังตรงจากเว็บอื่น (ไม่ต้องตั้งค่าเซิร์ฟเวอร์อะไรเลย)
+
+เว็บไหนก็ได้วางโค้ดนี้ได้ทันที — เซิร์ฟเวอร์ Inbox Center ไม่ได้ส่ง X-Frame-Options จึงฝังข้ามโดเมนได้:
+
+```html
+<iframe
+  src="https://inboxcenter.datafirst.id/index.html?embed=1&project=prj_xxx"
+  style="width:100%; height:100vh; border:0;"
+  title="Inbox Center"></iframe>
+```
+
+- `?embed=1` ซ่อน navbar ของ Inbox Center · `&project=...` เลือกโปรเจกต์ (เอา id จาก URL ตอนเปิดโปรเจกต์) · ไม่ใส่ = เห็นทุกเพจ
+- เปลี่ยนเป็น `comments.html` / `analytics.html` / `report.html` / `admin.html` ได้ทุกหน้า
+- ครั้งแรกผู้ใช้จะเจอหน้า login ใน iframe — login บัญชี Wazzup ครั้งเดียวต่อเบราว์เซอร์
+- ข้อจำกัด: เบราว์เซอร์ยุคใหม่แยก storage ของ iframe ข้ามโดเมน (partitioning) → อาจต้อง login แยกต่อเว็บที่ไปฝัง ถ้าอยากเนียนกว่านั้นใช้แบบ reverse proxy ด้านล่าง
+
+---
+
+# แบบ Reverse Proxy + โหมด embed (same-origin — เนียนสุด)
 
 หลักการ: เว็บเซิร์ฟเวอร์ของ **ระบบปลายทาง** proxy 2 path ไปที่ Inbox Center
 แล้วเปิดหน้าโดยเติม `?embed=1` — โหมด embed จะซ่อน navbar ของ Inbox Center ให้อัตโนมัติ
