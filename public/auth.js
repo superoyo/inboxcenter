@@ -5,6 +5,12 @@
   const SKEY = 'wz_session';  // { access_token, expiration, user }
   const RKEY = 'wz_return';   // หน้าที่ตั้งใจเข้าก่อนโดนเด้ง login
 
+  // โหมด embed (?embed=1) — ฝังหน้าในระบบอื่นผ่าน reverse proxy: ซ่อน navbar + ใช้พื้นที่เต็มจอ
+  // ติด class ที่ <html> ตั้งแต่ก่อน render เพื่อไม่ให้ navbar กะพริบ (CSS อยู่ใน style.css: html.embed ...)
+  if (new URLSearchParams(location.search).get('embed') === '1') {
+    document.documentElement.classList.add('embed');
+  }
+
   function readSession() {
     try { return JSON.parse(localStorage.getItem(SKEY) || 'null'); } catch { return null; }
   }

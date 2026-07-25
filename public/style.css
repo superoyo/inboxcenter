@@ -58,6 +58,10 @@ body {
 .navbar a.nav-link.active { color: var(--primary); font-weight: 600; background: #e7f0fe; }
 .navbar .spacer { flex: 1; }
 
+/* ---------- โหมด embed (?embed=1) — ฝังหน้าในระบบอื่นผ่าน reverse proxy ---------- */
+html.embed .navbar { display: none; }
+html.embed .inbox-layout { height: 100vh; }
+
 .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
 
 /* ---------- Buttons / forms ---------- */
