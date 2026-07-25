@@ -23,7 +23,26 @@ node server.js                              # → http://localhost:3000
 node examples/embed-host-demo/server.js     # → http://localhost:4000
 ```
 
-เปิด `http://localhost:4000` → กดเมนู **กล่องข้อความ** → เห็นหน้า Inbox อยู่ใต้โดเมน 4000 โดยไม่มี navbar
+เปิด `http://localhost:4000` → ลองได้ 2 แบบ:
+- **เต็มหน้า**: เมนู "กล่องข้อความ (เต็มหน้า)" → Inbox แทนที่ทั้งหน้า ใต้โดเมนของ host
+- **หน้าในหน้า** (`/crm`): topbar + sidebar ของ host อยู่ครบ แล้ว Inbox แสดงในพื้นที่เนื้อหา
+
+## แบบ "หน้าในหน้า" ทำอย่างไร
+
+ใช้ **iframe ธรรมดาชี้ path ที่ proxy ไว้** — จุดสำคัญคือพอ reverse proxy ทำให้เป็น
+**same-origin** แล้ว ปัญหาคลาสสิกของ iframe หายหมด (third-party cookie ไม่โดนบล็อกเพราะ
+ไม่ใช่ third-party แล้ว, ไม่ติด X-Frame-Options, ไม่มี CORS) + โหมด `?embed=1` ซ่อน navbar ให้:
+
+```html
+<div class="content" style="display:flex; flex-direction:column;">
+  <iframe src="/inbox/index.html?embed=1&project=prj_xxx"
+          style="flex:1; width:100%; border:0;"></iframe>
+</div>
+```
+
+> ถ้าต้องการ "หน้าในหน้า" แบบ**ไม่มี iframe เลยจริงๆ** ต้องแปลงฝั่ง Inbox Center
+> เป็น Web Component / widget bundle (แยก CSS ด้วย Shadow DOM + refactor โค้ดหน้าเว็บ
+> ให้ mount ลง DOM ของ host ได้) — เป็นงาน refactor ก้อนใหญ่ ต่างจากวิธีนี้ที่ใช้ได้ทันที
 
 ## Config จริงตามชนิดเว็บเซิร์ฟเวอร์
 

@@ -57,23 +57,76 @@ const HOST_PAGE = `<!DOCTYPE html>
     <span class="logo">🏢 Acme CRM</span>
     <a href="/">Dashboard</a>
     <a href="/">ลูกค้า</a>
-    <a class="active" href="/inbox/index.html?embed=1">กล่องข้อความ</a>
+    <a class="active" href="/inbox/index.html?embed=1">กล่องข้อความ (เต็มหน้า)</a>
+    <a href="/crm">กล่องข้อความ (หน้าในหน้า)</a>
     <a href="/">รายงาน</a>
   </div>
   <div class="wrap">
     <div class="card">
-      <h1>ระบบตัวอย่าง (host) ที่ฝัง Inbox Center แบบไม่ใช้ iframe</h1>
+      <h1>ระบบตัวอย่าง (host) ที่ฝัง Inbox Center</h1>
       <p>
-        หน้านี้คือ "อีกระบบหนึ่ง" ที่รันอยู่คนละที่กับ Inbox Center —
-        เมนู <b>กล่องข้อความ</b> ด้านบนจะพาไปหน้า Inbox ที่ถูก reverse proxy
-        เข้ามาอยู่ใต้โดเมนนี้ (<code>/inbox/index.html?embed=1</code>)
-        โดยโหมด embed จะซ่อน navbar ของ Inbox Center ให้อัตโนมัติ
+        หน้านี้คือ "อีกระบบหนึ่ง" ที่รันอยู่คนละที่กับ Inbox Center — ลองได้ 2 แบบ:
+      </p>
+      <p style="margin-top:10px;">
+        <b>1. เต็มหน้า</b> — เมนูพาไปหน้า Inbox ที่ถูก reverse proxy เข้ามาใต้โดเมนนี้
+        (<code>/inbox/index.html?embed=1</code>)<br>
+        <b>2. หน้าในหน้า</b> — หัวเว็บ + เมนูของระบบนี้ยังอยู่ครบ แล้ว Inbox แสดงในพื้นที่เนื้อหา
+        (same-origin iframe บน reverse proxy — ดูหน้า <code>/crm</code>)
       </p>
       <p style="margin-top:10px;">
         ครั้งแรกจะเจอหน้า login ของ Inbox Center ก่อน (token เก็บแยกตามโดเมน) —
         login ครั้งเดียวแล้วใช้ได้ต่อเนื่อง
       </p>
-      <a class="cta" href="/inbox/index.html?embed=1">เปิดกล่องข้อความ →</a>
+      <a class="cta" href="/crm">ลองแบบหน้าในหน้า →</a>
+    </div>
+  </div>
+</body>
+</html>`;
+
+// หน้า "หน้าในหน้า" — โครงของระบบปลายทาง (topbar + sidebar) คงอยู่ แล้ว Inbox อยู่ในพื้นที่เนื้อหา
+// ใช้ same-origin iframe: เพราะถูก reverse proxy มาอยู่โดเมนเดียวกัน ปัญหา iframe แบบเดิม
+// (third-party cookie โดนบล็อก, X-Frame-Options, ปรับขนาดยาก) จึงหายไปหมด + โหมด embed ซ่อน navbar ให้
+const NESTED_PAGE = `<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<title>Acme CRM — กล่องข้อความ</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:-apple-system,'Noto Sans Thai',sans-serif; background:#f4f5f7; height:100vh; display:flex; flex-direction:column; }
+  .topbar { background:#1e2a3a; color:#fff; padding:0 24px; height:56px; display:flex; align-items:center; gap:24px; flex-shrink:0; }
+  .topbar .logo { font-weight:700; font-size:17px; }
+  .topbar a { color:#c7d2e0; text-decoration:none; font-size:14px; padding:6px 12px; border-radius:8px; }
+  .topbar a:hover, .topbar a.active { background:rgba(255,255,255,.12); color:#fff; }
+  .main { flex:1; display:flex; min-height:0; }
+  .sidebar { width:200px; background:#fff; border-right:1px solid #e3e6ea; padding:16px 10px; flex-shrink:0; }
+  .sidebar a { display:block; padding:9px 12px; border-radius:8px; color:#3c4552; text-decoration:none; font-size:14px; margin-bottom:2px; }
+  .sidebar a:hover { background:#f0f2f5; }
+  .sidebar a.active { background:#e8effd; color:#2563eb; font-weight:600; }
+  .content { flex:1; min-width:0; display:flex; flex-direction:column; }
+  .content .crumb { padding:10px 18px; font-size:13px; color:#5a6472; background:#fff; border-bottom:1px solid #e3e6ea; flex-shrink:0; }
+  .content iframe { flex:1; width:100%; border:0; }
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <span class="logo">🏢 Acme CRM</span>
+    <a href="/">Dashboard</a>
+    <a href="/">ลูกค้า</a>
+    <a class="active" href="/crm">กล่องข้อความ</a>
+    <a href="/">รายงาน</a>
+  </div>
+  <div class="main">
+    <div class="sidebar">
+      <a href="/">🏠 ภาพรวม</a>
+      <a class="active" href="/crm">💬 กล่องข้อความ</a>
+      <a href="/">📇 รายชื่อลูกค้า</a>
+      <a href="/">🧾 ใบเสนอราคา</a>
+      <a href="/">⚙️ ตั้งค่า</a>
+    </div>
+    <div class="content">
+      <div class="crumb">Acme CRM › กล่องข้อความ <span style="color:#9aa4b0;">(Inbox Center ฝังแบบหน้าในหน้า — โครงระบบนี้อยู่ครบ)</span></div>
+      <iframe src="/inbox/index.html?embed=1" title="Inbox Center"></iframe>
     </div>
   </div>
 </body>
@@ -82,6 +135,10 @@ const HOST_PAGE = `<!DOCTYPE html>
 http.createServer((req, res) => {
   if (req.url.startsWith('/inbox/')) return proxy(req, res, req.url.slice('/inbox'.length));
   if (req.url.startsWith('/api/')) return proxy(req, res, req.url);
+  if (req.url.startsWith('/crm')) {
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    return res.end(NESTED_PAGE);
+  }
   res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
   res.end(HOST_PAGE);
 }).listen(PORT, () => {
