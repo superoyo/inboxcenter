@@ -665,19 +665,26 @@ app.get('/api/conversations', async (req, res) => {
   if (date) {
     convs = convs.filter((c) => c.messages.some((m) => dayKey(m.createdTime) === date));
   }
+
+  const [tagsMap, remarksMap, statusMap, forwardsMap] = await Promise.all([
+    store.getTags(), store.getRemarks(), store.getStatuses(), store.getForwards(),
+  ]);
+
+  // แท็บ "ข้อความที่ส่งต่อ" — เฉพาะห้องที่มีการส่งต่อเคสภายใน
+  if (req.query.forwarded) {
+    convs = convs.filter((c) => (forwardsMap[c.id] || []).length > 0);
+  }
   convs.sort((a, b) => new Date(b.updatedTime) - new Date(a.updatedTime));
 
   const total = convs.length;
   const pageItems = convs.slice(offset, offset + limit);
 
-  const [tagsMap, remarksMap, statusMap] = await Promise.all([
-    store.getTags(), store.getRemarks(), store.getStatuses(),
-  ]);
   const items = pageItems.map((c) => {
     const s = toSummary(c);
     s.tags = tagsMap[c.id] || [];
     s.remark = remarksMap[c.id] || '';
     s.statusOverride = statusMap[c.id] || '';
+    s.forwardCount = (forwardsMap[c.id] || []).length;
     return s;
   });
   res.json({ items, total, hasMore: offset + items.length < total });
@@ -710,8 +717,8 @@ app.get('/api/conversations/:id/thread', async (req, res) => {
   const conv = await store.getConversation(req.params.id);
   if (!conv) return res.status(404).json({ error: 'ไม่พบการสนทนานี้' });
 
-  const [tagsMap, remarksMap, statusMap, pageConvs] = await Promise.all([
-    store.getTags(), store.getRemarks(), store.getStatuses(),
+  const [tagsMap, remarksMap, statusMap, forwardsMap, pageConvs] = await Promise.all([
+    store.getTags(), store.getRemarks(), store.getStatuses(), store.getForwards(),
     store.getConversationsForPage(conv.pageId),
   ]);
 
@@ -728,9 +735,32 @@ app.get('/api/conversations/:id/thread', async (req, res) => {
     tags: tagsMap[conv.id] || [],
     remark: remarksMap[conv.id] || '',
     statusOverride: statusMap[conv.id] || '',
+    forwards: forwardsMap[conv.id] || [], // การส่งต่อเคสภายใน (แสดงแทรกในแชท — ไม่ใช่ข้อความถึงลูกค้า)
     botTexts,
     keywords: keywords.roomKeywords(conv.messages), // คำสำคัญของห้องนี้ (จากข้อความลูกค้า)
   });
+});
+
+// ส่งต่อเคสภายในทีม — เก็บแยกจาก messages โดยสิ้นเชิง "ไม่มีทาง" ถูกส่งถึงลูกค้า
+// (เส้นทางส่งถึงลูกค้ามีเส้นเดียวคือ /api/conversations/:convId/reply ซึ่งอ่านจาก messages เท่านั้น)
+app.post('/api/conversations/:id/forward', async (req, res) => {
+  const conv = await store.getConversation(req.params.id);
+  if (!conv) return res.status(404).json({ error: 'ไม่พบการสนทนานี้' });
+  const b = req.body || {};
+  const text = String(b.text || '').trim().slice(0, 2000);
+  if (!text) return res.status(400).json({ error: 'กรุณาพิมพ์รายละเอียดที่ส่งต่อ' });
+  const toNames = Array.isArray(b.toNames)
+    ? b.toNames.map((s) => String(s).trim().slice(0, 60)).filter(Boolean).slice(0, 20)
+    : [];
+  const entry = {
+    id: 'fw_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+    fromName: String(b.fromName || 'ทีมงาน').trim().slice(0, 60) || 'ทีมงาน',
+    toNames,
+    text,
+    createdTime: new Date().toISOString(),
+  };
+  await store.addForward(conv.id, entry);
+  res.json({ ok: true, forward: entry });
 });
 
 // ---------- Analytics ----------

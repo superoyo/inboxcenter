@@ -441,6 +441,50 @@ input:focus, textarea:focus, select:focus { outline: 2px solid var(--primary); b
 .bubble .meta-latency { font-size: 11px; font-style: italic; }
 .bubble img.attach { max-width: 240px; border-radius: 10px; display: block; margin-top: 6px; }
 
+/* ---------- ส่งต่อเคสภายในทีม (Forward) ---------- */
+/* แท็บย่อยเหนือรายการ: ข้อความทั้งหมด / ข้อความที่ส่งต่อ */
+.list-tabs { display: flex; gap: 6px; }
+.list-tab {
+  border: 1px solid var(--border); background: var(--card); border-radius: 999px;
+  padding: 3px 11px; font-size: 12px; cursor: pointer; color: var(--muted); font-family: inherit;
+}
+.list-tab:hover { background: var(--bg); }
+.list-tab.active { background: #e7f0fe; color: var(--primary); border-color: var(--primary); font-weight: 700; }
+/* ตัวเลขจำนวนส่งต่อบนแถวห้องแชท */
+.fw-chip {
+  display: inline-flex; align-items: center; gap: 3px;
+  background: #fff4e0; color: #b25e00; border-radius: 999px;
+  padding: 0 8px; font-size: 11px; font-weight: 700; margin-left: 6px;
+}
+/* บับเบิลข้อความภายใน (แทรกกลางแชท คนละสีกับข้อความจริง) */
+.msg-row.fw-row { justify-content: center; }
+.fw-bubble {
+  max-width: 82%;
+  background: #fff8e6; border: 1px dashed #e0b45c; border-radius: 14px;
+  padding: 10px 14px; font-size: 13.5px; line-height: 1.5;
+}
+.fw-bubble .fw-head { color: #8a5a00; font-size: 12.5px; margin-bottom: 4px; }
+.fw-bubble .fw-text { word-wrap: break-word; }
+.fw-bubble .meta { font-size: 11px; opacity: 0.8; margin-top: 5px; }
+.fw-bubble .fw-note { color: #b25e00; font-weight: 700; }
+/* panel เลือกคน + พิมพ์รายละเอียดส่งต่อ */
+.fw-body { padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; flex: 1; min-height: 0; }
+.fw-people { display: flex; flex-direction: column; gap: 6px; overflow-y: auto; max-height: 45vh; flex-shrink: 0; }
+.fw-person {
+  display: flex; align-items: center; gap: 10px;
+  border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; cursor: pointer;
+}
+.fw-person:hover { background: var(--bg); }
+.fw-person.sel { border-color: var(--primary); background: #eaf2fe; }
+.fw-person .check { margin-left: auto; color: var(--primary); font-weight: 700; visibility: hidden; }
+.fw-person.sel .check { visibility: visible; }
+.fw-ava {
+  width: 32px; height: 32px; border-radius: 50%; object-fit: cover; flex-shrink: 0;
+  background: var(--bg); display: flex; align-items: center; justify-content: center;
+  color: #fff; font-weight: 700; font-size: 13px;
+}
+.fw-warn { font-size: 12px; color: #b25e00; background: #fff4e0; border-radius: 8px; padding: 8px 10px; }
+
 /* ---------- Lightbox ---------- */
 .bubble img.attach { cursor: zoom-in; }
 .lightbox {
