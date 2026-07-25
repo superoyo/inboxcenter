@@ -156,8 +156,12 @@
       <button class="btn small secondary" onclick="closeForwardPanel()">✕</button>
     </div>
     <div class="fw-body">
-      <div class="muted">เลือกคนที่เกี่ยวข้องในโปรเจกต์ (เลือกได้หลายคน) แล้วพิมพ์รายละเอียดที่ต้องการส่งต่อ</div>
+      <div class="muted">เลือกคนที่เกี่ยวข้องในโปรเจกต์ (เลือกได้หลายคน) หรือค้นหาชื่อคนอื่นในบริษัท แล้วพิมพ์รายละเอียดที่ต้องการส่งต่อ</div>
       <div class="fw-people" id="fwPeople"><div class="muted">กำลังโหลดรายชื่อ...</div></div>
+      <div class="fw-search-wrap">
+        <input type="text" id="fwSearch" placeholder="🔍 ค้นหาชื่อคนอื่นในบริษัท..." autocomplete="off">
+        <div class="fw-dd" id="fwDd" style="display:none"></div>
+      </div>
       <textarea id="fwText" rows="3" placeholder="รายละเอียดที่ส่งต่อ เช่น ฝากเช็คออเดอร์เคสนี้ให้หน่อยครับ..."></textarea>
       <button class="btn" id="fwSendBtn">🔁 ส่งต่อเคส</button>
       <div class="fw-warn">🔒 ข้อความภายในทีมเท่านั้น — จะไม่ถูกส่งถึงลูกค้าเด็ดขาด</div>
@@ -712,16 +716,18 @@
     }
 
     // ---------- Panel ส่งต่อเคสภายในทีม (ข้อความภายใน ไม่ส่งถึงลูกค้า) ----------
-    const fwState = { convId: null, selected: new Set(), people: [], loaded: false };
+    const fwState = { convId: null, selected: new Set(), people: [], employees: [], matches: [], loaded: false };
 
     // รวมรายชื่อ "คนที่เกี่ยวข้องกับโปรเจกต์" = สมาชิกทีม (Admin) ของทุกเพจที่เห็นอยู่ตอนนี้
+    // และเก็บรายชื่อพนักงานทั้งบริษัทไว้ให้ค้นหาเพิ่มได้
     async function loadFwPeople() {
       if (fwState.loaded) return;
       const [configs, employees] = await Promise.all([
         fetch('/api/page-config').then((r) => r.json()).catch(() => ({})),
         fetch('/api/employees').then((r) => (r.ok ? r.json() : [])).catch(() => []),
       ]);
-      const empByCode = new Map((Array.isArray(employees) ? employees : []).map((e) => [e.empCode, e]));
+      fwState.employees = Array.isArray(employees) ? employees : [];
+      const empByCode = new Map(fwState.employees.map((e) => [e.empCode, e]));
       const TEAM_TH = { content: '✍️ Content', graphic: '🎨 Graphic', chatInbox: '💬 Chat Inbox', am: '🧑‍💼 AM' };
       const seen = new Map(); // empCode|ชื่อ -> { name, photo, teams:Set }
       for (const p of pages) {
@@ -738,14 +744,16 @@
           }
         }
       }
-      fwState.people = [...seen.values()].sort((a, b) => a.name.localeCompare(b.name, 'th'));
+      fwState.people = [...seen.values()]
+        .map((p) => ({ name: p.name, photo: p.photo, sub: [...p.teams].join(' · ') }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'th'));
       fwState.loaded = true;
     }
 
     function renderFwPeople() {
       const box = $('fwPeople');
       if (!fwState.people.length) {
-        box.innerHTML = '<div class="muted" style="line-height:1.7;">ยังไม่ได้กำหนดทีมของเพจในโปรเจกต์นี้ — ตั้งได้ที่เมนู <a href="admin.html">Admin</a><br>ยังส่งต่อเป็นโน้ตภายในได้โดยไม่ต้องเลือกชื่อ</div>';
+        box.innerHTML = '<div class="muted" style="line-height:1.7;">ยังไม่ได้กำหนดทีมของเพจในโปรเจกต์นี้ — ตั้งได้ที่เมนู <a href="admin.html">Admin</a><br>ค้นหาชื่อคนในบริษัทจากช่องด้านล่างได้เลย</div>';
         return;
       }
       box.innerHTML = fwState.people.map((p, i) => `
@@ -755,11 +763,60 @@
             : `<span class="fw-ava" style="background:${avatarColor(p.name)}">${esc(p.name[0])}</span>`}
           <div style="flex:1; min-width:0;">
             <div style="font-weight:600; font-size:13px;">${esc(p.name)}</div>
-            ${p.teams.size ? `<div class="muted" style="font-size:11px;">${[...p.teams].join(' · ')}</div>` : ''}
+            ${p.sub ? `<div class="muted" style="font-size:11px;">${esc(p.sub)}</div>` : ''}
           </div>
           <span class="check">✓</span>
         </div>`).join('');
     }
+
+    // ---- ค้นหาชื่อคนอื่นในบริษัท (นอกเหนือจากทีมในโปรเจกต์) ----
+    function fwSearch(q) {
+      const dd = $('fwDd');
+      const query = q.trim().toLowerCase();
+      if (!query) { dd.style.display = 'none'; dd.innerHTML = ''; fwState.matches = []; return; }
+      const inList = new Set(fwState.people.map((p) => p.name));
+      fwState.matches = fwState.employees.filter((e) => {
+        const name = e.thaiName || e.engName || '';
+        if (!name || inList.has(name)) return false; // มีในลิสต์ทีมอยู่แล้ว — เลือกจากลิสต์ได้เลย
+        return (e.thaiName + ' ' + e.engName + ' ' + e.nickName + ' ' + e.empCode).toLowerCase().includes(query);
+      }).slice(0, 8);
+      dd.innerHTML = fwState.matches.length ? fwState.matches.map((e, i) => `
+        <div class="fw-dd-item" onmousedown="event.preventDefault(); fwPick(${i})">
+          ${e.photo
+            ? `<img class="fw-ava" src="${esc(e.photo)}" alt="">`
+            : `<span class="fw-ava" style="background:${avatarColor(e.thaiName || e.engName)}">${esc((e.thaiName || e.engName || '?')[0])}</span>`}
+          <div style="flex:1; min-width:0;">
+            <div style="font-weight:600; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${esc(e.thaiName || e.engName)}${e.nickName ? ` (${esc(e.nickName)})` : ''}</div>
+            <div class="muted" style="font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${esc([e.position, e.department].filter(Boolean).join(' · '))}</div>
+          </div>
+        </div>`).join('')
+        : (fwState.employees.length
+            ? '<div class="fw-dd-empty">ไม่พบชื่อที่ค้นหา</div>'
+            : '<div class="fw-dd-empty">โหลดรายชื่อพนักงานไม่ได้ — ลองใหม่อีกครั้ง</div>');
+      dd.style.display = 'block';
+    }
+
+    // เลือกจากผลค้นหา → เพิ่มเข้าลิสต์ (ติ๊กเลือกให้เลย) แล้วค้นต่อได้ทันที
+    function fwPick(i) {
+      const e = fwState.matches[i];
+      if (!e) return;
+      const name = e.thaiName || e.engName;
+      if (!fwState.people.some((p) => p.name === name)) {
+        fwState.people.push({ name, photo: e.photo || '', sub: [e.position, e.department].filter(Boolean).join(' · ') || '🏢 พนักงาน' });
+      }
+      fwState.selected.add(name);
+      $('fwSearch').value = '';
+      $('fwDd').style.display = 'none';
+      renderFwPeople();
+      $('fwSearch').focus();
+    }
+
+    $('fwSearch').addEventListener('input', (e) => fwSearch(e.target.value));
+    $('fwSearch').addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') { $('fwDd').style.display = 'none'; return; }
+      if (e.key === 'Enter') { e.preventDefault(); if (fwState.matches.length) fwPick(0); }
+    });
+    $('fwSearch').addEventListener('blur', () => setTimeout(() => { $('fwDd').style.display = 'none'; }, 150));
 
     function fwToggle(i) {
       const p = fwState.people[i];
@@ -773,6 +830,8 @@
       fwState.convId = convId;
       fwState.selected = new Set();
       $('fwText').value = '';
+      $('fwSearch').value = '';
+      $('fwDd').style.display = 'none';
       $('fwPanel').classList.add('open');
       await loadFwPeople();
       renderFwPeople();
