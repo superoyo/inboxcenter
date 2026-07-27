@@ -75,6 +75,25 @@
     .team-add-btn { width: 48px; height: 48px; border-radius: 50%; flex-shrink: 0; padding: 0; border: 2px dashed var(--border); background: var(--card); color: var(--muted); font-size: 24px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; }
     .team-add-btn:hover { border-color: var(--primary); color: var(--primary); background: #f5f9ff; }
     .ad-startdate { max-width: 220px; }
+    /* Page Character + คู่แข่ง (แถวล่างของการ์ด) */
+    .ad-extra { margin-top: 18px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    @media (max-width: 860px) { .ad-extra { grid-template-columns: 1fr; } }
+    .pc-text {
+      width: 100%; box-sizing: border-box; border: 1px solid var(--border); border-radius: 10px;
+      padding: 9px 12px; font-size: 13.5px; font-family: inherit; line-height: 1.6;
+      resize: vertical; min-height: 92px;
+    }
+    .pc-text:focus { border-color: var(--primary); outline: none; }
+    .comp-list { display: flex; flex-direction: column; gap: 8px; }
+    .comp-row { display: flex; gap: 8px; align-items: center; }
+    .comp-row .comp-name { flex: 0.8; min-width: 0; }
+    .comp-row .comp-url { flex: 1.2; min-width: 0; }
+    .comp-row input { border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px; font-size: 13px; font-family: inherit; width: auto; }
+    .comp-row input:focus { border-color: var(--primary); outline: none; }
+    .comp-row.add input { border-style: dashed; }
+    .comp-open { text-decoration: none; color: var(--primary); font-size: 15px; flex-shrink: 0; }
+    .comp-del { border: none; background: none; color: var(--muted); font-size: 17px; cursor: pointer; padding: 2px 7px; border-radius: 6px; flex-shrink: 0; line-height: 1; }
+    .comp-del:hover { color: var(--red); background: #fdeaee; }
   </style>
 </head>
 <body>
@@ -91,7 +110,7 @@
 
   <div class="ad-wrap">
     <h1>⚙️ Admin — ตั้งค่ารายเพจ</h1>
-    <div class="sub">กำหนดแพ็กเกจ · วันเริ่มดูแล · ทีมที่ดูแล ของแต่ละเพจในโปรเจกต์นี้</div>
+    <div class="sub">กำหนดแพ็กเกจ · วันเริ่มดูแล · ทีมที่ดูแล · Page Character · คู่แข่ง ของแต่ละเพจในโปรเจกต์นี้</div>
     <div id="adList"><div class="muted">กำลังโหลด...</div></div>
   </div>
 
@@ -138,7 +157,16 @@
         : `<span class="${cls} fb" style="background:${color}">${initial}</span>`;
     }
 
-    function cfg(id){ const c = configs[id] || {}; return { packageImage: c.packageImage||'', startDate: c.startDate||'', teams: Object.assign({content:[],graphic:[],chatInbox:[],am:[]}, c.teams||{}) }; }
+    function cfg(id){
+      const c = configs[id] || {};
+      return {
+        packageImage: c.packageImage||'',
+        startDate: c.startDate||'',
+        character: c.character||'',
+        competitors: Array.isArray(c.competitors) ? c.competitors : [],
+        teams: Object.assign({content:[],graphic:[],chatInbox:[],am:[]}, c.teams||{}),
+      };
+    }
 
     function render(){
       openTeam = null; // วาดใหม่ทั้งหน้า = ปิด search ทุกกล่อง
@@ -181,9 +209,61 @@
               </div>
             </div>
           </div>
+          <div class="ad-extra">
+            <div class="ad-field">
+              <label>🎭 Page Character (คาแรกเตอร์ของเพจ)</label>
+              <textarea class="pc-text" rows="4" placeholder="เช่น โทนเป็นกันเอง พูดแทนตัวว่า 'แอดมิน' ลงท้าย 'ค่ะ' เน้นให้ความรู้เรื่องผิว ห้ามใช้คำว่า..." onchange="setCharacter('${esc(p.id)}', this.value)">${esc(c.character)}</textarea>
+            </div>
+            <div class="ad-field">
+              <label>⚔️ คู่แข่ง (Competitors) — ชื่อแบรนด์ + URL เพิ่มได้หลายรายการ</label>
+              <div class="comp-list" id="comp-${esc(p.id)}">${compRowsHtml(p.id)}</div>
+            </div>
+          </div>
         </div>`;
       }).join('');
     }
+
+    // ---- Page Character ----
+    function setCharacter(pid, val){ ensure(pid).character = val.trim(); save(pid); }
+
+    // ---- คู่แข่ง (ชื่อแบรนด์ + URL หลายรายการ) ----
+    function safeHref(url){
+      const u = String(url || '').trim();
+      if (!u) return '';
+      return /^https?:\/\//i.test(u) ? u : 'https://' + u;
+    }
+    function compRowsHtml(pid){
+      const list = cfg(pid).competitors;
+      return list.map((cp,i)=>`
+        <div class="comp-row">
+          <input type="text" class="comp-name" value="${esc(cp.name)}" placeholder="ชื่อแบรนด์" onchange="compEdit('${esc(pid)}',${i},'name',this.value)">
+          <input type="text" class="comp-url" value="${esc(cp.url)}" placeholder="https://..." onchange="compEdit('${esc(pid)}',${i},'url',this.value)">
+          ${cp.url ? `<a class="comp-open" href="${esc(safeHref(cp.url))}" target="_blank" rel="noopener" title="เปิดลิงก์">↗</a>` : ''}
+          <button class="comp-del" title="ลบรายการนี้" onclick="compDel('${esc(pid)}',${i})">×</button>
+        </div>`).join('')
+      + `<div class="comp-row add">
+          <input type="text" class="comp-name" id="compName-${esc(pid)}" placeholder="+ ชื่อแบรนด์คู่แข่ง" autocomplete="off" onkeydown="if(event.key==='Enter')compAdd('${esc(pid)}')">
+          <input type="text" class="comp-url" id="compUrl-${esc(pid)}" placeholder="https://facebook.com/แบรนด์" autocomplete="off" onkeydown="if(event.key==='Enter')compAdd('${esc(pid)}')">
+          <button class="btn small" onclick="compAdd('${esc(pid)}')">+ เพิ่ม</button>
+        </div>`;
+    }
+    function compRefresh(pid){ const el=$('comp-'+pid); if(el) el.innerHTML=compRowsHtml(pid); }
+    function compAdd(pid){
+      const name=($('compName-'+pid)?.value||'').trim();
+      const url=($('compUrl-'+pid)?.value||'').trim();
+      if(!name && !url){ toast('กรอกชื่อแบรนด์หรือ URL ก่อน'); return; }
+      ensure(pid); if(!Array.isArray(configs[pid].competitors)) configs[pid].competitors=[];
+      configs[pid].competitors.push({ name, url });
+      save(pid); compRefresh(pid);
+      const n=$('compName-'+pid); if(n) n.focus(); // เพิ่มรายถัดไปต่อได้ทันที
+    }
+    function compEdit(pid,i,field,val){
+      const list=ensure(pid).competitors; if(!list[i]) return;
+      list[i][field]=val.trim();
+      if(!list[i].name && !list[i].url) list.splice(i,1); // ลบทั้งชื่อทั้ง URL = เอาแถวออก
+      save(pid); compRefresh(pid);
+    }
+    function compDel(pid,i){ ensure(pid).competitors.splice(i,1); save(pid); compRefresh(pid); }
 
     function memberChip(pid,key,m,idx){
       const name = memberName(m);

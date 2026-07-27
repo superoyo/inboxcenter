@@ -232,9 +232,18 @@ app.put('/api/pages/:id/config', async (req, res) => {
     }
     return null;
   }).filter(Boolean).slice(0, 30) : [];
+  // คู่แข่ง: [{ name, url }] — เก็บเฉพาะแถวที่มีชื่อหรือ URL อย่างใดอย่างหนึ่ง
+  const cleanCompetitors = (arr) => Array.isArray(arr) ? arr.map((x) => {
+    if (!x || typeof x !== 'object') return null;
+    const name = String(x.name || '').trim().slice(0, 100);
+    const url = String(x.url || '').trim().slice(0, 300);
+    return (name || url) ? { name, url } : null;
+  }).filter(Boolean).slice(0, 30) : [];
   const config = {
     packageImage: typeof b.packageImage === 'string' ? b.packageImage.slice(0, 4_000_000) : '',
     startDate: typeof b.startDate === 'string' ? b.startDate.slice(0, 20) : '',
+    character: typeof b.character === 'string' ? b.character.trim().slice(0, 3000) : '',
+    competitors: cleanCompetitors(b.competitors),
     teams: {
       content: cleanTeam(b.teams && b.teams.content),
       graphic: cleanTeam(b.teams && b.teams.graphic),
