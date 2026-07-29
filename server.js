@@ -811,8 +811,11 @@ app.get('/api/analytics', async (req, res) => {
   const inPeriod = (k) => k >= fromKey && k <= toKey;
   const inPrev = (k) => k >= prevFromKey && k <= prevToKey;
 
-  let convs = pageId
-    ? await store.getConversationsForPage(pageId)
+  // pageId รับได้หลายเพจคั่นด้วยคอมมา (เหมือน /api/pages) — ระบบภายนอกที่ผูกแบรนด์
+  // เข้ากับหลายเพจจะขอสรุปรวมได้ในครั้งเดียว ไม่ต้องยิงทีละเพจแล้วมาถัวเฉลี่ยเอง
+  const pageIds = String(pageId || '').split(',').map((x) => x.trim()).filter(Boolean);
+  let convs = pageIds.length
+    ? (await Promise.all(pageIds.map((id) => store.getConversationsForPage(id)))).flat()
     : await store.getAllConversations();
   const inProjectA = await projectPageIds(req.query.project);
   if (inProjectA) convs = convs.filter((c) => inProjectA.has(c.pageId));
@@ -1064,7 +1067,8 @@ app.get('/api/analytics', async (req, res) => {
     days,
     hourly,
     alerts,
-    perPage: pageId ? [] : Object.values(perPage).map((p) => ({
+    // ขอเพจเดียว = ไม่ต้องแยกรายเพจ แต่ถ้าขอหลายเพจรวมกัน ต้องได้รายเพจด้วย
+    perPage: pageIds.length === 1 ? [] : Object.values(perPage).map((p) => ({
       pageId: p.pageId, pageName: p.pageName,
       periodIn: p.periodIn, waiting: p.waiting, over24h: p.over24h, red: p.red,
       avgHumanMs: avg(p.humanDeltas),
