@@ -426,6 +426,7 @@
         listState.hasMore = data.hasMore;
         listState.offset = data.items.length;
         renderConvList();
+        openPendingConv();
       } finally {
         listState.loading = false;
       }
@@ -575,6 +576,16 @@
       const el = $('convList');
       if (el.scrollTop + el.clientHeight >= el.scrollHeight - 200) loadMoreConversations();
     });
+
+    // ?conv=<id> — ระบบอื่น (Agency Intelligence) ลิงก์เข้าห้องนี้ตรง ๆ ได้
+    // เปิดครั้งเดียวหลังรายการห้องโหลดเสร็จ แล้วลบ flag เพื่อไม่ให้เด้งกลับตอนผู้ใช้เลือกห้องอื่น
+    let pendingConvId = new URLSearchParams(location.search).get('conv') || '';
+    function openPendingConv() {
+      if (!pendingConvId) return;
+      const id = pendingConvId;
+      pendingConvId = '';
+      openConv(id);
+    }
 
     async function openConv(id) {
       activeConvId = id;
