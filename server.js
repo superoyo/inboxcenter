@@ -14,6 +14,12 @@ app.use(express.json({
   // เก็บ raw body ไว้เฉพาะ webhook ของ LINE เพื่อตรวจลายเซ็น (HMAC ต้องใช้ body ดิบ)
   verify: (req, _res, buf) => { if (req.url.startsWith('/api/line/webhook')) req.rawBody = buf; },
 }));
+// หน้าแรกของเว็บ = หน้าโปรเจกต์ (เดียวกับปลายทางหลัง login)
+// ต้องมาก่อน express.static ไม่งั้น static จะเสิร์ฟ index.html ให้เอง
+// จงใจจับแค่ '/' เท่านั้น — /index.html ยังเปิดหน้ากล่องข้อความรวมได้เหมือนเดิม
+// (Agency Intelligence ฝัง /inbox/index.html?embed=1 อยู่ ห้ามให้เด้ง)
+app.get('/', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'projects.html')));
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ---------- Helpers ----------
