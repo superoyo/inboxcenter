@@ -10,6 +10,7 @@
 </head>
 <body>
   <nav class="navbar">
+    <span data-global-menu></span>
     <a class="logo" href="projects.html">📥 FB Inbox Center</a>
     <a class="nav-link active" href="index.html">Inbox</a>
     <a class="nav-link" href="comments.html">Content</a>
@@ -1428,5 +1429,6 @@
     // ใช้ refreshConversations (โหลดเงียบ ไม่เด้ง scroll ไม่ขึ้นกล่อง "กำลังโหลด")
     setInterval(() => { refreshConversations(); loadCalendar(); loadSyncStatus(); loadPagesFilter(); }, 60000);
   </script>
+  <script src="https://agencyitelligence-production.up.railway.app/global-menu.js" defer></script>
 </body>
 </html>
