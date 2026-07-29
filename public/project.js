@@ -47,7 +47,7 @@
   // พาพารามิเตอร์ไปกับลิงก์แท็บภายใน (ไม่รวม Connect/โปรเจกต์ = ระดับบนสุด)
   // เขียน href ใหม่ทุกครั้งจากค่าล่าสุด ไม่ต่อท้ายทับซ้อน
   function decorateNavLinks() {
-    document.querySelectorAll('.navbar a.nav-link').forEach((a) => {
+    document.querySelectorAll('.navbar a.nav-link, .subnav a.nav-link').forEach((a) => {
       const base = (a.dataset.base || a.getAttribute('href') || '').split('?')[0];
       if (!INTERNAL.test(base)) return;
       a.dataset.base = base;

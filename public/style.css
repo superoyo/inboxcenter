@@ -1,6 +1,8 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 :root {
+  /* ความสูงส่วนหัวรวม = navbar 56 + แถบแท็บ 44 — layout/panel ที่กินพื้นที่เต็มจออ้างค่านี้ */
+  --chrome: 100px;
   --bg: #f0f2f5;
   --card: #ffffff;
   --border: #e4e6eb;
@@ -58,8 +60,39 @@ body {
 .navbar a.nav-link.active { color: var(--primary); font-weight: 600; background: #e7f0fe; }
 .navbar .spacer { flex: 1; }
 
+/* ---------- แถบแท็บ (Inbox / Content / Analytics / Report / Admin) ----------
+   ย้ายลงมาเป็นแถวของตัวเองใต้ navbar — navbar เหลือโลโก้ ชื่อโปรเจกต์ และปุ่มของหน้านั้น
+   ความสูงรวมของสองแถบอยู่ในตัวแปร --chrome เพราะ layout กับ panel ต่าง ๆ อ้างค่านี้ */
+.subnav {
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  position: sticky;
+  top: 56px;
+  z-index: 9;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.subnav::-webkit-scrollbar { display: none; }
+.subnav a.nav-link {
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 15px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  white-space: nowrap;
+}
+.subnav a.nav-link:hover { background: var(--bg); }
+.subnav a.nav-link.active { color: var(--primary); font-weight: 600; background: #e7f0fe; }
+
 /* ---------- โหมด embed (?embed=1) — ฝังหน้าในระบบอื่นผ่าน reverse proxy ---------- */
-html.embed .navbar { display: none; }
+html.embed { --chrome: 0px; }
+html.embed .navbar,
+html.embed .subnav { display: none; }
 html.embed .inbox-layout { height: 100vh; }
 
 /* ---------- โหมดล็อกเพจเดียว (?page=PAGE_ID) ---------- */
@@ -164,7 +197,7 @@ input:focus, textarea:focus, select:focus { outline: 2px solid var(--primary); b
   display: grid;
   grid-template-columns: 290px 360px 1fr;
   gap: 0;
-  height: calc(100vh - 56px);
+  height: calc(100vh - var(--chrome));
   background: var(--card);
 }
 
@@ -576,7 +609,7 @@ input:focus, textarea:focus, select:focus { outline: 2px solid var(--primary); b
 /* ---------- Saved replies: panel สไลด์จากขวา ---------- */
 .sr-panel {
   position: fixed;
-  top: 56px;
+  top: var(--chrome);
   right: 0;
   bottom: 0;
   width: 400px;
@@ -657,7 +690,7 @@ input:focus, textarea:focus, select:focus { outline: 2px solid var(--primary); b
 /* ---------- Panel สถานะการดึง inbox ---------- */
 .sync-panel {
   position: fixed;
-  top: 56px;
+  top: var(--chrome);
   right: 0;
   bottom: 0;
   width: 430px;
