@@ -152,10 +152,12 @@
       $('pgDdMenu').innerHTML = pages.map(p=>`
         <div class="pg-dd-item ${selectedPage&&selectedPage.id===p.id?'active':''}" onclick="selectPage('${esc(p.id)}')">
           ${pgAvatarHtml(p)}<span>${esc(p.name)}</span></div>`).join('');
-      if(!selectedPage && pages.length) selectPage(pages[0].id);
+      // เพจที่เลือกไว้จากแท็บอื่นก่อน ไม่งั้นค่อยเอาเพจแรก
+      if(!selectedPage && pages.length) selectPage(pages.some(p=>p.id===window.SelectedPageId)?window.SelectedPageId:pages[0].id);
     }
     function selectPage(id){
       selectedPage = pages.find(p=>p.id===id); if(!selectedPage) return;
+      if (window.setSelectedPageId) window.setSelectedPageId(id);
       $('pgDdLabel').textContent = selectedPage.name;
       $('pgDdAvaWrap').innerHTML = pgAvatarHtml(selectedPage);
       $('pgDdMenu').classList.remove('open');

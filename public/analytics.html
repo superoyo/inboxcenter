@@ -368,7 +368,7 @@
 
     // ---------- dropdown เลือกเพจ (โลโก้ + เรียงตามตัวอักษร) ----------
     let pages = [];
-    let selectedPageId = '';
+    let selectedPageId = window.SelectedPageId || '';
     let selectedPageName = 'ทุกเพจ (ภาพรวม)';
 
     // สีประจำเพจสำหรับ fallback เมื่อไม่มีโลโก้ (hash เดียวกับหน้ากล่องข้อความ)
@@ -392,6 +392,9 @@
     async function loadPages() {
       pages = await fetch('/api/pages?tz=' + TZ).then((r) => r.json());
       pages.sort((a, b) => a.name.localeCompare(b.name, 'th')); // เรียงตามตัวอักษร
+      // เพจที่เลือกไว้จากแท็บอื่น — ตั้งชื่อ/รูปให้ตรงก่อนวาดเมนู
+      const pre = selectedPageId && pages.find((p) => p.id === selectedPageId);
+      if (pre) return selectAnalyticsPage(pre.id, pre.name);
       renderPgMenu();
     }
 
@@ -410,6 +413,7 @@
 
     function selectAnalyticsPage(id, name) {
       selectedPageId = id;
+      if (window.setSelectedPageId) window.setSelectedPageId(id);
       selectedPageName = name;
       $('pgDdLabel').textContent = name;
       const p = pages.find((x) => x.id === id);

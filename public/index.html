@@ -180,7 +180,8 @@
     let calMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
     let selectedDate = null; // 'YYYY-MM-DD' — กรองรายการสนทนาตามวันที่เลือกในปฏิทิน
     let pages = [];
-    let selectedPageId = ''; // '' = ทุกเพจ
+    // เพจที่เลือกไว้จากแท็บอื่น (project.js เก็บให้) — '' = ทุกเพจ
+    let selectedPageId = window.SelectedPageId || '';
     // ลำดับการแสดงเพจ: 'connected' (เชื่อมต่อล่าสุดอยู่บน = ค่าเริ่มต้น) | 'name' (A–Z) | 'today' (ข้อความใหม่วันนี้มากสุด)
     let pageSort = localStorage.getItem('pageSort') || 'today';
 
@@ -381,6 +382,7 @@
 
     function selectPage(id) {
       selectedPageId = id;
+      if (window.setSelectedPageId) window.setSelectedPageId(id);
       $('pageFilter').value = id;
       renderPageListPanel();
       loadConversations();

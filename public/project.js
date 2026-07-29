@@ -16,6 +16,53 @@
   window.ActiveProjectId = pid;
   window.LockedPageId = lockedPage;
 
+  // ---------- เพจที่เลือกอยู่ (ใช้ร่วมกันทุกแท็บ) ----------
+  // เดิมแต่ละหน้าเก็บเพจที่เลือกไว้ในตัวเอง สลับแท็บแล้วต้องเลือกใหม่ทุกครั้ง
+  // (Content/Report เด้งไปเพจแรก, Inbox/Analytics เด้งกลับ "ทุกเพจ")
+  // จึงเก็บไว้ที่เดียวต่อโปรเจกต์ แล้วพาไปกับลิงก์แท็บด้วย (?sel=) เพื่อให้ก๊อป URL ส่งต่อได้
+  const SEL_KEY = 'ic_sel_page:' + (pid || 'all');
+  const readSel = () => {
+    try { return sessionStorage.getItem(SEL_KEY) || ''; } catch (e) { return ''; }
+  };
+  const selParam = params.get('sel') || '';
+  if (selParam) {
+    try { sessionStorage.setItem(SEL_KEY, selParam); } catch (e) { /* โหมดส่วนตัว */ }
+  }
+  // ล็อกเพจเดียวอยู่แล้ว = เพจนั้นคือเพจที่เลือก ไม่ต้องจำอะไรเพิ่ม
+  window.SelectedPageId = lockedPage && !lockedPage.includes(',')
+    ? lockedPage
+    : (selParam || readSel());
+
+  window.setSelectedPageId = function (id) {
+    window.SelectedPageId = id || '';
+    try {
+      if (id) sessionStorage.setItem(SEL_KEY, id);
+      else sessionStorage.removeItem(SEL_KEY);
+    } catch (e) { /* โหมดส่วนตัว */ }
+    decorateNavLinks();
+  };
+
+  const INTERNAL = /^(index|comments|analytics|report|admin)\.html/;
+
+  // พาพารามิเตอร์ไปกับลิงก์แท็บภายใน (ไม่รวม Connect/โปรเจกต์ = ระดับบนสุด)
+  // เขียน href ใหม่ทุกครั้งจากค่าล่าสุด ไม่ต่อท้ายทับซ้อน
+  function decorateNavLinks() {
+    document.querySelectorAll('.navbar a.nav-link').forEach((a) => {
+      const base = (a.dataset.base || a.getAttribute('href') || '').split('?')[0];
+      if (!INTERNAL.test(base)) return;
+      a.dataset.base = base;
+      const q = new URLSearchParams();
+      if (pid) q.set('project', pid);
+      if (lockedPage) q.set('page', lockedPage);
+      if (isEmbed) q.set('embed', '1');
+      if (window.SelectedPageId && !lockedPage) q.set('sel', window.SelectedPageId);
+      const qs = q.toString();
+      a.setAttribute('href', qs ? base + '?' + qs : base);
+    });
+  }
+  window.refreshNavLinks = decorateNavLinks;
+  document.addEventListener('DOMContentLoaded', decorateNavLinks);
+
   // ล็อกเพจ "เดียว" เท่านั้นที่ซ่อน UI เลือกเพจ (รายการเพจเหลือเพจเดียว ไม่มีประโยชน์)
   // ถ้าล็อกหลายเพจ (?page=123,456) ต้องคงรายการเพจไว้ให้สลับ/ดูรวมได้
   if (lockedPage && !lockedPage.includes(','))
@@ -41,19 +88,7 @@
       return _fetch(input, init);
     };
 
-    // พาพารามิเตอร์ไปกับลิงก์เมนูภายใน (ไม่รวม Connect/โปรเจกต์ = ระดับบนสุด)
     document.addEventListener('DOMContentLoaded', () => {
-      document.querySelectorAll('.navbar a.nav-link').forEach((a) => {
-        let href = a.getAttribute('href') || '';
-        if (!/^(index|comments|analytics|report|admin)\.html/.test(href)) return;
-        const add = (k, v) => {
-          if (!href.includes(k + '=')) href += (href.includes('?') ? '&' : '?') + k + '=' + encodeURIComponent(v);
-        };
-        if (pid) add('project', pid);
-        if (lockedPage) add('page', lockedPage);
-        if (isEmbed) add('embed', '1');
-        a.setAttribute('href', href);
-      });
       if (pid) renderProjectChip();
     });
   }
