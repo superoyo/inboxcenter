@@ -39,6 +39,34 @@ function lastCustomerText(messages) {
   return '';
 }
 
+// เวลาตอบของห้องนี้ — ดูข้อความลูกค้า "ก้อนล่าสุด" แล้วหาว่าเพจตอบหลังจากนั้นเมื่อไร
+//   replyMs   = ตอบไปแล้ว ใช้เวลาเท่าไร
+//   waitingMs = ยังไม่ได้ตอบ รอมานานเท่าไร (นับถึงตอนนี้)
+// คิดจากก้อนล่าสุดเพราะเป็นสิ่งที่คนดูรายการอยากรู้ ("ห้องนี้ตอบช้าไหม/ค้างอยู่ไหม")
+// ไม่ใช่ค่าเฉลี่ยตลอดอายุห้อง
+function responseTiming(messages) {
+  let i = messages.length - 1;
+  // ชุดท้ายที่เป็นของเพจ — เก็บ "ตัวแรกสุดของชุด" ไว้เป็นเวลาที่ตอบ (ตอบครั้งแรกหลังลูกค้าถาม)
+  let replyAt = null;
+  while (i >= 0 && messages[i].isFromPage) {
+    replyAt = messages[i].createdTime;
+    i--;
+  }
+  // ถัดขึ้นไปคือก้อนข้อความลูกค้า — เอาตัวแรกสุดของก้อน (ถามติดกันหลายที นับจากทีแรก)
+  let askAt = null;
+  while (i >= 0 && !messages[i].isFromPage) {
+    askAt = messages[i].createdTime;
+    i--;
+  }
+  const ask = askAt ? new Date(askAt).getTime() : NaN;
+  if (!isFinite(ask)) return { replyMs: null, waitingMs: null }; // ไม่มีข้อความลูกค้าติดท้าย
+  if (replyAt) {
+    const rep = new Date(replyAt).getTime();
+    return { replyMs: isFinite(rep) && rep >= ask ? rep - ask : null, waitingMs: null };
+  }
+  return { replyMs: null, waitingMs: Date.now() - ask };
+}
+
 // ย่อ conversation ให้เหลือเฉพาะข้อมูลที่ "รายการห้องแชท" ต้องใช้ — ตัด messages ทั้งก้อนออก
 // (ข้อความเต็มโหลดทีหลังผ่าน /api/conversations/:id/thread เมื่อผู้ใช้เปิดห้อง)
 function toSummary(c) {
@@ -56,6 +84,7 @@ function toSummary(c) {
     messageCount: messages.length,
     preview: last ? { text: last.text || '', isFromPage: !!last.isFromPage } : null,
     lastCustomerText: lastCustomerText(messages),
+    ...responseTiming(messages),
   };
 }
 

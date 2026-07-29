@@ -55,6 +55,7 @@
       if (pid) q.set('project', pid);
       if (lockedPage) q.set('page', lockedPage);
       if (isEmbed) q.set('embed', '1');
+      if (params.get('only')) q.set('only', params.get('only'));
       if (window.SelectedPageId && !lockedPage) q.set('sel', window.SelectedPageId);
       const qs = q.toString();
       a.setAttribute('href', qs ? base + '?' + qs : base);
@@ -62,6 +63,10 @@
   }
   window.refreshNavLinks = decorateNavLinks;
   document.addEventListener('DOMContentLoaded', decorateNavLinks);
+
+  // ?only=thread — แสดงแต่หน้าต่างแชท (ซ่อนคอลัมน์เลือกเพจกับรายการห้อง)
+  // ใช้ตอนระบบอื่นเปิดห้องเดียวในลิ้นชักที่สไลด์ออกมา จึงไม่ต้องมีรายการให้เลือกอีก
+  if (params.get('only') === 'thread') document.documentElement.classList.add('only-thread');
 
   // ล็อกเพจ "เดียว" เท่านั้นที่ซ่อน UI เลือกเพจ (รายการเพจเหลือเพจเดียว ไม่มีประโยชน์)
   // ถ้าล็อกหลายเพจ (?page=123,456) ต้องคงรายการเพจไว้ให้สลับ/ดูรวมได้

@@ -90,6 +90,12 @@ body {
 .subnav a.nav-link.active { color: var(--primary); font-weight: 600; background: #e7f0fe; }
 
 /* ---------- โหมด embed (?embed=1) — ฝังหน้าในระบบอื่นผ่าน reverse proxy ---------- */
+/* โหมดแสดงแต่ห้องแชท — ระบบอื่นเปิดห้องเดียวในลิ้นชัก ไม่ต้องมีคอลัมน์เลือก */
+html.only-thread .cal-panel,
+html.only-thread .conv-panel { display: none; }
+html.only-thread .inbox-layout { grid-template-columns: 1fr; }
+html.only-thread .inbox-layout.stats-open { grid-template-columns: 1fr 320px; }
+
 html.embed { --chrome: 0px; }
 html.embed .navbar,
 html.embed .subnav { display: none; }
