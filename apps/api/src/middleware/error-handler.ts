@@ -17,7 +17,6 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
   }
 
   // error ที่ไม่คาดคิด — log ให้ครบเพื่อตามหาสาเหตุ แต่ไม่เปิดเผยรายละเอียดออกไป
-  const message = err instanceof Error ? err.message : String(err);
   logger.error({ err, path: req.path, method: req.method }, 'ข้อผิดพลาดที่ไม่คาดคิด');
   res.status(500).json({ error: 'เกิดข้อผิดพลาดภายในระบบ', code: 'INTERNAL_ERROR' });
 };
