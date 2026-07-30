@@ -1,0 +1,50 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "types": [],
+
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "exactOptionalPropertyTypes": false,
+
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+
+    "noEmit": true,
+
+    "baseUrl": ".",
+    "paths": {
+      "@shared/*": ["packages/shared/src/*"],
+      "@inboxcenter/shared": ["packages/shared/src/index.ts"],
+
+      "@/*": ["apps/web/src/*"],
+      "@app/*": ["apps/web/src/app/*"],
+      "@features/*": ["apps/web/src/features/*"],
+      "@components/*": ["apps/web/src/components/*"],
+      "@hooks/*": ["apps/web/src/hooks/*"],
+      "@lib/*": ["apps/web/src/lib/*"],
+      "@stores/*": ["apps/web/src/stores/*"],
+
+      "@config/*": ["apps/api/src/config/*"],
+      "@routes/*": ["apps/api/src/routes/*"],
+      "@controllers/*": ["apps/api/src/controllers/*"],
+      "@services/*": ["apps/api/src/services/*"],
+      "@repositories/*": ["apps/api/src/repositories/*"],
+      "@integrations/*": ["apps/api/src/integrations/*"],
+      "@middleware/*": ["apps/api/src/middleware/*"],
+      "@validators/*": ["apps/api/src/validators/*"],
+      "@utils/*": ["apps/api/src/utils/*"]
+    }
+  },
+  "include": ["packages/*/src/**/*.ts", "apps/*/src/**/*.ts", "apps/*/src/**/*.tsx"],
+  "exclude": ["node_modules", "**/dist", "public", "examples"]
+}

@@ -1,10 +1,19 @@
 {
-  "name": "facebook-inbox-center",
+  "name": "inboxcenter",
   "version": "1.0.0",
-  "description": "ระบบดึงและรวม inbox จาก Facebook Pages ผ่าน Graph API",
+  "private": true,
+  "description": "ระบบดึงและรวม inbox จาก Facebook Pages + LINE OA (Graph API / Messaging API / Apify)",
   "main": "server.js",
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "typecheck": "tsc -p tsconfig.base.json --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write \"**/*.{ts,tsx,json,md,css}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,json,md,css}\""
   },
   "engines": {
     "node": ">=18"
@@ -12,5 +21,14 @@
   "dependencies": {
     "express": "^4.21.0",
     "pg": "^8.22.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "eslint": "^9.17.0",
+    "eslint-config-prettier": "^9.1.0",
+    "globals": "^15.14.0",
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.18.2"
   }
 }

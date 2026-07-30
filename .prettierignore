@@ -1,0 +1,10 @@
+node_modules
+dist
+data
+public
+examples
+package-lock.json
+
+# เอกสารเขียนมือ (ตารางภาษาไทย) — ไม่ให้ prettier จัดรูปแบบใหม่
+*.md
+docs
