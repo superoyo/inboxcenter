@@ -7,8 +7,10 @@ import { competitorsRouter } from './competitors.routes';
 import { configRouter } from './config.routes';
 import { connectionsRouter } from './connections.routes';
 import { pageConfigRouter } from './page-config.routes';
+import { pagesRouter } from './pages.routes';
 import { projectsRouter } from './projects.routes';
 import { savedRepliesRouter } from './saved-replies.routes';
+import { syncRouter } from './sync.routes';
 import { webhooksRouter } from './webhooks.routes';
 
 export const v1Router = Router();
@@ -17,6 +19,9 @@ v1Router.use(configRouter);
 v1Router.use(authRouter);
 v1Router.use(projectsRouter);
 v1Router.use(pageConfigRouter);
+// sync ต้องมาก่อน pages เพราะมี /pages/:id/sync (เฉพาะเจาะจงกว่า /pages/:id)
+v1Router.use(syncRouter);
+v1Router.use(pagesRouter);
 v1Router.use(savedRepliesRouter);
 v1Router.use(annotationsRouter);
 v1Router.use(competitorsRouter);

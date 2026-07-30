@@ -161,287 +161,24 @@ async function projectPageIds(projectId) {
 
 // ---------- Pages ----------
 
-// รายชื่อเพจที่เชื่อมต่อแล้ว (ไม่ส่ง token กลับไปหน้าเว็บ)
-// พร้อมจำนวนข้อความใหม่จากลูกค้า "วันนี้" ต่อเพจ — ?tz=นาที offset จาก UTC ของฝั่งผู้ใช้ (ไทย = 420)
-app.get('/api/pages', async (req, res) => {
-  const inProject = await projectPageIds(req.query.project);
-  let pages = (await store.getPages()).map(({ accessToken, channelSecret, ...p }) => p);
-  if (inProject) pages = pages.filter((p) => inProject.has(p.id));
-  // โหมดล็อกเพจ (?pageId=) — ใช้ตอนระบบอื่นฝังแบบเชื่อมเฉพาะเพจ (embed &page=)
-  // รับได้ทั้งเพจเดียว ("123") และหลายเพจคั่นด้วยคอมมา ("123,456") — กรณีหลาย
-  // เพจ UI จะทำงานเหมือนปกติ (รายการเพจ/ทุกเพจ/ปฏิทินรวม) แต่เห็นเฉพาะเพจที่ล็อก
-  if (req.query.pageId) {
-    const locked = new Set(
-      String(req.query.pageId)
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean)
-    );
-    pages = pages.filter((p) => locked.has(p.id));
-  }
 
-  const localDayKey = dayKeyFactory(parseInt(req.query.tz, 10));
-  const todayKey = localDayKey(Date.now());
 
-  // นับ "จำนวนห้อง" ที่มีข้อความวันนี้ (ให้ตรงกับตัวเลขในปฏิทิน) — ไม่ใช่จำนวนข้อความ
-  const rooms = {};
-  for (const c of await store.getAllConversations()) {
-    if (c.messages.some((m) => localDayKey(m.createdTime) === todayKey)) {
-      rooms[c.pageId] = (rooms[c.pageId] || 0) + 1;
-    }
-  }
-  res.json(pages.map((p) => ({ ...p, todayNewMessages: rooms[p.id] || 0 })));
-});
 
-// เพิ่มเพจใหม่ — รองรับทั้ง User token และ Page token
-// - User token: ตอบรายชื่อเพจทั้งหมดกลับไปให้เลือกก่อน (needsSelection)
-// - Page token: เชื่อมต่อทันที
-// แลก token เป็น long-lived ก่อนใช้เสมอ (ถ้าตั้ง FB_APP_ID/FB_APP_SECRET ไว้)
-// → Page token ที่ดึงต่อจาก user token แบบ long-lived จะไม่มีวันหมดอายุ
-async function toLongLived(token) {
-  try {
-    const ll = await fb.exchangeLongLivedToken(token);
-    return ll || token;
-  } catch {
-    return token; // แลกไม่สำเร็จ (เช่น token ประเภทที่แลกไม่ได้) — ใช้ตัวเดิม
-  }
-}
 
-app.post('/api/pages', async (req, res) => {
-  const { accessToken } = req.body || {};
-  if (!accessToken || typeof accessToken !== 'string') {
-    return res.status(400).json({ error: 'กรุณาใส่ Access Token' });
-  }
-  const token = await toLongLived(accessToken.trim());
-
-  // ลองแบบ User token ก่อน: ถ้ามีเพจใน /me/accounts แสดงว่าเป็น user token
-  try {
-    const userPages = await fb.getUserPages(token);
-    if (userPages.length > 0) {
-      const connectedIds = new Set((await store.getPages()).map((p) => p.id));
-      return res.json({
-        needsSelection: true,
-        pages: userPages.map((p) => ({
-          id: p.id,
-          name: p.name,
-          pictureUrl: p.picture?.data?.url || '',
-          alreadyConnected: connectedIds.has(p.id),
-        })),
-      });
-    }
-  } catch {
-    // ไม่ใช่ user token — ลองแบบ page token ต่อ
-  }
-
-  // Page token: ตรวจกับ /me โดยตรง
-  try {
-    const info = await fb.getPageInfo(token);
-    const page = await store.savePage({
-      id: info.id,
-      name: info.name,
-      pictureUrl: info.picture?.data?.url || '',
-      accessToken: token,
-      connectedAt: new Date().toISOString(),
-      lastSyncAt: null,
-    });
-    const { accessToken: _, ...safe } = page;
-    res.json(safe);
-  } catch (err) {
-    res.status(400).json({
-      error: `เชื่อมต่อไม่สำเร็จ: ${err.message} — ถ้าเป็น User token ต้องติ๊กเลือกเพจตอนขอสิทธิ์ หรือถ้าเป็น Page token ต้องมีสิทธิ์ pages_read_engagement`,
-    });
-  }
-});
-
-// เชื่อมต่อเพจที่เลือกจาก User token — ระบบดึง Page token ของแต่ละเพจให้เอง
-app.post('/api/pages/from-user-token', async (req, res) => {
-  const { accessToken, pageIds } = req.body || {};
-  if (!accessToken || !Array.isArray(pageIds) || pageIds.length === 0) {
-    return res.status(400).json({ error: 'ต้องระบุ accessToken และ pageIds' });
-  }
-  try {
-    const userPages = await fb.getUserPages(await toLongLived(accessToken.trim()));
-    const wanted = new Set(pageIds);
-    const connected = [];
-    for (const p of userPages) {
-      if (!wanted.has(p.id) || !p.access_token) continue;
-      await store.savePage({
-        id: p.id,
-        name: p.name,
-        pictureUrl: p.picture?.data?.url || '',
-        accessToken: p.access_token,
-        connectedAt: new Date().toISOString(),
-        lastSyncAt: null,
-      });
-      connected.push({ id: p.id, name: p.name });
-    }
-    res.json({ ok: true, connected });
-  } catch (err) {
-    res.status(400).json({ error: `เชื่อมต่อไม่สำเร็จ: ${err.message}` });
-  }
-});
-
-app.delete('/api/pages/:id', async (req, res) => {
-  await store.deletePage(req.params.id);
-  res.json({ ok: true });
-});
 
 // ---------- Sync (ดึง inbox) ----------
 
-// รูปโปรไฟล์ที่ cache ไว้เกิน 7 วันถือว่าเก่า (URL ของ Facebook มีวันหมดอายุ)
-// ส่วนคนที่ดึงรูปไม่สำเร็จ (url ว่าง) ให้ลองใหม่ทุก 24 ชม. — เผื่อแอปเพิ่งถูกสลับเป็น Live mode
-const PIC_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
-const PIC_RETRY_MS = 24 * 60 * 60 * 1000;
 
-// เผื่อเวลาซ้อนกัน 15 นาที กันข้อความหล่นหายช่วงรอยต่อของการ sync
-const SYNC_OVERLAP_MS = 15 * 60 * 1000;
 
-async function syncPage(page) {
-  // เพจที่เคย sync แล้ว → ดึงเฉพาะห้องที่ขยับหลังรอบก่อน (incremental)
-  const isFullSync = !page.lastSyncAt;
-  const since = isFullSync
-    ? null
-    : new Date(new Date(page.lastSyncAt).getTime() - SYNC_OVERLAP_MS).toISOString();
 
-  const raw = await fb.getConversations(page.id, page.accessToken, { since });
-  const conversations = raw.map((c) => fb.normalizeConversation(c, page));
 
-  // ดึงรูปโปรไฟล์ลูกค้า — เฉพาะคนที่ยังไม่มีใน cache หรือ cache เก่าแล้ว
-  const cache = await store.getPicCache();
-  const now = Date.now();
-  const needFetch = [...new Set(conversations.map((c) => c.customerId).filter(Boolean))]
-    .filter((id) => {
-      const entry = cache[id];
-      if (!entry) return true;
-      const age = now - new Date(entry.fetchedAt).getTime();
-      return age > (entry.url ? PIC_MAX_AGE_MS : PIC_RETRY_MS);
-    });
-  if (needFetch.length) {
-    const pics = await fb.fetchProfilePics(needFetch, page.accessToken);
-    const fetchedAt = new Date().toISOString();
-    const updates = {};
-    for (const [id, url] of Object.entries(pics)) {
-      updates[id] = { url, fetchedAt };
-      cache[id] = updates[id];
-    }
-    await store.savePics(updates);
-  }
-  for (const c of conversations) c.customerPic = cache[c.customerId]?.url || '';
 
-  if (isFullSync) await store.saveConversations(page.id, conversations);
-  else await store.upsertConversations(page.id, conversations);
-  await store.savePage({ ...page, lastSyncAt: new Date().toISOString() });
-  return conversations.length;
-}
 
-// ---------- Auto refresh (ตั้งรอบเวลาได้ ค่าเริ่มต้น 1 ชั่วโมง) ----------
-const DEFAULT_SYNC_MINUTES = 60;
-const syncStatus = { lastRefreshAt: null, lastResults: [], running: false };
-let currentIntervalMinutes = DEFAULT_SYNC_MINUTES;
-let nextRefreshAt = Date.now() + DEFAULT_SYNC_MINUTES * 60000;
-let refreshTimer = null;
 
-async function syncAllPages(trigger = 'manual') {
-  if (syncStatus.running) return syncStatus.lastResults;
-  syncStatus.running = true;
-  const startedAt = new Date().toISOString();
-  try {
-    const pages = (await store.getPages()).filter((p) => p.platform !== 'line'); // LINE รับผ่าน webhook ไม่ต้อง sync
-    const results = await Promise.all(
-      pages.map(async (page) => {
-        try {
-          const count = await syncPage(page);
-          return { pageId: page.id, pageName: page.name, ok: true, conversations: count };
-        } catch (err) {
-          return { pageId: page.id, pageName: page.name, ok: false, error: err.message };
-        }
-      })
-    );
-    syncStatus.lastRefreshAt = new Date().toISOString();
-    syncStatus.lastResults = results;
-    // บันทึกประวัติการดึงรายครั้ง
-    await store.addSyncRun({
-      id: 'run_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
-      trigger, // 'auto' | 'manual'
-      startedAt,
-      finishedAt: syncStatus.lastRefreshAt,
-      results,
-    }).catch(() => {});
-    return results;
-  } finally {
-    syncStatus.running = false;
-  }
-}
 
-// ตั้งเวลารอบถัดไปตามค่าที่ผู้ใช้กำหนด (setting: syncIntervalMinutes)
-async function scheduleAutoRefresh() {
-  clearTimeout(refreshTimer);
-  const saved = parseInt(await store.getSetting('syncIntervalMinutes', DEFAULT_SYNC_MINUTES), 10);
-  currentIntervalMinutes = Number.isFinite(saved) && saved >= 15 ? saved : DEFAULT_SYNC_MINUTES;
-  nextRefreshAt = Date.now() + currentIntervalMinutes * 60000;
-  refreshTimer = setTimeout(async () => {
-    try {
-      const r = await syncAllPages('auto');
-      console.log(`[auto-refresh] sync ${r.filter((x) => x.ok).length}/${r.length} เพจ, ห้องที่อัปเดต ${r.reduce((s, x) => s + (x.conversations || 0), 0)}`);
-    } catch (err) {
-      console.error('[auto-refresh] failed:', err.message);
-    }
-    scheduleAutoRefresh();
-  }, currentIntervalMinutes * 60000);
-}
 
-// สถานะการ sync — เวลาอัปเดตล่าสุด + รอบถัดไป
-app.get('/api/sync-status', async (req, res) => {
-  // fallback หลัง restart: ใช้ lastSyncAt ล่าสุดของเพจ (เก็บถาวรใน storage)
-  const pages = await store.getPages();
-  const lastPageSync = pages.map((p) => p.lastSyncAt).filter(Boolean).sort().pop() || null;
-  res.json({
-    lastRefreshAt: syncStatus.lastRefreshAt || lastPageSync,
-    nextRefreshAt: new Date(nextRefreshAt).toISOString(),
-    running: syncStatus.running,
-    autoRefreshMinutes: currentIntervalMinutes,
-    lastResults: syncStatus.lastResults,
-  });
-});
 
-// ประวัติการดึง inbox รายครั้ง
-app.get('/api/sync-history', async (req, res) => {
-  res.json(await store.getSyncRuns(50));
-});
 
-// อ่าน/ตั้งค่ารอบเวลาดึงอัตโนมัติ (นาที, 15–1440)
-app.get('/api/settings/sync-interval', async (req, res) => {
-  res.json({ minutes: currentIntervalMinutes });
-});
-
-app.put('/api/settings/sync-interval', async (req, res) => {
-  const minutes = parseInt(req.body && req.body.minutes, 10);
-  if (!Number.isFinite(minutes) || minutes < 15 || minutes > 1440) {
-    return res.status(400).json({ error: 'รอบเวลาต้องอยู่ระหว่าง 15 นาที ถึง 24 ชั่วโมง' });
-  }
-  await store.setSetting('syncIntervalMinutes', minutes);
-  await scheduleAutoRefresh(); // รีเซ็ตตัวจับเวลาด้วยค่าใหม่ทันที
-  res.json({ ok: true, minutes, nextRefreshAt: new Date(nextRefreshAt).toISOString() });
-});
-
-// ดึง inbox ของเพจเดียว
-app.post('/api/pages/:id/sync', async (req, res) => {
-  const page = (await store.getPages()).find((p) => p.id === req.params.id);
-  if (!page) return res.status(404).json({ error: 'ไม่พบเพจนี้ในระบบ' });
-  if (page.platform === 'line') return res.json({ ok: true, pageId: page.id, conversations: 0 }); // LINE รับสดผ่าน webhook
-  try {
-    const count = await syncPage(page);
-    res.json({ ok: true, pageId: page.id, conversations: count });
-  } catch (err) {
-    res.status(400).json({ error: `ดึง inbox ไม่สำเร็จ: ${err.message}` });
-  }
-});
-
-// ดึง inbox ทุกเพจพร้อมกัน (manual refresh — ใช้ตัวเดียวกับ auto-refresh)
-app.post('/api/sync-all', async (req, res) => {
-  const results = await syncAllPages('manual');
-  res.json({ results, lastRefreshAt: syncStatus.lastRefreshAt });
-});
 
 // ---------- Unified inbox ----------
 
@@ -1158,7 +895,8 @@ app.use(require('./apps/api/dist/app.js').errorHandler);
 
 store.init()
   .then(() => {
-    scheduleAutoRefresh(); // เริ่มตัวจับเวลาดึงอัตโนมัติตามค่าที่ตั้งไว้
+    // ตัวจับเวลาดึงอัตโนมัติ ย้ายไป apps/api/src/services/sync.service.ts แล้ว
+    require('./apps/api/dist/app.js').scheduleAutoRefresh();
     app.listen(PORT, () => {
       const backend = process.env.DATABASE_URL ? 'PostgreSQL' : 'JSON files (data/)';
       console.log(`Facebook Inbox Center running at http://localhost:${PORT} [storage: ${backend}]`);

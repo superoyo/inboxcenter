@@ -24,3 +24,4 @@ export { requireAuth } from './middleware/require-auth';
 export { logger } from './config/logger';
 export { env } from './config/env';
 export { repository, storageBackendName } from './repositories';
+export { scheduleAutoRefresh, stopAutoRefresh } from './services/sync.service';

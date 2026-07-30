@@ -86,12 +86,14 @@
   "pages.add (token ปลอม)": {
     "status": 400,
     "body": {
+      "code": "BAD_REQUEST",
       "error": "เชื่อมต่อไม่สำเร็จ: Invalid OAuth access token - Cannot parse access token — ถ้าเป็น User token ต้องติ๊กเลือกเพจตอนขอสิทธิ์ หรือถ้าเป็น Page token ต้องมีสิทธิ์ pages_read_engagement"
     }
   },
   "pages.fromUserToken (ปลอม)": {
     "status": 400,
     "body": {
+      "code": "BAD_REQUEST",
       "error": "เชื่อมต่อไม่สำเร็จ: Invalid OAuth access token - Cannot parse access token"
     }
   },
@@ -739,6 +741,7 @@
   "sync.interval.put (นอกช่วง→400)": {
     "status": 400,
     "body": {
+      "code": "BAD_REQUEST",
       "error": "รอบเวลาต้องอยู่ระหว่าง 15 นาที ถึง 24 ชั่วโมง"
     }
   },
@@ -753,6 +756,7 @@
   "sync.page (FB token ปลอม)": {
     "status": 400,
     "body": {
+      "code": "BAD_REQUEST",
       "error": "ดึง inbox ไม่สำเร็จ: Invalid OAuth access token data."
     }
   },
