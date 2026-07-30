@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Competitor — FB Inbox Center</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="auth.js"></script>
+  <script src="project.js"></script>
+  <style>
+    .cp-wrap { max-width: 1000px; margin: 0 auto; padding: 24px; }
+    .cp-wrap h1 { font-size: 22px; margin-bottom: 4px; }
+    .cp-wrap .sub { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+    .cp-add { display: flex; gap: 10px; align-items: flex-start; }
+    .cp-add input { flex: 1; }
+    .cp-warn { margin-top: 12px; font-size: 12.5px; color: #b25e00; background: #fff4e0; border-radius: 8px; padding: 9px 12px; line-height: 1.6; }
+    .cp-list { display: flex; flex-direction: column; gap: 12px; margin-top: 18px; }
+    .cp-item {
+      display: flex; align-items: center; gap: 14px; padding: 14px 16px;
+      background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+      cursor: pointer; text-decoration: none; color: var(--text);
+    }
+    .cp-item:hover { border-color: var(--primary); box-shadow: 0 4px 14px rgba(0,0,0,.07); }
+    .cp-ava {
+      width: 44px; height: 44px; border-radius: 50%; flex-shrink: 0; object-fit: cover;
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; font-weight: 700; font-size: 18px;
+    }
+    .cp-info { flex: 1; min-width: 0; }
+    .cp-info .nm { font-weight: 600; font-size: 15px; }
+    .cp-info .meta { color: var(--muted); font-size: 12px; margin-top: 2px; }
+    .cp-count { text-align: right; flex-shrink: 0; }
+    .cp-count b { font-size: 18px; }
+    .cp-count span { display: block; color: var(--muted); font-size: 11px; }
+    .cp-del { border: none; background: none; color: var(--muted); font-size: 16px; cursor: pointer; padding: 6px 8px; border-radius: 8px; flex-shrink: 0; }
+    .cp-del:hover { color: var(--red); background: #fdeaee; }
+    .cp-empty { border: 2px dashed var(--border); border-radius: 14px; padding: 40px 24px; text-align: center; color: var(--muted); margin-top: 18px; }
+    .cp-empty .big { font-size: 44px; display: block; margin-bottom: 10px; }
+    .badge-new { background: #fff4e0; color: #b25e00; }
+  </style>
+</head>
+<body>
+  <nav class="navbar">
+    <span data-global-menu></span>
+    <a class="logo" href="projects.html">📥 FB Inbox Center</a>
+    <span class="spacer"></span>
+    <a class="nav-link" href="connect.html">Connect</a>
+  </nav>
+
+  <div class="subnav">
+    <a class="nav-link" href="index.html">Inbox</a>
+    <a class="nav-link" href="comments.html">Content</a>
+    <a class="nav-link" href="analytics.html">Analytics</a>
+    <a class="nav-link" href="report.html">Report</a>
+    <a class="nav-link" href="admin.html">Admin</a>
+    <a class="nav-link active" href="competitors.html">Competitor</a>
+  </div>
+
+  <div class="cp-wrap">
+    <h1>⚔️ Competitor</h1>
+    <div class="sub">ติดตามโพสต์ของเพจคู่แข่ง — ใส่แค่ URL เพจ แล้วกดดึงข้อมูลเพื่อดูปฏิทินคอนเทนต์</div>
+
+    <div class="card">
+      <div class="cp-add">
+        <input type="text" id="urlInput" placeholder="https://www.facebook.com/systemathailand" autocomplete="off">
+        <button class="btn" id="addBtn">+ เพิ่มเพจ</button>
+      </div>
+      <p id="addError" class="error-text" style="margin-top: 10px; display: none;"></p>
+      <div class="cp-warn" id="apifyWarn" style="display: none;">
+        ⚠️ ยังไม่ได้ตั้งค่า <code>APIFY_TOKEN</code> ใน environment — เพิ่มเพจได้ แต่ยังดึงข้อมูลไม่ได้
+        (ตั้งค่าที่ Railway → Variables แล้ว deploy ใหม่)
+      </div>
+    </div>
+
+    <div id="list"><p class="muted" style="margin-top:18px;">กำลังโหลด...</p></div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    function toast(m){ const t=$('toast'); t.textContent=m; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2800); }
+    function esc(s){ return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+    const COLORS=['#1877f2','#e91e63','#8e24aa','#5e35b1','#3949ab','#00897b','#f4511e','#6d4c41','#546e7a','#c2185b','#2e7d32','#ef6c00'];
+    function color(k){ let h=0; for(const ch of String(k||'?')) h=(h*31+ch.codePointAt(0))>>>0; return COLORS[h%COLORS.length]; }
+    const fmtDate=(iso)=> iso ? new Date(iso).toLocaleString('th-TH',{dateStyle:'short',timeStyle:'short'}) : 'ยังไม่เคยดึง';
+
+    async function load(){
+      const data = await fetch('/api/competitors').then(r=>r.json()).catch(()=>({items:[]}));
+      $('apifyWarn').style.display = data.apifyReady ? 'none' : 'block';
+      const items = data.items || [];
+      if(!items.length){
+        $('list').innerHTML = `<div class="cp-empty"><span class="big">⚔️</span>
+          <div>ยังไม่มีเพจคู่แข่ง</div>
+          <div style="margin-top:6px;">วาง URL เพจ Facebook ด้านบน เช่น <code>https://www.facebook.com/systemathailand</code></div></div>`;
+        return;
+      }
+      $('list').innerHTML = '<div class="cp-list">' + items.map(c=>{
+        const covered = (c.coveredFrom && c.coveredTo)
+          ? `ข้อมูลช่วง ${c.coveredFrom} → ${c.coveredTo}`
+          : '<b style="color:#b25e00;">ยังไม่เคยดึงข้อมูล — กดเข้าไปแล้วกดดึงข้อมูล</b>';
+        return `
+        <a class="cp-item" href="competitor.html?id=${encodeURIComponent(c.id)}">
+          ${c.pictureUrl
+            ? `<img class="cp-ava" src="${esc(c.pictureUrl)}" alt="">`
+            : `<span class="cp-ava" style="background:${color(c.id)}">${esc((c.name||'?')[0].toUpperCase())}</span>`}
+          <div class="cp-info">
+            <div class="nm">${esc(c.name || c.handle)}</div>
+            <div class="meta">facebook.com/${esc(c.handle)} · ดึงล่าสุด: ${fmtDate(c.lastSyncAt)}</div>
+            <div class="meta">${covered}</div>
+          </div>
+          <div class="cp-count"><b>${c.postCount}</b><span>โพสต์</span></div>
+          <button class="cp-del" title="ลบเพจนี้"
+            onclick="event.preventDefault();event.stopPropagation();removeCompetitor('${esc(c.id)}','${esc((c.name||c.handle).replace(/'/g,"\\'"))}')">🗑</button>
+        </a>`;
+      }).join('') + '</div>';
+    }
+
+    async function addCompetitor(){
+      const url = $('urlInput').value.trim();
+      const err = $('addError'); err.style.display='none';
+      if(!url){ err.textContent='กรุณาใส่ URL เพจ'; err.style.display='block'; return; }
+      const btn = $('addBtn'); btn.disabled=true; btn.textContent='กำลังเพิ่ม...';
+      try{
+        const res = await fetch('/api/competitors',{
+          method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ url })
+        });
+        const d = await res.json();
+        if(!res.ok) throw new Error(d.error);
+        $('urlInput').value='';
+        toast(`เพิ่มเพจ "${d.competitor.name}" แล้ว — กดเข้าไปเพื่อดึงข้อมูล`);
+        load();
+      }catch(e){ err.textContent=e.message; err.style.display='block'; }
+      finally{ btn.disabled=false; btn.textContent='+ เพิ่มเพจ'; }
+    }
+
+    async function removeCompetitor(id, name){
+      if(!confirm(`ลบเพจคู่แข่ง "${name}"? โพสต์ที่ดึงมาแล้วจะถูกลบด้วย`)) return;
+      await fetch('/api/competitors/'+encodeURIComponent(id), { method:'DELETE' });
+      toast('ลบแล้ว'); load();
+    }
+
+    $('addBtn').addEventListener('click', addCompetitor);
+    $('urlInput').addEventListener('keydown',(e)=>{ if(e.key==='Enter') addCompetitor(); });
+    load();
+  </script>
+</body>
+</html>

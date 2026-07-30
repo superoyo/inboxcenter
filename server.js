@@ -2,6 +2,7 @@ const express = require('express');
 const path = require('path');
 const fb = require('./lib/facebook');
 const line = require('./lib/line');
+const apify = require('./lib/apify');
 const store = require('./lib/store');
 const urgency = require('./lib/urgency');
 const keywords = require('./lib/keywords');
@@ -288,6 +289,174 @@ app.put('/api/pages/:id/config', async (req, res) => {
   };
   await store.setPageConfig(req.params.id, config);
   res.json({ ok: true, config });
+});
+
+// ---------- Competitor (เพจคู่แข่ง — ดึงโพสต์ผ่าน Apify) ----------
+const dayStr = (d) => new Date(d).toISOString().slice(0, 10);
+const todayKey = () => dayStr(Date.now());
+const monthStartKey = (offset = 0) => {
+  const d = new Date();
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + offset, 1)).toISOString().slice(0, 10);
+};
+const monthEndKey = (offset = 0) => {
+  const d = new Date();
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + offset + 1, 0)).toISOString().slice(0, 10);
+};
+
+// ช่วงเวลาที่เลือกได้จากหน้าเว็บ
+const RANGES = {
+  current: () => ({ from: monthStartKey(0), to: todayKey(), label: 'เดือนปัจจุบัน' }),
+  prev: () => ({ from: monthStartKey(-1), to: monthEndKey(-1), label: 'เดือนก่อนหน้า' }),
+  '3m': () => ({ from: monthStartKey(-2), to: todayKey(), label: '3 เดือนย้อนหลัง' }),
+  '6m': () => ({ from: monthStartKey(-5), to: todayKey(), label: '6 เดือนย้อนหลัง' }),
+};
+
+// คำนวณ "ช่วงที่ยังต้องดึง" จากช่วงที่ขอ เทียบกับช่วงที่ดึงมาแล้ว
+// โพสต์เก่าไม่เปลี่ยนแปลง → ข้ามช่วงที่ครอบคลุมแล้วได้
+// แต่ "เดือนปัจจุบัน" ต้องดึงซ้ำเสมอ เพราะมีโพสต์ใหม่เพิ่มเข้ามาได้
+function missingRanges(req, covered) {
+  if (!covered || !covered.from || !covered.to) return [req];
+  const gaps = [];
+  if (req.from < covered.from) {
+    gaps.push({ from: req.from, to: apify.addDays(covered.from, -1) }); // เติมย้อนหลัง
+  }
+  const refetchFrom = covered.to < monthStartKey(0) ? covered.to : monthStartKey(0);
+  const fwdFrom = refetchFrom > req.from ? refetchFrom : req.from;
+  if (fwdFrom <= req.to) gaps.push({ from: fwdFrom, to: req.to }); // ต่อยอด + เดือนปัจจุบัน
+  return gaps;
+}
+
+const competitorSyncing = new Set(); // กันกดดึงซ้อนกันในคู่แข่งเดียว
+
+function competitorHandle(url) {
+  try {
+    const u = new URL(/^https?:\/\//i.test(url) ? url : 'https://' + url);
+    if (!/facebook\.com$/i.test(u.hostname.replace(/^www\./i, ''))) return null;
+    const seg = u.pathname.split('/').filter(Boolean);
+    if (!seg.length) return null;
+    // รองรับทั้ง /pagename และ /profile.php?id=123 และ /people/name/123
+    if (seg[0] === 'profile.php') return u.searchParams.get('id');
+    if (seg[0] === 'people' && seg[2]) return seg[2];
+    return decodeURIComponent(seg[0]);
+  } catch { return null; }
+}
+
+app.get('/api/competitors', async (req, res) => {
+  const list = await store.getCompetitors();
+  const withCounts = await Promise.all(list.map(async (c) => ({
+    ...c,
+    postCount: (await store.getCompetitorPosts(c.id)).length,
+  })));
+  res.json({ items: withCounts, apifyReady: apify.hasToken() });
+});
+
+app.post('/api/competitors', async (req, res) => {
+  const url = String((req.body && req.body.url) || '').trim();
+  const handle = competitorHandle(url);
+  if (!handle) {
+    return res.status(400).json({ error: 'ใส่ URL เพจ Facebook ให้ถูกต้อง เช่น https://www.facebook.com/systemathailand' });
+  }
+  const id = 'cmp_' + handle.toLowerCase().replace(/[^a-z0-9._-]/g, '_');
+  const existing = (await store.getCompetitors()).find((c) => c.id === id);
+  if (existing) return res.status(400).json({ error: `มีเพจ "${existing.name || handle}" อยู่แล้ว` });
+  const competitor = {
+    id,
+    url: `https://www.facebook.com/${handle}`,
+    handle,
+    name: handle,
+    pictureUrl: '',
+    addedAt: new Date().toISOString(),
+    lastSyncAt: null,
+    coveredFrom: null,
+    coveredTo: null,
+  };
+  await store.saveCompetitor(competitor);
+  res.json({ ok: true, competitor });
+});
+
+app.delete('/api/competitors/:id', async (req, res) => {
+  await store.deleteCompetitor(req.params.id);
+  res.json({ ok: true });
+});
+
+app.get('/api/competitors/:id', async (req, res) => {
+  const c = (await store.getCompetitors()).find((x) => x.id === req.params.id);
+  if (!c) return res.status(404).json({ error: 'ไม่พบเพจคู่แข่งนี้' });
+  const posts = await store.getCompetitorPosts(c.id);
+  res.json({ ...c, posts, apifyReady: apify.hasToken() });
+});
+
+app.get('/api/competitors/:id/sync-history', async (req, res) => {
+  res.json(await store.getCompetitorSyncRuns(req.params.id, 50));
+});
+
+// ดึงโพสต์เพิ่ม — ดึงเฉพาะช่วงที่ยังไม่มี (เดือนปัจจุบันดึงซ้ำเสมอ)
+app.post('/api/competitors/:id/sync', async (req, res) => {
+  const c = (await store.getCompetitors()).find((x) => x.id === req.params.id);
+  if (!c) return res.status(404).json({ error: 'ไม่พบเพจคู่แข่งนี้' });
+  if (!apify.hasToken()) {
+    return res.status(400).json({ error: 'ยังไม่ได้ตั้งค่า APIFY_TOKEN — ใส่ token ของ Apify ใน environment ก่อน' });
+  }
+  const key = String(req.body && req.body.range) || 'current';
+  const mk = RANGES[key] || RANGES.current;
+  const requested = mk();
+
+  if (competitorSyncing.has(c.id)) return res.status(409).json({ error: 'กำลังดึงข้อมูลเพจนี้อยู่ รอให้เสร็จก่อน' });
+  competitorSyncing.add(c.id);
+
+  const startedAt = new Date().toISOString();
+  const gaps = missingRanges({ from: requested.from, to: requested.to }, { from: c.coveredFrom, to: c.coveredTo });
+  try {
+    let added = 0, fetched = 0;
+    for (const g of gaps) {
+      const months = Math.max(1, Math.round((new Date(g.to) - new Date(g.from)) / 2.6e9) + 1);
+      const posts = await apify.fetchPagePosts(c.url, {
+        from: g.from, to: g.to,
+        resultsLimit: Math.min(1000, Math.max(60, months * 120)),
+      });
+      fetched += posts.length;
+      const r = await store.upsertCompetitorPosts(c.id, posts.map((p) => ({ ...p, competitorId: c.id })));
+      added += r.added;
+      // อัปเดตชื่อ/รูปเพจจากโพสต์ที่ได้ (ครั้งแรกจะยังเป็นแค่ handle)
+      const named = posts.find((p) => p.pageName);
+      if (named && (!c.name || c.name === c.handle)) c.name = named.pageName;
+    }
+    // ขยายช่วงที่ครอบคลุมแล้ว
+    const newFrom = !c.coveredFrom || requested.from < c.coveredFrom ? requested.from : c.coveredFrom;
+    const newTo = !c.coveredTo || requested.to > c.coveredTo ? requested.to : c.coveredTo;
+    await store.saveCompetitor({ ...c, coveredFrom: newFrom, coveredTo: newTo, lastSyncAt: new Date().toISOString() });
+
+    const run = {
+      id: 'crun_' + Date.now(),
+      startedAt,
+      finishedAt: new Date().toISOString(),
+      range: key,
+      rangeLabel: requested.label,
+      requested,
+      gaps,
+      fetched,
+      added,
+      skipped: !gaps.length,
+      ok: true,
+    };
+    await store.addCompetitorSyncRun(c.id, run);
+    res.json({ ok: true, run });
+  } catch (err) {
+    const run = {
+      id: 'crun_' + Date.now(),
+      startedAt,
+      finishedAt: new Date().toISOString(),
+      range: key,
+      rangeLabel: requested.label,
+      requested, gaps, fetched: 0, added: 0,
+      ok: false,
+      error: err.message,
+    };
+    await store.addCompetitorSyncRun(c.id, run);
+    res.status(400).json({ error: `ดึงข้อมูลไม่สำเร็จ: ${err.message}` });
+  } finally {
+    competitorSyncing.delete(c.id);
+  }
 });
 
 // ---------- LINE Messaging API (เชื่อมต่อผ่าน webhook) ----------
