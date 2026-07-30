@@ -2255,18 +2255,21 @@
   "competitors.add (URL ผิด→400)": {
     "status": 400,
     "body": {
+      "code": "BAD_REQUEST",
       "error": "ใส่ URL เพจ Facebook ให้ถูกต้อง เช่น https://www.facebook.com/systemathailand"
     }
   },
   "competitors.add (ซ้ำ→400)": {
     "status": 400,
     "body": {
+      "code": "BAD_REQUEST",
       "error": "มีเพจ \"Smoke Brand\" อยู่แล้ว"
     }
   },
   "competitors.sync (ไม่มี APIFY_TOKEN)": {
     "status": 400,
     "body": {
+      "code": "BAD_REQUEST",
       "error": "ยังไม่ได้ตั้งค่า APIFY_TOKEN — ใส่ token ของ Apify ใน environment ก่อน"
     }
   },
@@ -2295,12 +2298,14 @@
   "connections.line.add (token ปลอม)": {
     "status": 400,
     "body": {
+      "code": "BAD_REQUEST",
       "error": "เชื่อมต่อ LINE ไม่สำเร็จ: Authentication failed. Confirm that the access token in the authorization header is valid."
     }
   },
   "connections.line.add (ไม่ครบ→400)": {
     "status": 400,
     "body": {
+      "code": "BAD_REQUEST",
       "error": "ต้องระบุ Channel ID, Channel secret และ Channel access token"
     }
   },
@@ -2315,5 +2320,15 @@
   "webhook.line (ไม่มีเพจ→404)": {
     "status": 404,
     "body": null
+  },
+  "ผลข้างเคียง: webhook สร้างห้องแชท": {
+    "customerId": "Usmoke",
+    "isFromPage": false,
+    "rooms": 1,
+    "text": "ทักจาก LINE"
+  },
+  "ผลข้างเคียง: ส่งต่อเคสไม่ปนกับข้อความลูกค้า": {
+    "forwardCount": 2,
+    "forwardTextLeakedIntoMessages": false
   }
 }

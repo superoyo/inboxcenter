@@ -3,10 +3,13 @@
 import { Router } from 'express';
 import { annotationsRouter } from './annotations.routes';
 import { authRouter } from './auth.routes';
+import { competitorsRouter } from './competitors.routes';
 import { configRouter } from './config.routes';
+import { connectionsRouter } from './connections.routes';
 import { pageConfigRouter } from './page-config.routes';
 import { projectsRouter } from './projects.routes';
 import { savedRepliesRouter } from './saved-replies.routes';
+import { webhooksRouter } from './webhooks.routes';
 
 export const v1Router = Router();
 
@@ -16,3 +19,6 @@ v1Router.use(projectsRouter);
 v1Router.use(pageConfigRouter);
 v1Router.use(savedRepliesRouter);
 v1Router.use(annotationsRouter);
+v1Router.use(competitorsRouter);
+v1Router.use(connectionsRouter);
+v1Router.use(webhooksRouter);

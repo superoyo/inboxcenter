@@ -120,6 +120,42 @@ async function runAll() {
   return results;
 }
 
+/**
+ * ตรวจ "ผลข้างเคียง" ที่ response ไม่ได้บอก — เช่น LINE webhook ตอบ 200 ทันที
+ * แล้วค่อยสร้างห้องแชทเบื้องหลัง ถ้าไม่เช็คตรงนี้ การพังจะไม่ถูกจับ
+ */
+async function collectSideEffects() {
+  await new Promise((r) => setTimeout(r, 1200)); // รอ event ของ webhook ประมวลผลเสร็จ
+  const read = (f) => {
+    try {
+      return JSON.parse(fs.readFileSync(path.join(DATA, f), 'utf8'));
+    } catch {
+      return null;
+    }
+  };
+  const convs = read('conversations.json') || {};
+  const lineRooms = convs['line_smokechan'] || [];
+  const fwRoom = (convs['100000000000001'] || []).find((c) => c.id === 't_smoke_1');
+  const forwards = (read('forwards.json') || {}).t_smoke_1 || [];
+
+  return {
+    'ผลข้างเคียง: webhook สร้างห้องแชท': normalize({
+      rooms: lineRooms.length,
+      customerId: lineRooms[0]?.customerId ?? null,
+      // ข้อความที่ webhook เขียนลงห้อง (พิสูจน์ว่า handleEvent ทำงาน ไม่ใช่แค่ตอบ 200)
+      text: lineRooms[0]?.messages?.at(-1)?.text ?? null,
+      isFromPage: lineRooms[0]?.messages?.at(-1)?.isFromPage ?? null,
+    }),
+    'ผลข้างเคียง: ส่งต่อเคสไม่ปนกับข้อความลูกค้า': normalize({
+      forwardCount: forwards.length,
+      // ข้อความส่งต่อต้องไม่โผล่ใน messages เด็ดขาด (เส้นทางตอบลูกค้าอ่านจาก messages)
+      forwardTextLeakedIntoMessages: (fwRoom?.messages ?? []).some((m) =>
+        String(m.text || '').includes('ส่งต่อจาก smoke'),
+      ),
+    }),
+  };
+}
+
 /** เทียบ 2 object แบบ deep แล้วคืน path ที่ต่างกัน */
 function diff(a, b, at = '', out = []) {
   const ja = JSON.stringify(a);
@@ -152,7 +188,7 @@ try {
   });
 
   await waitReady();
-  const actual = await runAll();
+  const actual = { ...(await runAll()), ...(await collectSideEffects()) };
 
   if (UPDATE || !fs.existsSync(BASELINE)) {
     fs.writeFileSync(BASELINE, JSON.stringify(actual, null, 2) + '\n', 'utf8');

@@ -40,7 +40,12 @@ export default tseslint.config(
     },
     rules: {
       '@typescript-eslint/consistent-type-imports': ['error', { prefer: 'type-imports' }],
-      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+      // ignoreRestSiblings: รองรับ idiom ตัดฟิลด์ออกด้วย rest — ใช้ตัดtoken/secret ก่อนส่งออก API
+      // เช่น const { accessToken: _t, ...safe } = page
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_', ignoreRestSiblings: true },
+      ],
       'no-console': 'off',
     },
   },
