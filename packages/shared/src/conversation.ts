@@ -90,6 +90,8 @@ export type CalendarCounts = Record<string, number>;
 
 export interface SavedReply {
   id: string;
+  /** ชื่อย่อของคำตอบ (ตั้งได้ ไม่บังคับ — ข้อมูลเก่าไม่มีฟิลด์นี้) */
+  title?: string;
   text: string;
   tags: string[];
   createdAt: string;
