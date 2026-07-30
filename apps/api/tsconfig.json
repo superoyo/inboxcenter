@@ -10,6 +10,8 @@
 
     "noEmit": false,
     "outDir": "./dist",
+    // เก็บ tsbuildinfo ใน dist เพื่อให้ `rm -rf dist` เป็นการ clean ที่สมบูรณ์
+    "tsBuildInfoFile": "./dist/.tsbuildinfo",
     "rootDir": "./src",
     "declaration": true,
     "sourceMap": true,
@@ -29,5 +31,8 @@
       "@utils/*": ["./src/utils/*"]
     }
   },
+  // อ้างอิงแพ็กเกจ shared ผ่าน project references — tsc จะใช้ .d.ts ที่ shared สร้าง
+  // ทำให้ไฟล์ของ shared ไม่ถูกลากเข้ามาใน rootDir ของ api
+  "references": [{ "path": "../../packages/shared" }],
   "include": ["src/**/*.ts"]
 }

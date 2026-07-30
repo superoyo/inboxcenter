@@ -14,7 +14,7 @@
     "build": "npm run build --workspace @inboxcenter/api",
     "smoke": "node scripts/smoke/run.mjs",
     "smoke:update": "node scripts/smoke/run.mjs --update",
-    "typecheck": "tsc -p tsconfig.base.json --noEmit",
+    "typecheck": "tsc -b packages/shared apps/api --dry",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"**/*.{ts,tsx,json,md,css}\"",

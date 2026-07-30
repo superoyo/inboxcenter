@@ -5,8 +5,8 @@
   "description": "Express API (MVC) — ระหว่างเปลี่ยนผ่าน server.js เดิมยังเรียกใช้ผ่าน shim ใน lib/",
   "main": "./dist/index.js",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "build": "tsc -b tsconfig.json",
+    "typecheck": "tsc -b tsconfig.json --dry"
   },
   "devDependencies": {
     "@types/node": "^22.20.1"
