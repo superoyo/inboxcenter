@@ -8,3 +8,6 @@ package-lock.json
 # เอกสารเขียนมือ (ตารางภาษาไทย) — ไม่ให้ prettier จัดรูปแบบใหม่
 *.md
 docs
+
+# ไฟล์ที่ระบบ generate เอง
+scripts/smoke/baseline.json

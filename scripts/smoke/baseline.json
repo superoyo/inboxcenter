@@ -1,0 +1,2315 @@
+{
+  "config": {
+    "status": 200,
+    "body": {
+      "longLivedTokens": false
+    }
+  },
+  "auth.login (creds ปลอม)": {
+    "status": 400,
+    "body": {
+      "error": "กรุณากรอกชื่อผู้ใช้และรหัสผ่าน"
+    }
+  },
+  "noAuth → 401": {
+    "status": 401,
+    "body": {
+      "error": "ต้องเข้าสู่ระบบก่อน"
+    }
+  },
+  "auth.profile": {
+    "status": 401,
+    "body": {
+      "error": "เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่"
+    }
+  },
+  "employees": {
+    "status": 401,
+    "body": {
+      "error": "เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่"
+    }
+  },
+  "pages": {
+    "status": 200,
+    "body": [
+      {
+        "connectedAt": "<ISO>",
+        "id": "100000000000001",
+        "lastSyncAt": "<ISO>",
+        "name": "Smoke FB Page",
+        "pictureUrl": "",
+        "todayNewMessages": 0
+      },
+      {
+        "basicId": "@smoke",
+        "channelId": "smokechan",
+        "connectedAt": "<ISO>",
+        "id": "line_smokechan",
+        "lastSyncAt": null,
+        "name": "Smoke LINE OA",
+        "pictureUrl": "",
+        "platform": "line",
+        "todayNewMessages": 0
+      }
+    ]
+  },
+  "pages (scope project)": {
+    "status": 200,
+    "body": [
+      {
+        "connectedAt": "<ISO>",
+        "id": "100000000000001",
+        "lastSyncAt": "<ISO>",
+        "name": "Smoke FB Page",
+        "pictureUrl": "",
+        "todayNewMessages": 0
+      }
+    ]
+  },
+  "pages (ล็อกเพจเดียว)": {
+    "status": 200,
+    "body": [
+      {
+        "connectedAt": "<ISO>",
+        "id": "100000000000001",
+        "lastSyncAt": "<ISO>",
+        "name": "Smoke FB Page",
+        "pictureUrl": "",
+        "todayNewMessages": 0
+      }
+    ]
+  },
+  "pages.add (token ปลอม)": {
+    "status": 400,
+    "body": {
+      "error": "เชื่อมต่อไม่สำเร็จ: Invalid OAuth access token - Cannot parse access token — ถ้าเป็น User token ต้องติ๊กเลือกเพจตอนขอสิทธิ์ หรือถ้าเป็น Page token ต้องมีสิทธิ์ pages_read_engagement"
+    }
+  },
+  "pages.fromUserToken (ปลอม)": {
+    "status": 400,
+    "body": {
+      "error": "เชื่อมต่อไม่สำเร็จ: Invalid OAuth access token - Cannot parse access token"
+    }
+  },
+  "pageConfig.list": {
+    "status": 200,
+    "body": {
+      "100000000000001": {
+        "character": "โทนเป็นกันเอง",
+        "competitors": [
+          {
+            "name": "คู่แข่ง ก",
+            "url": "https://example.com/a"
+          }
+        ],
+        "packageImage": "",
+        "startDate": "2026-01-01",
+        "teams": {
+          "am": [],
+          "chatInbox": [],
+          "content": [
+            {
+              "empCode": "E001",
+              "name": "สมชาย ใจดี"
+            }
+          ],
+          "graphic": []
+        }
+      }
+    }
+  },
+  "pageConfig.update": {
+    "status": 200,
+    "body": {
+      "config": {
+        "character": "โทนสุภาพ",
+        "competitors": [
+          {
+            "name": "คู่แข่ง ข",
+            "url": "example.com/b"
+          }
+        ],
+        "packageImage": "",
+        "startDate": "2026-02-01",
+        "teams": {
+          "am": [],
+          "chatInbox": [],
+          "content": [
+            {
+              "empCode": "E002",
+              "name": "มานี"
+            }
+          ],
+          "graphic": []
+        }
+      },
+      "ok": true
+    }
+  },
+  "pageConfig.list (หลังแก้)": {
+    "status": 200,
+    "body": {
+      "100000000000001": {
+        "character": "โทนสุภาพ",
+        "competitors": [
+          {
+            "name": "คู่แข่ง ข",
+            "url": "example.com/b"
+          }
+        ],
+        "packageImage": "",
+        "startDate": "2026-02-01",
+        "teams": {
+          "am": [],
+          "chatInbox": [],
+          "content": [
+            {
+              "empCode": "E002",
+              "name": "มานี"
+            }
+          ],
+          "graphic": []
+        }
+      }
+    }
+  },
+  "projects.list": {
+    "status": 200,
+    "body": [
+      {
+        "createdAt": "<ISO>",
+        "description": "ใช้ใน smoke test",
+        "id": "prj_smoke",
+        "name": "โปรเจกต์ทดสอบ",
+        "pageIds": [
+          "100000000000001"
+        ]
+      }
+    ]
+  },
+  "projects.create": {
+    "status": 200,
+    "body": {
+      "createdAt": "<ISO>",
+      "description": "x",
+      "id": "prj_<GEN>",
+      "name": "โปรเจกต์ใหม่",
+      "pageIds": [
+        "100000000000001"
+      ]
+    }
+  },
+  "projects.update": {
+    "status": 200,
+    "body": {
+      "createdAt": "<ISO>",
+      "description": "ใช้ใน smoke test",
+      "id": "prj_smoke",
+      "name": "โปรเจกต์ทดสอบ (แก้)",
+      "pageIds": [
+        "100000000000001"
+      ]
+    }
+  },
+  "projects.list (หลังแก้)": {
+    "status": 200,
+    "body": [
+      {
+        "createdAt": "<ISO>",
+        "description": "x",
+        "id": "prj_<GEN>",
+        "name": "โปรเจกต์ใหม่",
+        "pageIds": [
+          "100000000000001"
+        ]
+      },
+      {
+        "createdAt": "<ISO>",
+        "description": "ใช้ใน smoke test",
+        "id": "prj_smoke",
+        "name": "โปรเจกต์ทดสอบ (แก้)",
+        "pageIds": [
+          "100000000000001"
+        ]
+      }
+    ]
+  },
+  "conversations": {
+    "status": 200,
+    "body": {
+      "hasMore": false,
+      "items": [
+        {
+          "customerId": "cust_1",
+          "customerName": "ลูกค้า ทดสอบ",
+          "customerPic": "",
+          "forwardCount": 1,
+          "id": "t_smoke_1",
+          "lastCustomerText": "ขอใบเสนอราคาด้วยค่ะ",
+          "messageCount": 3,
+          "pageId": "100000000000001",
+          "pageName": "Smoke FB Page",
+          "preview": {
+            "isFromPage": false,
+            "text": "ขอใบเสนอราคาด้วยค่ะ"
+          },
+          "remark": "ลูกค้าเก่า",
+          "replyMs": null,
+          "statusOverride": "yellow",
+          "tags": [
+            "VIP"
+          ],
+          "unreadCount": 1,
+          "updatedTime": "<ISO>",
+          "waitingMs": "<DURATION>"
+        }
+      ],
+      "total": 1
+    }
+  },
+  "conversations (scope project)": {
+    "status": 200,
+    "body": {
+      "hasMore": false,
+      "items": [
+        {
+          "customerId": "cust_1",
+          "customerName": "ลูกค้า ทดสอบ",
+          "customerPic": "",
+          "forwardCount": 1,
+          "id": "t_smoke_1",
+          "lastCustomerText": "ขอใบเสนอราคาด้วยค่ะ",
+          "messageCount": 3,
+          "pageId": "100000000000001",
+          "pageName": "Smoke FB Page",
+          "preview": {
+            "isFromPage": false,
+            "text": "ขอใบเสนอราคาด้วยค่ะ"
+          },
+          "remark": "ลูกค้าเก่า",
+          "replyMs": null,
+          "statusOverride": "yellow",
+          "tags": [
+            "VIP"
+          ],
+          "unreadCount": 1,
+          "updatedTime": "<ISO>",
+          "waitingMs": "<DURATION>"
+        }
+      ],
+      "total": 1
+    }
+  },
+  "conversations (ค้นหา)": {
+    "status": 200,
+    "body": {
+      "hasMore": false,
+      "items": [
+        {
+          "customerId": "cust_1",
+          "customerName": "ลูกค้า ทดสอบ",
+          "customerPic": "",
+          "forwardCount": 1,
+          "id": "t_smoke_1",
+          "lastCustomerText": "ขอใบเสนอราคาด้วยค่ะ",
+          "messageCount": 3,
+          "pageId": "100000000000001",
+          "pageName": "Smoke FB Page",
+          "preview": {
+            "isFromPage": false,
+            "text": "ขอใบเสนอราคาด้วยค่ะ"
+          },
+          "remark": "ลูกค้าเก่า",
+          "replyMs": null,
+          "statusOverride": "yellow",
+          "tags": [
+            "VIP"
+          ],
+          "unreadCount": 1,
+          "updatedTime": "<ISO>",
+          "waitingMs": "<DURATION>"
+        }
+      ],
+      "total": 1
+    }
+  },
+  "conversations (กรองวัน)": {
+    "status": 200,
+    "body": {
+      "hasMore": false,
+      "items": [],
+      "total": 0
+    }
+  },
+  "conversations (แท็บส่งต่อ)": {
+    "status": 200,
+    "body": {
+      "hasMore": false,
+      "items": [
+        {
+          "customerId": "cust_1",
+          "customerName": "ลูกค้า ทดสอบ",
+          "customerPic": "",
+          "forwardCount": 1,
+          "id": "t_smoke_1",
+          "lastCustomerText": "ขอใบเสนอราคาด้วยค่ะ",
+          "messageCount": 3,
+          "pageId": "100000000000001",
+          "pageName": "Smoke FB Page",
+          "preview": {
+            "isFromPage": false,
+            "text": "ขอใบเสนอราคาด้วยค่ะ"
+          },
+          "remark": "ลูกค้าเก่า",
+          "replyMs": null,
+          "statusOverride": "yellow",
+          "tags": [
+            "VIP"
+          ],
+          "unreadCount": 1,
+          "updatedTime": "<ISO>",
+          "waitingMs": "<DURATION>"
+        }
+      ],
+      "total": 1
+    }
+  },
+  "calendar": {
+    "status": 200,
+    "body": {
+      "2026-01-04": 1
+    }
+  },
+  "thread": {
+    "status": 200,
+    "body": {
+      "botTexts": [],
+      "customerId": "cust_1",
+      "customerName": "ลูกค้า ทดสอบ",
+      "customerPic": "",
+      "forwards": [
+        {
+          "createdTime": "<ISO>",
+          "fromName": "ผู้ทดสอบ",
+          "id": "fw_smoke",
+          "text": "ฝากดูเคสนี้",
+          "toNames": [
+            "สมชาย ใจดี"
+          ]
+        }
+      ],
+      "id": "t_smoke_1",
+      "keywords": [
+        {
+          "count": 2,
+          "word": "ราคา"
+        },
+        {
+          "count": 1,
+          "word": "สินค้า"
+        },
+        {
+          "count": 1,
+          "word": "ใบ"
+        },
+        {
+          "count": 1,
+          "word": "เสนอ"
+        }
+      ],
+      "messages": [
+        {
+          "attachments": [],
+          "createdTime": "<ISO>",
+          "fromId": "cust_1",
+          "fromName": "ลูกค้า ทดสอบ",
+          "id": "m1",
+          "isFromPage": false,
+          "text": "สวัสดีค่ะ สอบถามราคาสินค้า"
+        },
+        {
+          "attachments": [],
+          "createdTime": "<ISO>",
+          "fromId": "100000000000001",
+          "fromName": "Smoke FB Page",
+          "id": "m2",
+          "isFromPage": true,
+          "text": "สวัสดีครับ ยินดีให้บริการครับ"
+        },
+        {
+          "attachments": [],
+          "createdTime": "<ISO>",
+          "fromId": "cust_1",
+          "fromName": "ลูกค้า ทดสอบ",
+          "id": "m3",
+          "isFromPage": false,
+          "text": "ขอใบเสนอราคาด้วยค่ะ"
+        }
+      ],
+      "pageId": "100000000000001",
+      "pageName": "Smoke FB Page",
+      "remark": "ลูกค้าเก่า",
+      "statusOverride": "yellow",
+      "tags": [
+        "VIP"
+      ],
+      "unreadCount": 1,
+      "updatedTime": "<ISO>"
+    }
+  },
+  "messages": {
+    "status": 200,
+    "body": [
+      {
+        "attachments": [],
+        "conversationId": "t_smoke_1",
+        "createdTime": "<ISO>",
+        "customerName": "ลูกค้า ทดสอบ",
+        "fromId": "cust_1",
+        "fromName": "ลูกค้า ทดสอบ",
+        "id": "m3",
+        "isFromPage": false,
+        "pageId": "100000000000001",
+        "pageName": "Smoke FB Page",
+        "text": "ขอใบเสนอราคาด้วยค่ะ"
+      },
+      {
+        "attachments": [],
+        "conversationId": "t_smoke_1",
+        "createdTime": "<ISO>",
+        "customerName": "ลูกค้า ทดสอบ",
+        "fromId": "100000000000001",
+        "fromName": "Smoke FB Page",
+        "id": "m2",
+        "isFromPage": true,
+        "pageId": "100000000000001",
+        "pageName": "Smoke FB Page",
+        "text": "สวัสดีครับ ยินดีให้บริการครับ"
+      },
+      {
+        "attachments": [],
+        "conversationId": "t_smoke_1",
+        "createdTime": "<ISO>",
+        "customerName": "ลูกค้า ทดสอบ",
+        "fromId": "cust_1",
+        "fromName": "ลูกค้า ทดสอบ",
+        "id": "m1",
+        "isFromPage": false,
+        "pageId": "100000000000001",
+        "pageName": "Smoke FB Page",
+        "text": "สวัสดีค่ะ สอบถามราคาสินค้า"
+      }
+    ]
+  },
+  "conv.status": {
+    "status": 200,
+    "body": {
+      "ok": true,
+      "status": "red"
+    }
+  },
+  "conv.remark": {
+    "status": 200,
+    "body": {
+      "ok": true,
+      "remark": "โน้ตใหม่"
+    }
+  },
+  "conv.tags": {
+    "status": 200,
+    "body": {
+      "ok": true,
+      "tags": [
+        "VIP",
+        "ด่วน"
+      ]
+    }
+  },
+  "conv.forward (ภายใน)": {
+    "status": 200,
+    "body": {
+      "forward": {
+        "createdTime": "<ISO>",
+        "fromName": "ผู้ทดสอบ",
+        "id": "fw_<GEN>",
+        "text": "ส่งต่อจาก smoke",
+        "toNames": [
+          "มานี"
+        ]
+      },
+      "ok": true
+    }
+  },
+  "conv.reply (token ปลอม)": {
+    "status": 400,
+    "body": {
+      "error": "ส่งไม่ได้: Invalid OAuth access token data."
+    }
+  },
+  "thread (หลัง mutate)": {
+    "status": 200,
+    "body": {
+      "botTexts": [],
+      "customerId": "cust_1",
+      "customerName": "ลูกค้า ทดสอบ",
+      "customerPic": "",
+      "forwards": [
+        {
+          "createdTime": "<ISO>",
+          "fromName": "ผู้ทดสอบ",
+          "id": "fw_smoke",
+          "text": "ฝากดูเคสนี้",
+          "toNames": [
+            "สมชาย ใจดี"
+          ]
+        },
+        {
+          "createdTime": "<ISO>",
+          "fromName": "ผู้ทดสอบ",
+          "id": "fw_<GEN>",
+          "text": "ส่งต่อจาก smoke",
+          "toNames": [
+            "มานี"
+          ]
+        }
+      ],
+      "id": "t_smoke_1",
+      "keywords": [
+        {
+          "count": 2,
+          "word": "ราคา"
+        },
+        {
+          "count": 1,
+          "word": "สินค้า"
+        },
+        {
+          "count": 1,
+          "word": "ใบ"
+        },
+        {
+          "count": 1,
+          "word": "เสนอ"
+        }
+      ],
+      "messages": [
+        {
+          "attachments": [],
+          "createdTime": "<ISO>",
+          "fromId": "cust_1",
+          "fromName": "ลูกค้า ทดสอบ",
+          "id": "m1",
+          "isFromPage": false,
+          "text": "สวัสดีค่ะ สอบถามราคาสินค้า"
+        },
+        {
+          "attachments": [],
+          "createdTime": "<ISO>",
+          "fromId": "100000000000001",
+          "fromName": "Smoke FB Page",
+          "id": "m2",
+          "isFromPage": true,
+          "text": "สวัสดีครับ ยินดีให้บริการครับ"
+        },
+        {
+          "attachments": [],
+          "createdTime": "<ISO>",
+          "fromId": "cust_1",
+          "fromName": "ลูกค้า ทดสอบ",
+          "id": "m3",
+          "isFromPage": false,
+          "text": "ขอใบเสนอราคาด้วยค่ะ"
+        }
+      ],
+      "pageId": "100000000000001",
+      "pageName": "Smoke FB Page",
+      "remark": "โน้ตใหม่",
+      "statusOverride": "red",
+      "tags": [
+        "VIP",
+        "ด่วน"
+      ],
+      "unreadCount": 1,
+      "updatedTime": "<ISO>"
+    }
+  },
+  "savedReplies.list": {
+    "status": 200,
+    "body": [
+      {
+        "createdAt": "<ISO>",
+        "id": "sr_smoke",
+        "tags": [
+          "ทักทาย"
+        ],
+        "text": "ขอบคุณที่ติดต่อมาครับ"
+      }
+    ]
+  },
+  "savedReplies.add": {
+    "status": 200,
+    "body": {
+      "createdAt": "<ISO>",
+      "id": "sr_<GEN>",
+      "tags": [
+        "ใหม่"
+      ],
+      "text": "คำตอบใหม่",
+      "title": ""
+    }
+  },
+  "savedReplies.update": {
+    "status": 200,
+    "body": {
+      "createdAt": "<ISO>",
+      "id": "sr_smoke",
+      "tags": [
+        "ทักทาย"
+      ],
+      "text": "แก้แล้ว"
+    }
+  },
+  "savedReplies.delete": {
+    "status": 200,
+    "body": {
+      "ok": true
+    }
+  },
+  "savedReplies.list (หลังแก้)": {
+    "status": 200,
+    "body": [
+      {
+        "createdAt": "<ISO>",
+        "id": "sr_<GEN>",
+        "tags": [
+          "ใหม่"
+        ],
+        "text": "คำตอบใหม่",
+        "title": ""
+      }
+    ]
+  },
+  "sync.status": {
+    "status": 200,
+    "body": {
+      "autoRefreshMinutes": 1440,
+      "lastRefreshAt": "<ISO>",
+      "lastResults": [],
+      "nextRefreshAt": "<ISO>",
+      "running": false
+    }
+  },
+  "sync.history": {
+    "status": 200,
+    "body": [
+      {
+        "finishedAt": "<ISO>",
+        "id": "run_smoke",
+        "results": [
+          {
+            "conversations": 1,
+            "ok": true,
+            "pageId": "100000000000001",
+            "pageName": "Smoke FB Page"
+          }
+        ],
+        "startedAt": "<ISO>",
+        "trigger": "manual"
+      }
+    ]
+  },
+  "sync.interval.get": {
+    "status": 200,
+    "body": {
+      "minutes": 1440
+    }
+  },
+  "sync.interval.put": {
+    "status": 200,
+    "body": {
+      "minutes": 120,
+      "nextRefreshAt": "<ISO>",
+      "ok": true
+    }
+  },
+  "sync.interval.put (นอกช่วง→400)": {
+    "status": 400,
+    "body": {
+      "error": "รอบเวลาต้องอยู่ระหว่าง 15 นาที ถึง 24 ชั่วโมง"
+    }
+  },
+  "sync.page (LINE = ข้าม)": {
+    "status": 200,
+    "body": {
+      "conversations": 0,
+      "ok": true,
+      "pageId": "line_smokechan"
+    }
+  },
+  "sync.page (FB token ปลอม)": {
+    "status": 400,
+    "body": {
+      "error": "ดึง inbox ไม่สำเร็จ: Invalid OAuth access token data."
+    }
+  },
+  "sync.all": {
+    "status": 200,
+    "body": {
+      "lastRefreshAt": "<ISO>",
+      "results": [
+        {
+          "error": "Invalid OAuth access token data.",
+          "ok": false,
+          "pageId": "100000000000001",
+          "pageName": "Smoke FB Page"
+        }
+      ]
+    }
+  },
+  "analytics": {
+    "status": 200,
+    "body": {
+      "alerts": [
+        {
+          "customerId": "cust_1",
+          "customerName": "ลูกค้า ทดสอบ",
+          "customerPic": "",
+          "id": "t_smoke_1",
+          "lastText": "ขอใบเสนอราคาด้วยค่ะ",
+          "level": "red",
+          "pageName": "Smoke FB Page",
+          "waitedMs": "<DURATION>"
+        }
+      ],
+      "answeredList": {
+        "buckets": [
+          {
+            "count": 0,
+            "label": "ตอบใน 1 ชม."
+          },
+          {
+            "count": 0,
+            "label": "1–6 ชม."
+          },
+          {
+            "count": 0,
+            "label": "6–24 ชม."
+          },
+          {
+            "count": 0,
+            "label": "เกิน 24 ชม."
+          }
+        ],
+        "rooms": [],
+        "total": 0
+      },
+      "chatOverview": {
+        "customerChats": {
+          "cur": [
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "delta": null,
+          "prev": 0,
+          "prevSeries": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "value": 1
+        },
+        "messagesReceived": {
+          "cur": [
+            0,
+            0,
+            0,
+            2,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "delta": null,
+          "prev": 0,
+          "prevSeries": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "value": 2
+        },
+        "messagesSent": {
+          "cur": [
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "delta": null,
+          "prev": 0,
+          "prevSeries": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "value": 1
+        },
+        "newVsReturning": {
+          "newChats": 1,
+          "returningChats": 0
+        },
+        "sla10min": {
+          "cur": [
+            0,
+            0,
+            0,
+            100,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "delta": null,
+          "prev": null,
+          "prevSeries": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "value": 1
+        },
+        "sla12h": {
+          "cur": [
+            0,
+            0,
+            0,
+            100,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "delta": null,
+          "prev": null,
+          "prevSeries": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "value": 1
+        }
+      },
+      "days": [
+        {
+          "date": "2026-01-01",
+          "in": 0,
+          "out": 0
+        },
+        {
+          "date": "2026-01-02",
+          "in": 0,
+          "out": 0
+        },
+        {
+          "date": "2026-01-03",
+          "in": 0,
+          "out": 0
+        },
+        {
+          "date": "2026-01-04",
+          "in": 2,
+          "out": 1
+        },
+        {
+          "date": "2026-01-05",
+          "in": 0,
+          "out": 0
+        },
+        {
+          "date": "2026-01-06",
+          "in": 0,
+          "out": 0
+        },
+        {
+          "date": "2026-01-07",
+          "in": 0,
+          "out": 0
+        },
+        {
+          "date": "2026-01-08",
+          "in": 0,
+          "out": 0
+        },
+        {
+          "date": "2026-01-09",
+          "in": 0,
+          "out": 0
+        },
+        {
+          "date": "2026-01-10",
+          "in": 0,
+          "out": 0
+        },
+        {
+          "date": "2026-01-11",
+          "in": 0,
+          "out": 0
+        },
+        {
+          "date": "2026-01-12",
+          "in": 0,
+          "out": 0
+        },
+        {
+          "date": "2026-01-13",
+          "in": 0,
+          "out": 0
+        },
+        {
+          "date": "2026-01-14",
+          "in": 0,
+          "out": 0
+        },
+        {
+          "date": "2026-01-15",
+          "in": 0,
+          "out": 0
+        },
+        {
+          "date": "2026-01-16",
+          "in": 0,
+          "out": 0
+        },
+        {
+          "date": "2026-01-17",
+          "in": 0,
+          "out": 0
+        },
+        {
+          "date": "2026-01-18",
+          "in": 0,
+          "out": 0
+        },
+        {
+          "date": "2026-01-19",
+          "in": 0,
+          "out": 0
+        },
+        {
+          "date": "2026-01-20",
+          "in": 0,
+          "out": 0
+        },
+        {
+          "date": "2026-01-21",
+          "in": 0,
+          "out": 0
+        },
+        {
+          "date": "2026-01-22",
+          "in": 0,
+          "out": 0
+        },
+        {
+          "date": "2026-01-23",
+          "in": 0,
+          "out": 0
+        },
+        {
+          "date": "2026-01-24",
+          "in": 0,
+          "out": 0
+        },
+        {
+          "date": "2026-01-25",
+          "in": 0,
+          "out": 0
+        },
+        {
+          "date": "2026-01-26",
+          "in": 0,
+          "out": 0
+        },
+        {
+          "date": "2026-01-27",
+          "in": 0,
+          "out": 0
+        },
+        {
+          "date": "2026-01-28",
+          "in": 0,
+          "out": 0
+        },
+        {
+          "date": "2026-01-29",
+          "in": 0,
+          "out": 0
+        },
+        {
+          "date": "2026-01-30",
+          "in": 0,
+          "out": 0
+        },
+        {
+          "date": "2026-01-31",
+          "in": 0,
+          "out": 0
+        }
+      ],
+      "generatedAt": "<ISO>",
+      "hourly": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        1,
+        0,
+        0,
+        0
+      ],
+      "keywords": [
+        {
+          "count": 1,
+          "word": "ราคา"
+        },
+        {
+          "count": 1,
+          "word": "สินค้า"
+        },
+        {
+          "count": 1,
+          "word": "ใบ"
+        },
+        {
+          "count": 1,
+          "word": "เสนอ"
+        }
+      ],
+      "perPage": [
+        {
+          "avgHumanMs": 30000,
+          "over24h": 1,
+          "pageId": "100000000000001",
+          "pageName": "Smoke FB Page",
+          "periodIn": 2,
+          "red": 1,
+          "waiting": 1
+        }
+      ],
+      "period": {
+        "days": 31,
+        "from": "2026-01-01",
+        "to": "2026-01-31"
+      },
+      "response": {
+        "avgBotMs": null,
+        "avgHumanMs": 30000,
+        "botCount": 0,
+        "botOnlyRooms": 0,
+        "humanCount": 1,
+        "minHumanMs": 30000,
+        "roomsWithReply": 1,
+        "sla1hPct": 1
+      },
+      "scope": "all",
+      "totals": {
+        "activeRooms": 1,
+        "answeredPct": 0,
+        "conversations": 1,
+        "periodIn": 2,
+        "prevIn": 0
+      },
+      "urgency": {
+        "green": 0,
+        "red": 1,
+        "yellow": 0
+      },
+      "waiting": {
+        "agingBuckets": [
+          {
+            "count": 0,
+            "label": "ต่ำกว่า 1 ชม."
+          },
+          {
+            "count": 0,
+            "label": "1–6 ชม."
+          },
+          {
+            "count": 0,
+            "label": "6–24 ชม."
+          },
+          {
+            "count": 1,
+            "label": "เกิน 24 ชม. ⛔"
+          }
+        ],
+        "over24h": 1,
+        "rooms": [
+          {
+            "customerId": "cust_1",
+            "customerName": "ลูกค้า ทดสอบ",
+            "customerPic": "",
+            "id": "t_smoke_1",
+            "lastText": "ขอใบเสนอราคาด้วยค่ะ",
+            "level": "red",
+            "pageName": "Smoke FB Page",
+            "waitedMs": "<DURATION>"
+          }
+        ],
+        "total": 1
+      }
+    }
+  },
+  "analytics (รายเพจ)": {
+    "status": 200,
+    "body": {
+      "alerts": [
+        {
+          "customerId": "cust_1",
+          "customerName": "ลูกค้า ทดสอบ",
+          "customerPic": "",
+          "id": "t_smoke_1",
+          "lastText": "ขอใบเสนอราคาด้วยค่ะ",
+          "level": "red",
+          "pageName": "Smoke FB Page",
+          "waitedMs": "<DURATION>"
+        }
+      ],
+      "answeredList": {
+        "buckets": [
+          {
+            "count": 0,
+            "label": "ตอบใน 1 ชม."
+          },
+          {
+            "count": 0,
+            "label": "1–6 ชม."
+          },
+          {
+            "count": 0,
+            "label": "6–24 ชม."
+          },
+          {
+            "count": 0,
+            "label": "เกิน 24 ชม."
+          }
+        ],
+        "rooms": [],
+        "total": 0
+      },
+      "chatOverview": {
+        "customerChats": {
+          "cur": [
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "delta": null,
+          "prev": 0,
+          "prevSeries": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "value": 1
+        },
+        "messagesReceived": {
+          "cur": [
+            0,
+            0,
+            0,
+            2,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "delta": null,
+          "prev": 0,
+          "prevSeries": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "value": 2
+        },
+        "messagesSent": {
+          "cur": [
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "delta": null,
+          "prev": 0,
+          "prevSeries": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "value": 1
+        },
+        "newVsReturning": {
+          "newChats": 1,
+          "returningChats": 0
+        },
+        "sla10min": {
+          "cur": [
+            0,
+            0,
+            0,
+            100,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "delta": null,
+          "prev": null,
+          "prevSeries": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "value": 1
+        },
+        "sla12h": {
+          "cur": [
+            0,
+            0,
+            0,
+            100,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "delta": null,
+          "prev": null,
+          "prevSeries": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "value": 1
+        }
+      },
+      "days": [
+        {
+          "date": "2026-01-01",
+          "in": 0,
+          "out": 0
+        },
+        {
+          "date": "2026-01-02",
+          "in": 0,
+          "out": 0
+        },
+        {
+          "date": "2026-01-03",
+          "in": 0,
+          "out": 0
+        },
+        {
+          "date": "2026-01-04",
+          "in": 2,
+          "out": 1
+        },
+        {
+          "date": "2026-01-05",
+          "in": 0,
+          "out": 0
+        },
+        {
+          "date": "2026-01-06",
+          "in": 0,
+          "out": 0
+        },
+        {
+          "date": "2026-01-07",
+          "in": 0,
+          "out": 0
+        },
+        {
+          "date": "2026-01-08",
+          "in": 0,
+          "out": 0
+        },
+        {
+          "date": "2026-01-09",
+          "in": 0,
+          "out": 0
+        },
+        {
+          "date": "2026-01-10",
+          "in": 0,
+          "out": 0
+        },
+        {
+          "date": "2026-01-11",
+          "in": 0,
+          "out": 0
+        },
+        {
+          "date": "2026-01-12",
+          "in": 0,
+          "out": 0
+        },
+        {
+          "date": "2026-01-13",
+          "in": 0,
+          "out": 0
+        },
+        {
+          "date": "2026-01-14",
+          "in": 0,
+          "out": 0
+        },
+        {
+          "date": "2026-01-15",
+          "in": 0,
+          "out": 0
+        },
+        {
+          "date": "2026-01-16",
+          "in": 0,
+          "out": 0
+        },
+        {
+          "date": "2026-01-17",
+          "in": 0,
+          "out": 0
+        },
+        {
+          "date": "2026-01-18",
+          "in": 0,
+          "out": 0
+        },
+        {
+          "date": "2026-01-19",
+          "in": 0,
+          "out": 0
+        },
+        {
+          "date": "2026-01-20",
+          "in": 0,
+          "out": 0
+        },
+        {
+          "date": "2026-01-21",
+          "in": 0,
+          "out": 0
+        },
+        {
+          "date": "2026-01-22",
+          "in": 0,
+          "out": 0
+        },
+        {
+          "date": "2026-01-23",
+          "in": 0,
+          "out": 0
+        },
+        {
+          "date": "2026-01-24",
+          "in": 0,
+          "out": 0
+        },
+        {
+          "date": "2026-01-25",
+          "in": 0,
+          "out": 0
+        },
+        {
+          "date": "2026-01-26",
+          "in": 0,
+          "out": 0
+        },
+        {
+          "date": "2026-01-27",
+          "in": 0,
+          "out": 0
+        },
+        {
+          "date": "2026-01-28",
+          "in": 0,
+          "out": 0
+        },
+        {
+          "date": "2026-01-29",
+          "in": 0,
+          "out": 0
+        },
+        {
+          "date": "2026-01-30",
+          "in": 0,
+          "out": 0
+        },
+        {
+          "date": "2026-01-31",
+          "in": 0,
+          "out": 0
+        }
+      ],
+      "generatedAt": "<ISO>",
+      "hourly": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        1,
+        0,
+        0,
+        0
+      ],
+      "keywords": [
+        {
+          "count": 1,
+          "word": "ราคา"
+        },
+        {
+          "count": 1,
+          "word": "สินค้า"
+        },
+        {
+          "count": 1,
+          "word": "ใบ"
+        },
+        {
+          "count": 1,
+          "word": "เสนอ"
+        }
+      ],
+      "perPage": [],
+      "period": {
+        "days": 31,
+        "from": "2026-01-01",
+        "to": "2026-01-31"
+      },
+      "response": {
+        "avgBotMs": null,
+        "avgHumanMs": 30000,
+        "botCount": 0,
+        "botOnlyRooms": 0,
+        "humanCount": 1,
+        "minHumanMs": 30000,
+        "roomsWithReply": 1,
+        "sla1hPct": 1
+      },
+      "scope": "100000000000001",
+      "totals": {
+        "activeRooms": 1,
+        "answeredPct": 0,
+        "conversations": 1,
+        "periodIn": 2,
+        "prevIn": 0
+      },
+      "urgency": {
+        "green": 0,
+        "red": 1,
+        "yellow": 0
+      },
+      "waiting": {
+        "agingBuckets": [
+          {
+            "count": 0,
+            "label": "ต่ำกว่า 1 ชม."
+          },
+          {
+            "count": 0,
+            "label": "1–6 ชม."
+          },
+          {
+            "count": 0,
+            "label": "6–24 ชม."
+          },
+          {
+            "count": 1,
+            "label": "เกิน 24 ชม. ⛔"
+          }
+        ],
+        "over24h": 1,
+        "rooms": [
+          {
+            "customerId": "cust_1",
+            "customerName": "ลูกค้า ทดสอบ",
+            "customerPic": "",
+            "id": "t_smoke_1",
+            "lastText": "ขอใบเสนอราคาด้วยค่ะ",
+            "level": "red",
+            "pageName": "Smoke FB Page",
+            "waitedMs": "<DURATION>"
+          }
+        ],
+        "total": 1
+      }
+    }
+  },
+  "keywordRooms": {
+    "status": 400,
+    "body": {
+      "error": "ต้องระบุ word"
+    }
+  },
+  "report.inbox": {
+    "status": 200,
+    "body": {
+      "pageName": "Smoke FB Page",
+      "rows": []
+    }
+  },
+  "report.posts (token ปลอม)": {
+    "status": 400,
+    "body": {
+      "error": "ดึงโพสต์ไม่สำเร็จ: Invalid OAuth access token data."
+    }
+  },
+  "report.comments (token ปลอม)": {
+    "status": 400,
+    "body": {
+      "error": "ดึงคอมเมนต์ไม่สำเร็จ: Invalid OAuth access token data."
+    }
+  },
+  "posts (token ปลอม)": {
+    "status": 400,
+    "body": {
+      "error": "ดึงโพสต์ไม่สำเร็จ: Invalid OAuth access token data."
+    }
+  },
+  "post.insights (token ปลอม)": {
+    "status": 200,
+    "body": {
+      "available": false,
+      "reason": "Invalid OAuth access token data."
+    }
+  },
+  "post.comments (token ปลอม)": {
+    "status": 400,
+    "body": {
+      "error": "ดึงคอมเมนต์ไม่สำเร็จ: Invalid OAuth access token data."
+    }
+  },
+  "comment.reply (token ปลอม)": {
+    "status": 400,
+    "body": {
+      "error": "ตอบคอมเมนต์ไม่สำเร็จ: Invalid OAuth access token data. — token ต้องมีสิทธิ์ pages_manage_engagement (เพิ่มตอน Generate token แล้วเชื่อมเพจใหม่)"
+    }
+  },
+  "competitors.list": {
+    "status": 200,
+    "body": {
+      "apifyReady": false,
+      "items": [
+        {
+          "addedAt": "<ISO>",
+          "coveredFrom": "2026-01-01",
+          "coveredTo": "2026-01-03",
+          "handle": "smokebrand",
+          "id": "cmp_smokebrand",
+          "lastSyncAt": "<ISO>",
+          "name": "Smoke Brand",
+          "pictureUrl": "",
+          "postCount": 1,
+          "url": "https://www.facebook.com/smokebrand"
+        }
+      ]
+    }
+  },
+  "competitors.detail": {
+    "status": 200,
+    "body": {
+      "addedAt": "<ISO>",
+      "apifyReady": false,
+      "coveredFrom": "2026-01-01",
+      "coveredTo": "2026-01-03",
+      "handle": "smokebrand",
+      "id": "cmp_smokebrand",
+      "lastSyncAt": "<ISO>",
+      "name": "Smoke Brand",
+      "pictureUrl": "",
+      "posts": [
+        {
+          "comments": 2,
+          "competitorId": "cmp_smokebrand",
+          "id": "p_smoke_1",
+          "imageUrl": "https://scontent.xx.fbcdn.net/v/smoke.jpg",
+          "likes": 10,
+          "pageName": "Smoke Brand",
+          "shares": 1,
+          "text": "โพสต์ทดสอบคู่แข่ง",
+          "time": "<ISO>",
+          "url": "https://www.facebook.com/smokebrand/posts/1"
+        }
+      ],
+      "url": "https://www.facebook.com/smokebrand"
+    }
+  },
+  "competitors.syncHistory": {
+    "status": 200,
+    "body": [
+      {
+        "added": 1,
+        "fetched": 1,
+        "finishedAt": "<ISO>",
+        "gaps": [
+          {
+            "from": "2026-01-01",
+            "to": "2026-01-03"
+          }
+        ],
+        "id": "crun_smoke",
+        "ok": true,
+        "range": "current",
+        "rangeLabel": "เดือนปัจจุบัน",
+        "requested": {
+          "from": "2026-01-01",
+          "to": "2026-01-03"
+        },
+        "skipped": false,
+        "startedAt": "<ISO>"
+      }
+    ]
+  },
+  "competitors.add": {
+    "status": 200,
+    "body": {
+      "competitor": {
+        "addedAt": "<ISO>",
+        "coveredFrom": null,
+        "coveredTo": null,
+        "handle": "newbrand",
+        "id": "cmp_newbrand",
+        "lastSyncAt": null,
+        "name": "newbrand",
+        "pictureUrl": "",
+        "url": "https://www.facebook.com/newbrand"
+      },
+      "ok": true
+    }
+  },
+  "competitors.add (URL ผิด→400)": {
+    "status": 400,
+    "body": {
+      "error": "ใส่ URL เพจ Facebook ให้ถูกต้อง เช่น https://www.facebook.com/systemathailand"
+    }
+  },
+  "competitors.add (ซ้ำ→400)": {
+    "status": 400,
+    "body": {
+      "error": "มีเพจ \"Smoke Brand\" อยู่แล้ว"
+    }
+  },
+  "competitors.sync (ไม่มี APIFY_TOKEN)": {
+    "status": 400,
+    "body": {
+      "error": "ยังไม่ได้ตั้งค่า APIFY_TOKEN — ใส่ token ของ Apify ใน environment ก่อน"
+    }
+  },
+  "competitors.delete": {
+    "status": 200,
+    "body": {
+      "ok": true
+    }
+  },
+  "connections.line.list": {
+    "status": 200,
+    "body": [
+      {
+        "basicId": "@smoke",
+        "channelId": "smokechan",
+        "connectedAt": "<ISO>",
+        "id": "line_smokechan",
+        "lastSyncAt": null,
+        "name": "Smoke LINE OA",
+        "pictureUrl": "",
+        "platform": "line",
+        "webhookUrl": "http://<HOST>/api/line/webhook/smokechan"
+      }
+    ]
+  },
+  "connections.line.add (token ปลอม)": {
+    "status": 400,
+    "body": {
+      "error": "เชื่อมต่อ LINE ไม่สำเร็จ: Authentication failed. Confirm that the access token in the authorization header is valid."
+    }
+  },
+  "connections.line.add (ไม่ครบ→400)": {
+    "status": 400,
+    "body": {
+      "error": "ต้องระบุ Channel ID, Channel secret และ Channel access token"
+    }
+  },
+  "webhook.line (ลายเซ็นถูก)": {
+    "status": 200,
+    "body": null
+  },
+  "webhook.line (ลายเซ็นผิด→401)": {
+    "status": 401,
+    "body": null
+  },
+  "webhook.line (ไม่มีเพจ→404)": {
+    "status": 404,
+    "body": null
+  }
+}
