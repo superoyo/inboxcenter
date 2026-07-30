@@ -101,33 +101,18 @@ function matchesQuery(c, needle) {
 // proxy ไป Wazzup เพื่อเลี่ยง CORS + ให้ base URL เป็น config ฝั่ง server
 const WAZZUP_BASE_URL = process.env.WAZZUP_BASE_URL || 'https://api.fareastfamelineddb.com';
 
-// แกะ exp (วินาที) จาก JWT โดยไม่ verify ลายเซ็น — ใช้เช็กหมดอายุแบบเบา ๆ ที่ server
-function decodeJwtExp(token) {
-  try {
-    const payload = token.split('.')[1];
-    const json = Buffer.from(payload.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8');
-    const claims = JSON.parse(json);
-    return typeof claims.exp === 'number' ? claims.exp : null;
-  } catch {
-    return null;
-  }
-}
 
 // ด่านตรวจ token สำหรับทุก /api/* ยกเว้น login/config — ไม่มี/หมดอายุ/พัง = 401
-const AUTH_PUBLIC_PATHS = new Set(['/api/auth/login', '/api/config']);
-function requireAuth(req, res, next) {
-  if (!req.path.startsWith('/api/')) return next();     // static/html ผ่านได้
-  if (AUTH_PUBLIC_PATHS.has(req.path)) return next();    // login + config เปิด
-  if (req.path.startsWith('/api/line/webhook/')) return next(); // LINE เรียกเอง (ยืนยันด้วยลายเซ็น)
-  const m = /^Bearer\s+(.+)$/i.exec(req.headers.authorization || '');
-  if (!m) return res.status(401).json({ error: 'ต้องเข้าสู่ระบบก่อน' });
-  const exp = decodeJwtExp(m[1]);
-  if (!exp || exp * 1000 <= Date.now()) {
-    return res.status(401).json({ error: 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่' });
-  }
-  next();
-}
+// requireAuth ย้ายไป apps/api/src/middleware/require-auth.ts แล้ว
+// (ตัวเดียวกัน แต่รู้จัก /api/v1/* ด้วย — เช็คแค่ exp ของ JWT ไม่ verify ลายเซ็น ตามเดิม)
+const { requireAuth } = require('./apps/api/dist/app.js');
 app.use(requireAuth);
+
+// ---------- API v1 (เฟส 2 ของการ refactor) ----------
+// route ที่ย้ายไป apps/api/src/routes/v1 แล้ว ถูก mount ที่นี่ — ครอบทั้ง /api/v1/* และ /api/*
+// ต้องอยู่ "ก่อน" route เดิมด้านล่าง เพื่อให้ตัวใหม่ทำงานแทน
+// ดู docs/REFACTOR-PLAN.md
+app.use(require('./apps/api/dist/app.js').createApiRouter());
 
 // login: แลก username/password → session (มี access_token + expiration)
 app.post('/api/auth/login', async (req, res) => {
@@ -199,11 +184,6 @@ app.get('/api/employees', async (req, res) => {
 });
 
 // การตั้งค่าที่หน้าเว็บต้องรู้ (ไม่เปิดเผยค่า secret)
-app.get('/api/config', (req, res) => {
-  res.json({
-    longLivedTokens: !!(process.env.FB_APP_ID && process.env.FB_APP_SECRET),
-  });
-});
 
 // ---------- Projects (กลุ่มเพจ) ----------
 
@@ -214,82 +194,12 @@ async function projectPageIds(projectId) {
   return new Set(p ? p.pageIds : []);
 }
 
-app.get('/api/projects', async (req, res) => {
-  res.json(await store.getProjects());
-});
 
-app.post('/api/projects', async (req, res) => {
-  const { name, description, pageIds } = req.body || {};
-  if (!name || !String(name).trim()) return res.status(400).json({ error: 'กรุณาตั้งชื่อโปรเจกต์' });
-  const project = {
-    id: 'prj_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
-    name: String(name).trim().slice(0, 80),
-    description: String(description || '').trim().slice(0, 300),
-    pageIds: Array.isArray(pageIds) ? [...new Set(pageIds.map(String))] : [],
-    createdAt: new Date().toISOString(),
-  };
-  await store.saveProject(project);
-  res.json(project);
-});
 
-app.put('/api/projects/:id', async (req, res) => {
-  const existing = (await store.getProjects()).find((p) => p.id === req.params.id);
-  if (!existing) return res.status(404).json({ error: 'ไม่พบโปรเจกต์' });
-  const { name, description, pageIds } = req.body || {};
-  const updated = {
-    ...existing,
-    name: name != null ? String(name).trim().slice(0, 80) : existing.name,
-    description: description != null ? String(description).trim().slice(0, 300) : existing.description,
-    pageIds: Array.isArray(pageIds) ? [...new Set(pageIds.map(String))] : existing.pageIds,
-  };
-  await store.saveProject(updated);
-  res.json(updated);
-});
 
-app.delete('/api/projects/:id', async (req, res) => {
-  await store.deleteProject(req.params.id);
-  res.json({ ok: true });
-});
 
 // ---------- Admin: ตั้งค่ารายเพจ (แพ็กเกจ/วันเริ่มดูแล/ทีม) ----------
-app.get('/api/page-config', async (req, res) => {
-  res.json(await store.getPageConfigs());
-});
 
-app.put('/api/pages/:id/config', async (req, res) => {
-  const b = req.body || {};
-  // สมาชิกทีมเก็บเป็น { empCode, name } — รองรับข้อมูลเก่าที่เป็น string (แปลงเป็น object ให้เลย)
-  const cleanTeam = (arr) => Array.isArray(arr) ? arr.map((m) => {
-    if (typeof m === 'string') { const name = m.trim().slice(0, 60); return name ? { empCode: '', name } : null; }
-    if (m && typeof m === 'object') {
-      const name = String(m.name || '').trim().slice(0, 60);
-      const empCode = String(m.empCode || '').trim().slice(0, 30);
-      return name ? { empCode, name } : null;
-    }
-    return null;
-  }).filter(Boolean).slice(0, 30) : [];
-  // คู่แข่ง: [{ name, url }] — เก็บเฉพาะแถวที่มีชื่อหรือ URL อย่างใดอย่างหนึ่ง
-  const cleanCompetitors = (arr) => Array.isArray(arr) ? arr.map((x) => {
-    if (!x || typeof x !== 'object') return null;
-    const name = String(x.name || '').trim().slice(0, 100);
-    const url = String(x.url || '').trim().slice(0, 300);
-    return (name || url) ? { name, url } : null;
-  }).filter(Boolean).slice(0, 30) : [];
-  const config = {
-    packageImage: typeof b.packageImage === 'string' ? b.packageImage.slice(0, 4_000_000) : '',
-    startDate: typeof b.startDate === 'string' ? b.startDate.slice(0, 20) : '',
-    character: typeof b.character === 'string' ? b.character.trim().slice(0, 3000) : '',
-    competitors: cleanCompetitors(b.competitors),
-    teams: {
-      content: cleanTeam(b.teams && b.teams.content),
-      graphic: cleanTeam(b.teams && b.teams.graphic),
-      chatInbox: cleanTeam(b.teams && b.teams.chatInbox),
-      am: cleanTeam(b.teams && b.teams.am),
-    },
-  };
-  await store.setPageConfig(req.params.id, config);
-  res.json({ ok: true, config });
-});
 
 // ---------- Competitor (เพจคู่แข่ง — ดึงโพสต์ผ่าน Apify) ----------
 const dayStr = (d) => new Date(d).toISOString().slice(0, 10);
@@ -1643,6 +1553,10 @@ app.get('/api/messages', async (req, res) => {
     .slice(0, Number(limit));
   res.json(messages);
 });
+
+// ---------- ตัวจับ error ตัวสุดท้าย (ต้องอยู่หลัง route ทั้งหมด) ----------
+// แปลง AppError → { error } ตามรูปแบบเดิม, error ที่ไม่คาดคิด → 500 + log stack
+app.use(require('./apps/api/dist/app.js').errorHandler);
 
 store.init()
   .then(() => {
