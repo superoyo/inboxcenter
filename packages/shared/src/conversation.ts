@@ -1,3 +1,5 @@
+import type { KeywordCount } from './analytics';
+
 export interface Attachment {
   mimeType?: string;
   name?: string;
@@ -51,7 +53,8 @@ export interface ConversationThread extends Conversation {
   forwards: Forward[];
   /** ข้อความของเพจที่ซ้ำ ≥3 ครั้งทั้งเพจ = ถือว่าเป็นข้อความอัตโนมัติ */
   botTexts: string[];
-  keywords: string[];
+  /** คำสำคัญของห้องนี้ (นับจากข้อความลูกค้า) — หน้าเว็บแสดงเป็นชิป word + count */
+  keywords: KeywordCount[];
 }
 
 export interface ConversationPreview {
@@ -72,6 +75,13 @@ export interface ConversationSummary {
   messageCount: number;
   preview: ConversationPreview | null;
   lastCustomerText: string;
+  /**
+   * เวลาตอบของ "ก้อนล่าสุด" — ตอบแล้วใช้เวลาเท่าไร (replyMs)
+   * หรือยังไม่ตอบ รอมานานเท่าไร (waitingMs) · null ทั้งคู่ = ไม่มีข้อความลูกค้าติดท้าย
+   * ยังไม่มีหน้าไหนใช้ แต่คงไว้เพราะเป็นสัญญาเดิมของ API
+   */
+  replyMs: number | null;
+  waitingMs: number | null;
   tags: string[];
   remark: string;
   statusOverride: UrgencyLevel | '';

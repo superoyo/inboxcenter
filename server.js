@@ -1,7 +1,6 @@
 const express = require('express');
 const path = require('path');
 const fb = require('./lib/facebook');
-const line = require('./lib/line');
 const apify = require('./lib/apify');
 const store = require('./lib/store');
 const urgency = require('./lib/urgency');
@@ -32,273 +31,29 @@ function dayKeyFactory(tzMin) {
   return (time) => new Date(new Date(time).getTime() + offsetMs).toISOString().slice(0, 10);
 }
 
-// ข้อความล่าสุดของ "ลูกค้า" (ไม่ใช่เพจ) — ใช้จัดระดับความเร่งด่วนฝั่งหน้าเว็บ
-function lastCustomerText(messages) {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    if (!messages[i].isFromPage) return messages[i].text || '';
-  }
-  return '';
-}
-
-// เวลาตอบของห้องนี้ — ดูข้อความลูกค้า "ก้อนล่าสุด" แล้วหาว่าเพจตอบหลังจากนั้นเมื่อไร
-//   replyMs   = ตอบไปแล้ว ใช้เวลาเท่าไร
-//   waitingMs = ยังไม่ได้ตอบ รอมานานเท่าไร (นับถึงตอนนี้)
-// คิดจากก้อนล่าสุดเพราะเป็นสิ่งที่คนดูรายการอยากรู้ ("ห้องนี้ตอบช้าไหม/ค้างอยู่ไหม")
-// ไม่ใช่ค่าเฉลี่ยตลอดอายุห้อง
-function responseTiming(messages) {
-  let i = messages.length - 1;
-  // ชุดท้ายที่เป็นของเพจ — เก็บ "ตัวแรกสุดของชุด" ไว้เป็นเวลาที่ตอบ (ตอบครั้งแรกหลังลูกค้าถาม)
-  let replyAt = null;
-  while (i >= 0 && messages[i].isFromPage) {
-    replyAt = messages[i].createdTime;
-    i--;
-  }
-  // ถัดขึ้นไปคือก้อนข้อความลูกค้า — เอาตัวแรกสุดของก้อน (ถามติดกันหลายที นับจากทีแรก)
-  let askAt = null;
-  while (i >= 0 && !messages[i].isFromPage) {
-    askAt = messages[i].createdTime;
-    i--;
-  }
-  const ask = askAt ? new Date(askAt).getTime() : NaN;
-  if (!isFinite(ask)) return { replyMs: null, waitingMs: null }; // ไม่มีข้อความลูกค้าติดท้าย
-  if (replyAt) {
-    const rep = new Date(replyAt).getTime();
-    return { replyMs: isFinite(rep) && rep >= ask ? rep - ask : null, waitingMs: null };
-  }
-  return { replyMs: null, waitingMs: Date.now() - ask };
-}
-
-// ย่อ conversation ให้เหลือเฉพาะข้อมูลที่ "รายการห้องแชท" ต้องใช้ — ตัด messages ทั้งก้อนออก
-// (ข้อความเต็มโหลดทีหลังผ่าน /api/conversations/:id/thread เมื่อผู้ใช้เปิดห้อง)
-function toSummary(c) {
-  const messages = c.messages || [];
-  const last = messages[messages.length - 1];
-  return {
-    id: c.id,
-    pageId: c.pageId,
-    pageName: c.pageName,
-    customerId: c.customerId,
-    customerName: c.customerName,
-    customerPic: c.customerPic || '',
-    updatedTime: c.updatedTime,
-    unreadCount: c.unreadCount || 0,
-    messageCount: messages.length,
-    preview: last ? { text: last.text || '', isFromPage: !!last.isFromPage } : null,
-    lastCustomerText: lastCustomerText(messages),
-    ...responseTiming(messages),
-  };
-}
-
-// กรองด้วยคำค้น (ชื่อลูกค้า หรือข้อความในห้อง)
-function matchesQuery(c, needle) {
-  return (
-    c.customerName.toLowerCase().includes(needle) ||
-    c.messages.some((m) => (m.text || '').toLowerCase().includes(needle))
-  );
-}
-
-// ---------- Auth (Wazzup identity) ----------
-// proxy ไป Wazzup เพื่อเลี่ยง CORS + ให้ base URL เป็น config ฝั่ง server
-
-
-// ด่านตรวจ token สำหรับทุก /api/* ยกเว้น login/config — ไม่มี/หมดอายุ/พัง = 401
-// requireAuth ย้ายไป apps/api/src/middleware/require-auth.ts แล้ว
-// (ตัวเดียวกัน แต่รู้จัก /api/v1/* ด้วย — เช็คแค่ exp ของ JWT ไม่ verify ลายเซ็น ตามเดิม)
-const { requireAuth } = require('./apps/api/dist/app.js');
-app.use(requireAuth);
-
-// ---------- API v1 (เฟส 2 ของการ refactor) ----------
-// route ที่ย้ายไป apps/api/src/routes/v1 แล้ว ถูก mount ที่นี่ — ครอบทั้ง /api/v1/* และ /api/*
-// ต้องอยู่ "ก่อน" route เดิมด้านล่าง เพื่อให้ตัวใหม่ทำงานแทน
-// ดู docs/REFACTOR-PLAN.md
-app.use(require('./apps/api/dist/app.js').createApiRouter());
-
-// login: แลก username/password → session (มี access_token + expiration)
-
-// profile: ส่งต่อ Bearer ไปดึงโปรไฟล์เต็ม + roles จาก Wazzup
-
-// รายชื่อพนักงานทั้งบริษัท (สำหรับ team picker หน้า Admin)
-// proxy EmployeeAll แล้ว "ตัดข้อมูลอ่อนไหวทิ้ง" ก่อนส่งให้หน้าเว็บ:
-//   - birthdayDate = รหัสผ่าน login ของแต่ละคน → ห้ามส่งออกเด็ดขาด
-//   - email / aspNetUsers* = PII ที่ picker ไม่ต้องใช้
-// cache รวม 10 นาที (รายชื่อไม่ค่อยเปลี่ยน + ไม่ต้องยิง Wazzup ทุกครั้ง) — requireAuth กันเส้นนี้อยู่แล้ว
-
-// การตั้งค่าที่หน้าเว็บต้องรู้ (ไม่เปิดเผยค่า secret)
-
-// ---------- Projects (กลุ่มเพจ) ----------
-
 // คืน Set ของ pageId ในโปรเจกต์ (null = ไม่ระบุโปรเจกต์ = ทุกเพจ)
+// (ตัวเดียวกับ services/projects.service.ts — เหลือไว้ให้ analytics ที่ยังไม่ย้าย)
 async function projectPageIds(projectId) {
   if (!projectId) return null;
   const p = (await store.getProjects()).find((x) => x.id === projectId);
   return new Set(p ? p.pageIds : []);
 }
 
+// ---------- Auth ----------
+// ด่านตรวจ token สำหรับทุก /api/* ยกเว้น login/config — ไม่มี/หมดอายุ/พัง = 401
+// อยู่ที่ apps/api/src/middleware/require-auth.ts (เช็คแค่ exp ของ JWT ไม่ verify ลายเซ็น ตามเดิม)
+const { requireAuth } = require('./apps/api/dist/app.js');
+app.use(requireAuth);
 
-
-
-
-// ---------- Admin: ตั้งค่ารายเพจ (แพ็กเกจ/วันเริ่มดูแล/ทีม) ----------
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// ---------- Pages ----------
-
-
-
-
-
-
-// ---------- Sync (ดึง inbox) ----------
-
-
-
-
-
-
-
-
-
-
-
-
-
-// ---------- Unified inbox ----------
-
-// รายการห้องแชท (สรุป ไม่รวมข้อความเต็ม) — แบ่งหน้าทีละ limit ห้อง
-// query: pageId, q (ค้นหา), date (YYYY-MM-DD กรองตามวัน), limit (default 50), offset, tz
-// ตอบ: { items, total, hasMore } — items เป็นสรุปห้องที่ตัด messages ออกแล้ว payload จึงเล็กมาก
-app.get('/api/conversations', async (req, res) => {
-  const { pageId, q, date } = req.query;
-  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 200);
-  const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
-  const dayKey = dayKeyFactory(parseInt(req.query.tz, 10));
-
-  // ดึงเฉพาะเพจที่เลือก (ใช้ index ใน Postgres) — เร็วกว่าดึงทุกเพจมา filter ทีหลังมาก
-  let convs = pageId ? await store.getConversationsForPage(pageId) : await store.getAllConversations();
-  const inProjectC = await projectPageIds(req.query.project);
-  if (inProjectC) convs = convs.filter((c) => inProjectC.has(c.pageId));
-  if (q) {
-    const needle = String(q).toLowerCase();
-    convs = convs.filter((c) => matchesQuery(c, needle));
-  }
-  if (date) {
-    convs = convs.filter((c) => c.messages.some((m) => dayKey(m.createdTime) === date));
-  }
-
-  const [tagsMap, remarksMap, statusMap, forwardsMap] = await Promise.all([
-    store.getTags(), store.getRemarks(), store.getStatuses(), store.getForwards(),
-  ]);
-
-  // แท็บ "ข้อความที่ส่งต่อ" — เฉพาะห้องที่มีการส่งต่อเคสภายใน
-  if (req.query.forwarded) {
-    convs = convs.filter((c) => (forwardsMap[c.id] || []).length > 0);
-  }
-  convs.sort((a, b) => new Date(b.updatedTime) - new Date(a.updatedTime));
-
-  const total = convs.length;
-  const pageItems = convs.slice(offset, offset + limit);
-
-  const items = pageItems.map((c) => {
-    const s = toSummary(c);
-    s.tags = tagsMap[c.id] || [];
-    s.remark = remarksMap[c.id] || '';
-    s.statusOverride = statusMap[c.id] || '';
-    s.forwardCount = (forwardsMap[c.id] || []).length;
-    return s;
-  });
-  res.json({ items, total, hasMore: offset + items.length < total });
-});
-
-// จำนวนห้องที่มีข้อความในแต่ละวัน (สำหรับปฏิทิน) — คิดจากห้องทั้งหมดที่ผ่านตัวกรอง pageId/q
-// (แยกจากรายการแบ่งหน้า เพราะปฏิทินต้องนับทุกห้อง ไม่ใช่แค่ 50 ห้องแรก)
-app.get('/api/calendar', async (req, res) => {
-  const { pageId, q } = req.query;
-  const dayKey = dayKeyFactory(parseInt(req.query.tz, 10));
-  let convs = pageId ? await store.getConversationsForPage(pageId) : await store.getAllConversations();
-  const inProjectCal = await projectPageIds(req.query.project);
-  if (inProjectCal) convs = convs.filter((c) => inProjectCal.has(c.pageId));
-  if (q) {
-    const needle = String(q).toLowerCase();
-    convs = convs.filter((c) => matchesQuery(c, needle));
-  }
-  const map = {}; // day -> Set(conversationId)
-  for (const c of convs) {
-    for (const day of new Set(c.messages.map((m) => dayKey(m.createdTime)))) {
-      (map[day] = map[day] || new Set()).add(c.id);
-    }
-  }
-  res.json(Object.fromEntries(Object.entries(map).map(([k, v]) => [k, v.size])));
-});
-
-// ข้อความเต็มของห้องเดียว — โหลดตอนผู้ใช้เปิดห้อง
-// แนบ botTexts (ข้อความเพจที่ซ้ำ ≥3 ครั้งทั้งเพจ = ข้อความอัตโนมัติ) ให้ฝั่งหน้าเว็บใช้แยกสถิติ bot/คน
-app.get('/api/conversations/:id/thread', async (req, res) => {
-  const conv = await store.getConversation(req.params.id);
-  if (!conv) return res.status(404).json({ error: 'ไม่พบการสนทนานี้' });
-
-  const [tagsMap, remarksMap, statusMap, forwardsMap, pageConvs] = await Promise.all([
-    store.getTags(), store.getRemarks(), store.getStatuses(), store.getForwards(),
-    store.getConversationsForPage(conv.pageId),
-  ]);
-
-  const counts = {};
-  for (const c of pageConvs) {
-    for (const m of c.messages) {
-      if (m.isFromPage && m.text) counts[m.text] = (counts[m.text] || 0) + 1;
-    }
-  }
-  const botTexts = Object.entries(counts).filter(([, n]) => n >= 3).map(([t]) => t);
-
-  res.json({
-    ...conv,
-    tags: tagsMap[conv.id] || [],
-    remark: remarksMap[conv.id] || '',
-    statusOverride: statusMap[conv.id] || '',
-    forwards: forwardsMap[conv.id] || [], // การส่งต่อเคสภายใน (แสดงแทรกในแชท — ไม่ใช่ข้อความถึงลูกค้า)
-    botTexts,
-    keywords: keywords.roomKeywords(conv.messages), // คำสำคัญของห้องนี้ (จากข้อความลูกค้า)
-  });
-});
-
-// ส่งต่อเคสภายในทีม — เก็บแยกจาก messages โดยสิ้นเชิง "ไม่มีทาง" ถูกส่งถึงลูกค้า
-// (เส้นทางส่งถึงลูกค้ามีเส้นเดียวคือ /api/conversations/:convId/reply ซึ่งอ่านจาก messages เท่านั้น)
-app.post('/api/conversations/:id/forward', async (req, res) => {
-  const conv = await store.getConversation(req.params.id);
-  if (!conv) return res.status(404).json({ error: 'ไม่พบการสนทนานี้' });
-  const b = req.body || {};
-  const text = String(b.text || '').trim().slice(0, 2000);
-  if (!text) return res.status(400).json({ error: 'กรุณาพิมพ์รายละเอียดที่ส่งต่อ' });
-  const toNames = Array.isArray(b.toNames)
-    ? b.toNames.map((s) => String(s).trim().slice(0, 60)).filter(Boolean).slice(0, 20)
-    : [];
-  const entry = {
-    id: 'fw_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
-    fromName: String(b.fromName || 'ทีมงาน').trim().slice(0, 60) || 'ทีมงาน',
-    toNames,
-    text,
-    createdTime: new Date().toISOString(),
-  };
-  await store.addForward(conv.id, entry);
-  res.json({ ok: true, forward: entry });
-});
+// ---------- API v1 (เฟส 2 ของการ refactor) ----------
+// route ที่ย้ายเข้า MVC แล้ว mount ที่นี่ — ครอบทั้ง /api/v1/* และ /api/* (alias ช่วงเปลี่ยนผ่าน)
+// ต้องอยู่ "ก่อน" route เดิมด้านล่าง เพื่อให้ตัวใหม่ทำงานแทน · ดู docs/REFACTOR-PLAN.md
+//
+// ย้ายแล้ว: config · auth/employees · projects · page-config · pages · sync · saved-replies
+//           annotations · conversations/calendar/thread/forward/reply/messages
+//           competitors · connections · LINE webhook
+// ยังเหลือด้านล่าง: analytics · keyword-rooms · posts/comments/insights · report
+app.use(require('./apps/api/dist/app.js').createApiRouter());
 
 // ---------- Analytics ----------
 // สรุป performance ของ inbox — ภาพรวมทุกเพจ หรือรายเพจด้วย ?pageId=
@@ -638,9 +393,6 @@ app.get('/api/keyword-rooms', async (req, res) => {
   res.json({ word, total: rooms.length, rooms: rooms.slice(0, 300) });
 });
 
-// ---------- Comments (คอมเมนต์ใต้โพสต์) ----------
-// ดึงสดจาก Graph API ทุกครั้ง (ไม่เก็บลง storage)
-
 async function pageOr404(pageId, res) {
   const page = (await store.getPages()).find((p) => p.id === pageId);
   if (!page) res.status(404).json({ error: 'ไม่พบเพจนี้ในระบบ' });
@@ -798,96 +550,13 @@ app.post('/api/comments/:commentId/reply', async (req, res) => {
   }
 });
 
-// ---------- Saved replies (คำตอบสำเร็จรูป แยกตามเพจ) ----------
-
-
-
-
 // แก้ไขคำตอบ/แท็กหมวดหมู่
-
 
 // ตั้งสถานะสี (override) — ส่ง '' หรือ null เพื่อกลับไปใช้ค่าอัตโนมัติ
 
 // บันทึกโน้ต (remark) ของการสนทนา
 
 // ตั้งแท็กของการสนทนา (ส่งรายการเต็มมาแทนที่ของเดิม)
-
-// ---------- Reply (ตอบกลับ inbox) ----------
-
-// แปลง error จาก Send API เป็นข้อความไทยที่เข้าใจง่าย
-function sendErrorMessage(err) {
-  if (err.subcode === 2018278 || /outside of allowed window/i.test(err.message)) {
-    return 'ส่งไม่ได้: เกินช่วงเวลา 24 ชั่วโมงหลังลูกค้าทักมาล่าสุด (กฎของ Facebook) — ต้องรอลูกค้าทักมาใหม่ก่อน';
-  }
-  if (err.code === 10 || /permission/i.test(err.message)) {
-    return `ส่งไม่ได้: แอปยังไม่มีสิทธิ์ส่งข้อความถึงผู้ใช้รายนี้ — ${err.message}`;
-  }
-  return `ส่งไม่ได้: ${err.message}`;
-}
-
-app.post('/api/conversations/:convId/reply', async (req, res) => {
-  const { text } = req.body || {};
-  if (!text || !String(text).trim()) {
-    return res.status(400).json({ error: 'กรุณาพิมพ์ข้อความ' });
-  }
-  const conv = (await store.getAllConversations()).find((c) => c.id === req.params.convId);
-  if (!conv) return res.status(404).json({ error: 'ไม่พบการสนทนานี้' });
-  const page = (await store.getPages()).find((p) => p.id === conv.pageId);
-  if (!page) return res.status(404).json({ error: 'ไม่พบเพจของการสนทนานี้' });
-  if (!conv.customerId) return res.status(400).json({ error: 'ไม่ทราบตัวตนลูกค้าในการสนทนานี้' });
-
-  try {
-    let messageId;
-    if (page.platform === 'line') {
-      await line.pushMessage(page.accessToken, conv.customerId, String(text).trim());
-      messageId = 'line_out_' + Date.now(); // LINE push ไม่คืน message id
-    } else {
-      const sent = await fb.sendMessage(conv.customerId, String(text).trim(), page.accessToken);
-      messageId = sent.message_id;
-    }
-
-    // บันทึกข้อความลง local ทันที ไม่ต้องรอ sync รอบใหม่
-    const message = {
-      id: messageId,
-      text: String(text).trim(),
-      fromId: page.id,
-      fromName: page.name,
-      isFromPage: true,
-      createdTime: new Date().toISOString(),
-      attachments: [],
-    };
-    const convs = await store.getConversationsForPage(page.id);
-    const target = convs.find((c) => c.id === conv.id);
-    if (target) {
-      target.messages.push(message);
-      target.updatedTime = message.createdTime;
-      await store.saveConversation(target);
-    }
-    res.json({ ok: true, message });
-  } catch (err) {
-    res.status(400).json({ error: sendErrorMessage(err) });
-  }
-});
-
-// ข้อความทั้งหมดจากทุกเพจ (flat) เรียงใหม่ล่าสุดก่อน
-app.get('/api/messages', async (req, res) => {
-  const { pageId, limit = 200 } = req.query;
-  let convs = await store.getAllConversations();
-  if (pageId) convs = convs.filter((c) => c.pageId === pageId);
-  const messages = convs
-    .flatMap((c) =>
-      c.messages.map((m) => ({
-        ...m,
-        conversationId: c.id,
-        pageId: c.pageId,
-        pageName: c.pageName,
-        customerName: c.customerName,
-      }))
-    )
-    .sort((a, b) => new Date(b.createdTime) - new Date(a.createdTime))
-    .slice(0, Number(limit));
-  res.json(messages);
-});
 
 // ---------- ตัวจับ error ตัวสุดท้าย (ต้องอยู่หลัง route ทั้งหมด) ----------
 // แปลง AppError → { error } ตามรูปแบบเดิม, error ที่ไม่คาดคิด → 500 + log stack

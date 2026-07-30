@@ -549,6 +549,7 @@
   "conv.reply (token ปลอม)": {
     "status": 400,
     "body": {
+      "code": "BAD_REQUEST",
       "error": "ส่งไม่ได้: Invalid OAuth access token data."
     }
   },
