@@ -5,10 +5,13 @@
   "description": "ระบบดึงและรวม inbox จาก Facebook Pages + LINE OA (Graph API / Messaging API / Apify)",
   "main": "server.js",
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "apps/*"
   ],
   "scripts": {
+    "prestart": "node scripts/ensure-build.mjs",
     "start": "node server.js",
+    "build": "npm run build --workspace @inboxcenter/api",
     "smoke": "node scripts/smoke/run.mjs",
     "smoke:update": "node scripts/smoke/run.mjs --update",
     "typecheck": "tsc -p tsconfig.base.json --noEmit",

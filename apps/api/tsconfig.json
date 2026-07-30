@@ -1,0 +1,33 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // คอมไพล์เป็น CommonJS เพราะ server.js เดิม (CJS) ยัง require ผ่าน shim ใน lib/
+    // จะเปลี่ยนเป็น ESM ได้ตอนเฟส 2 ที่ย้าย entry point มาเป็น apps/api ทั้งก้อน
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "verbatimModuleSyntax": false,
+    "types": ["node"],
+
+    "noEmit": false,
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "declaration": true,
+    "sourceMap": true,
+
+    "baseUrl": ".",
+    "paths": {
+      "@inboxcenter/shared": ["../../packages/shared/src/index.ts"],
+      "@shared/*": ["../../packages/shared/src/*"],
+      "@config/*": ["./src/config/*"],
+      "@routes/*": ["./src/routes/*"],
+      "@controllers/*": ["./src/controllers/*"],
+      "@services/*": ["./src/services/*"],
+      "@repositories/*": ["./src/repositories/*"],
+      "@integrations/*": ["./src/integrations/*"],
+      "@middleware/*": ["./src/middleware/*"],
+      "@validators/*": ["./src/validators/*"],
+      "@utils/*": ["./src/utils/*"]
+    }
+  },
+  "include": ["src/**/*.ts"]
+}

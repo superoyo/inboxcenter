@@ -3,7 +3,6 @@
   "version": "1.0.0",
   "private": true,
   "description": "Type ที่ apps/api และ apps/web ใช้ร่วมกัน (source of truth ของสัญญา API)",
-  "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
