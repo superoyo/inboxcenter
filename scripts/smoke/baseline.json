@@ -8,6 +8,7 @@
   "auth.login (creds ปลอม)": {
     "status": 400,
     "body": {
+      "code": "BAD_REQUEST",
       "error": "กรุณากรอกชื่อผู้ใช้และรหัสผ่าน"
     }
   },
@@ -21,12 +22,14 @@
   "auth.profile": {
     "status": 401,
     "body": {
+      "code": "UNAUTHORIZED",
       "error": "เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่"
     }
   },
   "employees": {
     "status": 401,
     "body": {
+      "code": "UNAUTHORIZED",
       "error": "เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่"
     }
   },

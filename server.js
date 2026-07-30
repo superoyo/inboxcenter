@@ -99,7 +99,6 @@ function matchesQuery(c, needle) {
 
 // ---------- Auth (Wazzup identity) ----------
 // proxy ไป Wazzup เพื่อเลี่ยง CORS + ให้ base URL เป็น config ฝั่ง server
-const WAZZUP_BASE_URL = process.env.WAZZUP_BASE_URL || 'https://api.fareastfamelineddb.com';
 
 
 // ด่านตรวจ token สำหรับทุก /api/* ยกเว้น login/config — ไม่มี/หมดอายุ/พัง = 401
@@ -115,73 +114,14 @@ app.use(requireAuth);
 app.use(require('./apps/api/dist/app.js').createApiRouter());
 
 // login: แลก username/password → session (มี access_token + expiration)
-app.post('/api/auth/login', async (req, res) => {
-  const { authenticationName, authenticationPassword } = req.body || {};
-  if (!authenticationName || !authenticationPassword) {
-    return res.status(400).json({ error: 'กรุณากรอกชื่อผู้ใช้และรหัสผ่าน' });
-  }
-  try {
-    const r = await fetch(`${WAZZUP_BASE_URL}/api/User/Authentication`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ authenticationName, authenticationPassword }),
-    });
-    if (r.status === 401) return res.status(401).json({ error: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' });
-    if (!r.ok) return res.status(502).json({ error: 'เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่' });
-    res.json(await r.json());
-  } catch {
-    res.status(502).json({ error: 'เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่' });
-  }
-});
 
 // profile: ส่งต่อ Bearer ไปดึงโปรไฟล์เต็ม + roles จาก Wazzup
-app.get('/api/auth/profile', async (req, res) => {
-  try {
-    const r = await fetch(`${WAZZUP_BASE_URL}/api/User/Profile`, {
-      headers: { Authorization: req.headers.authorization || '' },
-    });
-    if (r.status === 401) return res.status(401).json({ error: 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่' });
-    if (!r.ok) return res.status(502).json({ error: 'โหลดโปรไฟล์ไม่สำเร็จ' });
-    res.json(await r.json());
-  } catch {
-    res.status(502).json({ error: 'โหลดโปรไฟล์ไม่สำเร็จ' });
-  }
-});
 
 // รายชื่อพนักงานทั้งบริษัท (สำหรับ team picker หน้า Admin)
 // proxy EmployeeAll แล้ว "ตัดข้อมูลอ่อนไหวทิ้ง" ก่อนส่งให้หน้าเว็บ:
 //   - birthdayDate = รหัสผ่าน login ของแต่ละคน → ห้ามส่งออกเด็ดขาด
 //   - email / aspNetUsers* = PII ที่ picker ไม่ต้องใช้
 // cache รวม 10 นาที (รายชื่อไม่ค่อยเปลี่ยน + ไม่ต้องยิง Wazzup ทุกครั้ง) — requireAuth กันเส้นนี้อยู่แล้ว
-let employeesCache = null; // { at, data }
-const EMPLOYEES_TTL = 10 * 60 * 1000;
-app.get('/api/employees', async (req, res) => {
-  try {
-    if (employeesCache && Date.now() - employeesCache.at < EMPLOYEES_TTL) {
-      return res.json(employeesCache.data);
-    }
-    const r = await fetch(`${WAZZUP_BASE_URL}/api/EmployeeAll/`, {
-      headers: { Authorization: req.headers.authorization || '' },
-    });
-    if (r.status === 401) return res.status(401).json({ error: 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่' });
-    if (!r.ok) return res.status(502).json({ error: 'โหลดรายชื่อพนักงานไม่สำเร็จ' });
-    const raw = await r.json();
-    const list = Array.isArray(raw) ? raw : (raw.data || raw.employees || []);
-    const safe = list.map((e) => ({
-      empCode: String(e.empCode || ''),
-      thaiName: String(e.empThaiName || ''),
-      engName: String(e.empEngName || ''),
-      nickName: String(e.nickName || ''),
-      position: String(e.positionName || ''),
-      department: String(e.departmentName || ''),
-      photo: String(e.profileURL || ''), // รูปโปรไฟล์ (URL สาธารณะ ไม่ใช่ข้อมูลอ่อนไหว)
-    })).filter((e) => e.empCode || e.thaiName || e.engName);
-    employeesCache = { at: Date.now(), data: safe };
-    res.json(safe);
-  } catch {
-    res.status(502).json({ error: 'โหลดรายชื่อพนักงานไม่สำเร็จ' });
-  }
-});
 
 // การตั้งค่าที่หน้าเว็บต้องรู้ (ไม่เปิดเผยค่า secret)
 
@@ -1398,84 +1338,17 @@ app.post('/api/comments/:commentId/reply', async (req, res) => {
 
 // ---------- Saved replies (คำตอบสำเร็จรูป แยกตามเพจ) ----------
 
-app.get('/api/pages/:pageId/saved-replies', async (req, res) => {
-  res.json(await store.getSavedReplies(req.params.pageId));
-});
 
-// แท็กหมวดหมู่: สูงสุด 5 แท็กต่อคำตอบ แท็กละไม่เกิน 20 ตัวอักษร
-function cleanReplyTags(tags) {
-  if (!Array.isArray(tags)) return [];
-  return [...new Set(tags.map((t) => String(t).trim().slice(0, 20)).filter(Boolean))].slice(0, 5);
-}
 
-app.post('/api/pages/:pageId/saved-replies', async (req, res) => {
-  const { title, text, tags } = req.body || {};
-  const clean = String(text || '').trim().slice(0, 1000);
-  if (!clean) return res.status(400).json({ error: 'กรุณาใส่ข้อความคำตอบ' });
-
-  // กันบันทึกข้อความเดิมซ้ำ
-  const existing = await store.getSavedReplies(req.params.pageId);
-  const dup = existing.find((r) => r.text === clean);
-  if (dup) return res.json({ ...dup, duplicated: true });
-
-  const entry = {
-    id: 'sr_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
-    title: String(title || '').trim().slice(0, 120),
-    text: clean,
-    tags: cleanReplyTags(tags),
-    createdAt: new Date().toISOString(),
-  };
-  await store.addSavedReply(req.params.pageId, entry);
-  res.json(entry);
-});
 
 // แก้ไขคำตอบ/แท็กหมวดหมู่
-app.put('/api/pages/:pageId/saved-replies/:replyId', async (req, res) => {
-  const fields = {};
-  if (req.body && req.body.title !== undefined) fields.title = String(req.body.title).trim().slice(0, 120);
-  if (req.body && req.body.tags !== undefined) fields.tags = cleanReplyTags(req.body.tags);
-  if (req.body && req.body.text !== undefined) {
-    const t = String(req.body.text).trim().slice(0, 1000);
-    if (!t) return res.status(400).json({ error: 'ข้อความคำตอบห้ามว่าง' });
-    fields.text = t;
-  }
-  const updated = await store.updateSavedReply(req.params.pageId, req.params.replyId, fields);
-  if (!updated) return res.status(404).json({ error: 'ไม่พบคำตอบนี้' });
-  res.json(updated);
-});
 
-app.delete('/api/pages/:pageId/saved-replies/:replyId', async (req, res) => {
-  await store.deleteSavedReply(req.params.pageId, req.params.replyId);
-  res.json({ ok: true });
-});
 
 // ตั้งสถานะสี (override) — ส่ง '' หรือ null เพื่อกลับไปใช้ค่าอัตโนมัติ
-app.put('/api/conversations/:convId/status', async (req, res) => {
-  const { status } = req.body || {};
-  if (status && !['red', 'yellow', 'green'].includes(status)) {
-    return res.status(400).json({ error: 'status ต้องเป็น red / yellow / green หรือค่าว่าง' });
-  }
-  await store.setStatus(req.params.convId, status || null);
-  res.json({ ok: true, status: status || '' });
-});
 
 // บันทึกโน้ต (remark) ของการสนทนา
-app.put('/api/conversations/:convId/remark', async (req, res) => {
-  const { remark } = req.body || {};
-  if (typeof remark !== 'string') return res.status(400).json({ error: 'remark ต้องเป็นข้อความ' });
-  const clean = remark.trim().slice(0, 2000);
-  await store.setRemark(req.params.convId, clean);
-  res.json({ ok: true, remark: clean });
-});
 
 // ตั้งแท็กของการสนทนา (ส่งรายการเต็มมาแทนที่ของเดิม)
-app.put('/api/conversations/:convId/tags', async (req, res) => {
-  const { tags } = req.body || {};
-  if (!Array.isArray(tags)) return res.status(400).json({ error: 'tags ต้องเป็น array' });
-  const clean = [...new Set(tags.map((t) => String(t).trim().slice(0, 30)).filter(Boolean))].slice(0, 10);
-  await store.setTags(req.params.convId, clean);
-  res.json({ ok: true, tags: clean });
-});
 
 // ---------- Reply (ตอบกลับ inbox) ----------
 
