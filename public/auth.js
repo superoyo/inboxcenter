@@ -52,15 +52,42 @@
       ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
 
+  // ---- ออกจากระบบ ----
+  // ลำดับสำคัญ: ล้าง session ของเราก่อน แล้วค่อยไปล้าง session ของ IAM
+  // ถ้าล้างแค่ฝั่งเรา cookie ของ IAM ยังอยู่ → กด SSO ครั้งถัดไปจะเข้าเองทันทีโดยไม่ถามรหัส
+  // (โหมด embed ไม่ไปแตะ IAM เพราะเราอยู่ใน iframe ของระบบอื่น ซึ่งเป็นเจ้าของ session ระดับบน)
+  function doLogout() {
+    const fromSso = session.idp === 'iam';
+    clearSession();
+    sessionStorage.removeItem(RKEY);
+    // ตั้งธง "เคยลองแล้ว" ไว้ (ไม่ใช่ล้าง) — การกดออกจากระบบคือเจตนาว่าไม่ต้องพาเข้าเอง
+    // ไม่งั้นหน้า login จะ redirect เข้า SSO ทันที ผู้ใช้เลือกฟอร์มรหัสผ่านไม่ได้
+    sessionStorage.setItem('iam_sso_tried', '1');
+    if (!fromSso || document.documentElement.classList.contains('embed')) {
+      location.replace('login.html');
+      return;
+    }
+    _fetch('/api/auth/sso/status')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((cfg) => {
+        if (cfg && cfg.enabled && cfg.logoutUrl) {
+          const back = location.origin + '/login.html';
+          location.assign(cfg.logoutUrl + '?returnUrl=' + encodeURIComponent(back));
+        } else {
+          location.replace('login.html');
+        }
+      })
+      .catch(() => location.replace('login.html'));
+  }
+
   // ---- global สำหรับหน้าอื่นเรียกใช้ ----
   window.Auth = {
     user: session.user || {},
     token,
-    logout() {
-      clearSession();
-      sessionStorage.removeItem(RKEY);
-      location.replace('login.html');
-    },
+    /** ผู้ออก token: 'iam' = เข้าผ่าน SSO · 'wazzup'/undefined = เข้าด้วยรหัสผ่าน */
+    idp: session.idp || 'wazzup',
+    roles: (session.user && session.user.roles) || [],
+    logout: doLogout,
   };
 
   // ---- วาดรูปโปรไฟล์วงกลม + dropdown (ชื่อ-นามสกุล + ออกจากระบบ) บน navbar ----

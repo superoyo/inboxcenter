@@ -15,7 +15,21 @@ export interface OkResponse {
 export interface AppConfig {
   /** ตั้ง FB_APP_ID/FB_APP_SECRET แล้วหรือยัง (แลก long-lived token อัตโนมัติ) */
   longLivedTokens: boolean;
+  sso: SsoConfig;
 }
+
+/** ข้อมูลที่หน้าเว็บใช้เริ่ม flow SSO ของ IAMService (ไม่มี secret) */
+export interface SsoConfig {
+  /** เปิดใช้แล้วหรือยัง (env IAM_SSO_ENABLED) — false = หน้าเว็บไม่ต้องแสดงปุ่ม SSO */
+  enabled: boolean;
+  /** ปลายทางที่ต้อง redirect ไป (ยังไม่ใส่ returnUrl/state) */
+  authorizeUrl: string;
+  /** ปลายทางล้าง session ของ IAM */
+  logoutUrl: string;
+}
+
+/** ผู้ออก token ของ session นี้ — ใช้เลือกว่าจะอ่านโปรไฟล์/ออกจากระบบทางไหน */
+export type IdentityProvider = 'wazzup' | 'iam';
 
 export interface AuthSession {
   access_token: string;
@@ -25,6 +39,7 @@ export interface AuthSession {
 }
 
 export interface AuthUser {
+  empCode?: string;
   empThaiName?: string;
   empEngName?: string;
   nickName?: string;
@@ -32,6 +47,7 @@ export interface AuthUser {
   positionName?: string;
   departmentName?: string;
   photo?: string;
+  roles?: string[];
 }
 
 /** query ที่ใช้ร่วมกันหลาย endpoint */

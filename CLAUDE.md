@@ -27,8 +27,11 @@ frontend เรียก API แบบ absolute path `/api/...` — ฝั่ง
 
 ## เกร็ดที่ต้องรู้
 
-- Auth: login ผ่าน Wazzup, token JWT เก็บใน localStorage (`wz_session`) — ไม่ใช้ cookie
-  `requireAuth` ใน server.js เช็คแค่ exp ของ JWT (ไม่ verify ลายเซ็น)
+- Auth: เข้าได้ 2 ทาง — ฟอร์มรหัสผ่านผ่าน Wazzup, และ SSO ผ่าน IAMService
+  (ปิดไว้จนตั้ง `IAM_SSO_ENABLED=1` + ต้องให้ admin IAM ลงทะเบียน origin เป็น System ก่อน)
+  token JWT เก็บใน localStorage (`wz_session`) — ไม่ใช้ cookie · รายละเอียด: [docs/IAM-SSO.md](docs/IAM-SSO.md)
+  `requireAuth` เช็คแค่ exp ของ JWT (ไม่ verify ลายเซ็น) — ตั้ง `IAM_JWT_SECRET` แล้วจะ verify ลายเซ็น+iss+aud ด้วย
+  โหมด embed จงใจไม่พาไปหน้า login ของ IAM เอง (อยู่ใน iframe ระบบอื่น อาจถูกกันด้วย X-Frame-Options)
 - ทดสอบ local: `/api/employees` proxy ไป Wazzup ด้วย token จริงเท่านั้น → token ปลอมจะ 401
   แล้ว auth.js เด้งกลับ login (พฤติกรรมปกติ ไม่ใช่บั๊ก)
 - LINE OA = "เพจ" ที่ `platform: 'line'` (id ขึ้นต้น `line_`) รับข้อความผ่าน webhook

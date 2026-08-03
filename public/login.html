@@ -7,9 +7,22 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body class="login-body">
-  <form class="login-card" id="loginForm" autocomplete="on">
+  <!-- ระหว่างตรวจ SSO: ปิดฟอร์มไว้ก่อน กันผู้ใช้กรอกรหัสทิ้งตอนกำลังจะถูกพาไป IAM -->
+  <div class="login-card" id="ssoChecking">
+    <div class="login-logo">📥 FB Inbox Center</div>
+    <div class="login-sub">กำลังตรวจสอบการเข้าสู่ระบบ...</div>
+  </div>
+
+  <form class="login-card" id="loginForm" autocomplete="on" hidden>
     <div class="login-logo">📥 FB Inbox Center</div>
     <div class="login-sub">เข้าสู่ระบบด้วยบัญชี Wazzup</div>
+
+    <!-- ทางเข้าแบบ SSO — ซ่อนไว้จนกว่าเซิร์ฟเวอร์จะบอกว่าเปิดใช้แล้ว -->
+    <div id="ssoBox" hidden>
+      <div class="login-error" id="ssoError"></div>
+      <button class="btn btn-sso" id="ssoBtn" type="button">เข้าสู่ระบบด้วย Single Sign-On</button>
+      <div class="login-divider"><span>หรือ</span></div>
+    </div>
 
     <input id="username" class="login-input" type="text" autocomplete="username" autofocus
            placeholder="รหัสพนักงาน / EmpCode" aria-label="รหัสพนักงาน / EmpCode">
@@ -24,6 +37,7 @@
     <button class="btn" id="loginBtn" type="submit">เข้าสู่ระบบ</button>
   </form>
 
+  <script src="sso.js"></script>
   <script>
     const $ = (id) => document.getElementById(id);
 
@@ -57,14 +71,64 @@
       return '';
     }
 
-    // มี session ที่ยังไม่หมดอยู่แล้ว → เข้าเลย ไม่ต้อง login ซ้ำ
-    (function () {
+    function hasSession() {
       try {
         const s = JSON.parse(localStorage.getItem('wz_session') || 'null');
-        if (s && s.expiration && new Date(s.expiration).getTime() > Date.now()) {
-          location.replace(nextUrl());
-        }
-      } catch { /* ไม่มี session — แสดงฟอร์มตามปกติ */ }
+        return !!(s && s.expiration && new Date(s.expiration).getTime() > Date.now());
+      } catch { return false; }
+    }
+    function goNext() {
+      const dest = nextUrl();
+      sessionStorage.removeItem('wz_return');
+      location.replace(dest);
+    }
+    function showForm() {
+      $('ssoChecking').hidden = true;
+      $('loginForm').hidden = false;
+      $('username').focus();
+    }
+
+    // ---- ลำดับการตัดสินใจตอนเปิดหน้านี้ ----
+    // 1) กลับมาจาก IAM พร้อม token → เก็บ session แล้วเข้าเลย
+    // 2) มี session เดิมที่ยังไม่หมด → เข้าเลย
+    // 3) เปิด SSO ไว้ + ยังไม่เคยลองในแท็บนี้ + ไม่ได้อยู่ในโหมด embed → ลองเข้าแบบ SSO อัตโนมัติ
+    //    (ถ้าเคย SSO กับระบบอื่นในองค์กรไว้แล้ว IAM จะพากลับมาพร้อม token โดยไม่ถามรหัสอีก)
+    // 4) นอกนั้น → แสดงฟอร์มรหัสผ่าน (มีปุ่ม SSO ให้กดเองถ้าเปิดใช้)
+    (async function boot() {
+      const cb = window.SSO.readCallback();
+      if (cb && cb.token) {
+        await window.SSO.saveSession(cb);
+        goNext();
+        return;
+      }
+      if (hasSession()) { goNext(); return; }
+
+      showForm();
+
+      let cfg = { enabled: false };
+      try { cfg = await window.SSO.status(); } catch { /* ถือว่าปิด */ }
+      if (!cfg.enabled) return;
+
+      $('ssoBox').hidden = false;
+      $('ssoBtn').addEventListener('click', () => {
+        $('ssoBtn').disabled = true;
+        $('ssoBtn').textContent = 'กำลังไปที่หน้าเข้าสู่ระบบ...';
+        window.SSO.resetTried(); // กดเองถือว่าเป็นความจงใจ ไม่ติดกฎกันวน
+        window.SSO.begin();
+      });
+
+      if (cb && cb.error) {
+        // callback พลาด — บอกเหตุผลแล้วให้กดเริ่มใหม่เอง ห้าม redirect ซ้ำอัตโนมัติ
+        $('ssoError').textContent = cb.error;
+        return;
+      }
+      // โหมด embed อยู่ใน iframe ของระบบอื่น — ไม่พาไปหน้า IAM เอง
+      // (หน้า login ของ IAM อาจถูกกันไม่ให้แสดงใน iframe) ให้ผู้ใช้กดปุ่มเองเท่านั้น
+      if (window.SSO.isEmbed) return;
+      if (window.SSO.alreadyTried()) return;
+      $('ssoChecking').hidden = false;
+      $('loginForm').hidden = true;
+      window.SSO.begin().then((started) => { if (!started) showForm(); });
     })();
 
     $('loginForm').addEventListener('submit', async (e) => {
@@ -91,6 +155,7 @@
         const session = {
           access_token: data.access_token,
           expiration: data.expiration,
+          idp: 'wazzup', // ผู้ออก token — ใช้ตอนออกจากระบบว่าต้องล้าง session ของ IAM ด้วยไหม
           user: {
             empThaiName: data.empThaiName,
             empEngName: data.empEngName,
@@ -118,9 +183,7 @@
           }
         } catch { /* ใช้ข้อมูลจาก login response ไปก่อน */ }
 
-        const dest = nextUrl();
-        sessionStorage.removeItem('wz_return');
-        location.replace(dest);
+        goNext();
       } catch (e2) {
         err.textContent = e2.message || 'เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่';
       } finally {

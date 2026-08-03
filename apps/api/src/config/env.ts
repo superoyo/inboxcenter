@@ -17,6 +17,20 @@ const schema = z.object({
 
   WAZZUP_BASE_URL: z.string().default('https://api.fareastfamelineddb.com'),
 
+  // ---- IAMService (ผู้ให้บริการ identity / SSO hub ขององค์กร) ----
+  // ดู docs/IAM-SSO.md — ต้องให้ admin ของ IAM ลงทะเบียน origin ของเราเป็น System ก่อนใช้
+  IAM_BASE_URL: z.string().default('https://iam.fareastfamelineddb.com'),
+  /** '1'/'true' = เปิดปุ่ม SSO ให้หน้าเว็บ · ปิดไว้เป็นค่าเริ่มต้นจนกว่า origin จะลงทะเบียนแล้ว */
+  IAM_SSO_ENABLED: z.string().optional(),
+  /**
+   * ตั้งค่านี้เมื่อได้ shared secret จาก IAM แล้ว → requireAuth จะ verify ลายเซ็น HS256 ด้วย
+   * ไม่ตั้ง = เช็คแค่ exp เหมือนเดิม (พฤติกรรมปัจจุบัน)
+   */
+  IAM_JWT_SECRET: z.string().optional(),
+  /** ตรวจ iss / aud เพิ่ม — ตั้งเฉพาะเมื่อ IAM_JWT_SECRET ถูกตั้งแล้ว (ไม่ตั้ง = ไม่ตรวจช่องนั้น) */
+  IAM_JWT_ISSUER: z.string().optional(),
+  IAM_JWT_AUDIENCE: z.string().optional(),
+
   /** ตั้งคู่นี้เพื่อให้แลก Page token เป็น long-lived อัตโนมัติ */
   FB_APP_ID: z.string().optional(),
   FB_APP_SECRET: z.string().optional(),
@@ -46,6 +60,10 @@ export const env = {
   longLivedTokens: Boolean(raw.FB_APP_ID && raw.FB_APP_SECRET),
   /** ตั้ง APIFY_TOKEN ไว้แล้วหรือยัง */
   apifyReady: Boolean(raw.APIFY_TOKEN || raw.APIFY_API_TOKEN),
+  /** เปิดทางเข้าแบบ SSO ให้หน้าเว็บหรือยัง */
+  ssoEnabled: /^(1|true|yes)$/i.test(raw.IAM_SSO_ENABLED ?? ''),
+  /** มี secret แล้ว → requireAuth verify ลายเซ็น token ได้ */
+  verifyTokenSignature: Boolean(raw.IAM_JWT_SECRET),
 } as const;
 
 export type Env = typeof env;

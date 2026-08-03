@@ -2,7 +2,12 @@
   "config": {
     "status": 200,
     "body": {
-      "longLivedTokens": false
+      "longLivedTokens": false,
+      "sso": {
+        "authorizeUrl": "https://iam.fareastfamelineddb.com/api/sso/authorize",
+        "enabled": false,
+        "logoutUrl": "https://iam.fareastfamelineddb.com/api/sso/logout"
+      }
     }
   },
   "auth.login (creds ปลอม)": {

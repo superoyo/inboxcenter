@@ -911,6 +911,33 @@ input:focus, textarea:focus, select:focus { outline: 2px solid var(--primary); b
 .login-error { color: var(--red); font-size: 13px; margin: 2px 0 8px; }
 .login-error:empty { display: none; }
 
+/* .login-card ตั้ง display:flex ไว้ ซึ่งทับ attribute hidden — ต้องบังคับซ่อนให้ชนะ */
+.login-card[hidden] { display: none; }
+
+/* ทางเข้าแบบ SSO (IAMService) — ปุ่มรองอยู่เหนือฟอร์มรหัสผ่าน */
+.login-card .btn-sso {
+  background: var(--card);
+  color: var(--text);
+  border: 1px solid var(--border);
+  font-weight: 600;
+}
+.login-card .btn-sso:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); }
+.login-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 16px 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.login-divider::before,
+.login-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
 /* รูปโปรไฟล์วงกลม + dropdown บน navbar */
 .auth-menu { position: relative; margin-left: 6px; flex-shrink: 0; }
 .auth-avatar {
