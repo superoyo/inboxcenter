@@ -911,8 +911,10 @@ input:focus, textarea:focus, select:focus { outline: 2px solid var(--primary); b
 .login-error { color: var(--red); font-size: 13px; margin: 2px 0 8px; }
 .login-error:empty { display: none; }
 
-/* .login-card ตั้ง display:flex ไว้ ซึ่งทับ attribute hidden — ต้องบังคับซ่อนให้ชนะ */
-.login-card[hidden] { display: none; }
+/* attribute hidden ต้องชนะเสมอ
+   element ที่ถูกตั้ง display เป็น flex/grid/block ใน CSS จะทับ hidden ของเบราว์เซอร์
+   ทำให้ซ่อนไม่ลง (เคยพลาดมาแล้วทั้ง .login-card และ .fda-row) — ปิดปัญหาทั้งไฟล์ที่นี่ที่เดียว */
+[hidden] { display: none !important; }
 
 /* ทางเข้าแบบ SSO (IAMService) — ปุ่มรองอยู่เหนือฟอร์มรหัสผ่าน */
 .login-card .btn-sso {
