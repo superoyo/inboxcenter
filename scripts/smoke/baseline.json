@@ -2,6 +2,7 @@
   "config": {
     "status": 200,
     "body": {
+      "fdaVerify": false,
       "longLivedTokens": false,
       "sso": {
         "authorizeUrl": "https://iam.fareastfamelineddb.com/api/sso/authorize",

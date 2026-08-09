@@ -35,6 +35,11 @@ const schema = z.object({
   FB_APP_ID: z.string().optional(),
   FB_APP_SECRET: z.string().optional(),
 
+  // ---- ระบบตรวจโฆษณาอาหารของ อย. (fdavalidation) ----
+  // ⚠️ key อยู่ฝั่ง server เท่านั้น หน้าเว็บเรียกผ่าน /api/fda/check ของเรา
+  FDA_BASE_URL: z.string().default('https://fdavalidation-production.up.railway.app'),
+  FDA_API_KEY: z.string().optional(),
+
   APIFY_TOKEN: z.string().optional(),
   APIFY_API_TOKEN: z.string().optional(),
   APIFY_FB_ACTOR: z.string().default('apify~facebook-posts-scraper'),
@@ -60,6 +65,8 @@ export const env = {
   longLivedTokens: Boolean(raw.FB_APP_ID && raw.FB_APP_SECRET),
   /** ตั้ง APIFY_TOKEN ไว้แล้วหรือยัง */
   apifyReady: Boolean(raw.APIFY_TOKEN || raw.APIFY_API_TOKEN),
+  /** ตั้ง FDA_API_KEY แล้วหรือยัง (ส่งให้หน้าเว็บผ่าน /api/config เพื่อซ่อน/แสดงปุ่ม) */
+  fdaReady: Boolean(raw.FDA_API_KEY),
   /** เปิดทางเข้าแบบ SSO ให้หน้าเว็บหรือยัง */
   ssoEnabled: /^(1|true|yes)$/i.test(raw.IAM_SSO_ENABLED ?? ''),
   /** มี secret แล้ว → requireAuth verify ลายเซ็น token ได้ */

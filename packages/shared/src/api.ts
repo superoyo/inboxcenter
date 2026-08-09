@@ -15,6 +15,8 @@ export interface OkResponse {
 export interface AppConfig {
   /** ตั้ง FB_APP_ID/FB_APP_SECRET แล้วหรือยัง (แลก long-lived token อัตโนมัติ) */
   longLivedTokens: boolean;
+  /** ตั้ง FDA_API_KEY แล้วหรือยัง — false = ซ่อนปุ่ม FDA Verify */
+  fdaVerify: boolean;
   sso: SsoConfig;
 }
 

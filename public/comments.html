@@ -101,6 +101,50 @@
     .eng-bar .eng span { color: var(--muted); font-size: 12px; }
     /* รูปโพสต์ในคอลัมน์ขวา */
     .post-hero { width: 100%; max-height: 260px; object-fit: cover; border-radius: 10px; margin-top: 10px; cursor: zoom-in; background: var(--bg); }
+    /* ---- ตรวจโฆษณากับระบบ อย. (FDA Verify) ---- */
+    /* ปุ่มอยู่บรรทัดบน · ผลตรวจลงบรรทัดของตัวเองเต็มความกว้าง (คอลัมน์ขวาแคบ) */
+    .fda-row { display: flex; align-items: flex-start; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+    .fda-btn { flex-shrink: 0; }
+    .fda-out { flex-basis: 100%; }
+    .fda-out:empty { display: none; }
+    /* bubble ผลตรวจ — สีตามผลสรุปของ อย. (เขียว/เหลือง/ส้ม/แดง) */
+    .fda-bubble {
+      border: 1.5px solid; border-radius: 18px;
+      padding: 8px 14px; font-size: 13px; line-height: 1.45;
+      display: flex; align-items: flex-start; gap: 8px;
+      text-align: left;
+    }
+    .fda-bubble .dot { flex-shrink: 0; font-size: 12px; line-height: 1.45; }
+    .fda-bubble .label { font-weight: 700; }
+    .fda-bubble .score { color: var(--muted); font-weight: 500; font-size: 12px; }
+    .fda-ok    { border-color: #22a06b; background: #eaf7f1; color: #14603f; }
+    .fda-cond  { border-color: #d4a017; background: #fdf6e3; color: #7a5c00; }
+    .fda-appr  { border-color: #e08b1e; background: #fdf3e4; color: #8a5200; }
+    .fda-block { border-color: #d93025; background: #fdecea; color: #8c1d18; }
+    .fda-err   { border-color: var(--border); background: var(--bg); color: var(--muted); }
+    .fda-bubble.loading { border-style: dashed; }
+    /* ปุ่มกางรายละเอียด + รายการข้อที่ตรวจพบ */
+    .fda-more {
+      margin-left: auto; flex-shrink: 0; align-self: flex-start; background: none; border: 0; cursor: pointer;
+      font: inherit; font-size: 12px; color: inherit; opacity: .75; text-decoration: underline;
+    }
+    .fda-detail {
+      margin-top: 8px; border: 1px solid var(--border); border-radius: 10px;
+      background: var(--bg); padding: 10px 12px; font-size: 12.5px; line-height: 1.5;
+      max-height: 260px; overflow-y: auto; text-align: left;
+    }
+    .fda-detail .item { padding: 8px 0; border-bottom: 1px solid var(--border); }
+    .fda-detail .item:last-child { border-bottom: 0; }
+    .fda-detail .it-title { font-weight: 700; }
+    .fda-detail .it-clause { color: var(--muted); font-size: 11.5px; margin-top: 1px; }
+    .fda-detail .it-fix { margin-top: 4px; }
+    .fda-detail .hit {
+      display: inline-block; background: #fdecea; color: #8c1d18;
+      border-radius: 4px; padding: 0 5px; margin: 2px 4px 0 0; font-size: 11.5px;
+    }
+    .fda-detail .sec { font-weight: 800; margin: 6px 0 2px; font-size: 12px; }
+    .fda-detail .foot { color: var(--muted); font-size: 11px; margin-top: 8px; }
+
     /* สถิติเชิงลึก */
     .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
     .stat-box { background: var(--bg); border-radius: 8px; padding: 8px 10px; }
@@ -474,6 +518,12 @@
               ${fmtAgo(post.createdTime)}
               ${post.permalink ? ` · <a href="${esc(post.permalink)}" target="_blank">เปิดโพสต์บน Facebook ↗</a>` : ''}
             </div>
+            <!-- ตรวจ caption กับหลักเกณฑ์การโฆษณาอาหารของ อย. (อยู่เหนือภาพตามที่ออกแบบไว้) -->
+            <div class="fda-row" id="fdaRow" hidden>
+              <button class="btn small secondary fda-btn" id="fdaBtn" onclick="runFdaCheck()"
+                      title="ตรวจข้อความโพสต์กับหลักเกณฑ์การโฆษณาอาหารของ อย.">🛡 FDA Verify</button>
+              <div class="fda-out" id="fdaResult"></div>
+            </div>
             ${post.picture ? `<img class="post-hero" src="${esc(post.picture)}" alt="" onclick="openLightbox(this.src)">` : ''}
             <div class="eng-bar">
               <span class="eng">👍 <b>${post.reactionCount.toLocaleString()}</b> <span>ถูกใจ</span></span>
@@ -488,6 +538,7 @@
           </div>`;
         if (window.innerWidth <= 800) $('backBtn').style.display = 'inline-flex';
         loadInsights(postId);
+        setupFdaButton(post);
       } catch (err) {
         $('cmRight').innerHTML = `<div class="cm-empty"><span class="big">⚠️</span><div style="max-width:420px; text-align:center;">${esc(err.message)}</div></div>`;
       }
@@ -514,6 +565,121 @@
       } catch {
         el.innerHTML = '';
       }
+    }
+
+    // ---------- ตรวจโฆษณากับระบบ อย. (FDA Verify) ----------
+    // เรียกผ่าน /api/fda/check ของเราเอง — API key อยู่ฝั่ง server ไม่ลงมาถึงหน้าเว็บ
+
+    // ผลสรุป 4 ระดับของ อย. → สี + จุดนำหน้า (อิงหน้าตาของระบบ อย.)
+    const FDA_STYLE = {
+      no_issue_found:          { cls: 'fda-ok',    dot: '🟢' },
+      allowed_with_conditions: { cls: 'fda-cond',  dot: '🟡' },
+      requires_approval:       { cls: 'fda-appr',  dot: '🟠' },
+      not_allowed:             { cls: 'fda-block', dot: '🔴' },
+    };
+
+    let fdaConfigReady = null; // null = ยังไม่รู้, true/false = ตั้ง FDA_API_KEY ไว้ไหม
+    const fdaCache = new Map(); // postId -> ผลตรวจ (กันยิงซ้ำเมื่อสลับโพสต์ไปมา)
+
+    async function setupFdaButton(post) {
+      const row = $('fdaRow');
+      if (!row) return;
+      // ไม่มี caption ก็ไม่มีอะไรให้ตรวจ
+      if (!post || !String(post.message || '').trim()) return;
+
+      if (fdaConfigReady === null) {
+        try {
+          const cfg = await fetch('/api/config').then((r) => r.json());
+          fdaConfigReady = !!cfg.fdaVerify;
+        } catch { fdaConfigReady = false; }
+      }
+      if (!fdaConfigReady) return; // ยังไม่ได้ตั้งคีย์ที่เซิร์ฟเวอร์ → ไม่ต้องโชว์ปุ่มให้กดแล้วพัง
+      row.hidden = false;
+
+      // เคยตรวจโพสต์นี้ไปแล้วในรอบนี้ → แสดงผลเดิมทันที ไม่ยิงซ้ำ
+      const cached = fdaCache.get(post.id);
+      if (cached) renderFdaResult(cached);
+    }
+
+    async function runFdaCheck() {
+      const post = posts.find((p) => p.id === activePostId);
+      if (!post) return;
+      const btn = $('fdaBtn'), box = $('fdaResult');
+      btn.disabled = true;
+      box.innerHTML = '<div class="fda-bubble fda-err loading"><span class="dot">⏳</span>'
+        + '<span>กำลังตรวจกับระบบ อย....</span></div>';
+      try {
+        const res = await fetch('/api/fda/check', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: post.message }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'ตรวจไม่สำเร็จ');
+        fdaCache.set(post.id, data);
+        renderFdaResult(data);
+      } catch (err) {
+        box.innerHTML = '<div class="fda-bubble fda-err"><span class="dot">⚠️</span><span>'
+          + esc(err.message || 'ตรวจไม่สำเร็จ') + '</span></div>';
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    function fdaItemHtml(title, clause, matched, body) {
+      return `<div class="item">
+        <div class="it-title">${esc(title)}</div>
+        <div class="it-clause">${esc(clause)}</div>
+        ${(matched || []).map((m) => `<span class="hit">${esc(m)}</span>`).join('')}
+        ${body ? `<div class="it-fix">${body}</div>` : ''}
+      </div>`;
+    }
+
+    function renderFdaResult(r) {
+      const box = $('fdaResult');
+      if (!box) return;
+      const style = FDA_STYLE[r.verdict] || FDA_STYLE.not_allowed;
+      const parts = [];
+
+      if (r.violations.length) {
+        parts.push('<div class="sec">ขัดต่อข้อห้าม — ต้องแก้ไข ขออนุญาตไม่ได้</div>');
+        parts.push(r.violations.map((v) => fdaItemHtml(v.title, v.clause, v.matched,
+          v.fix ? `<b>แก้อย่างไร:</b> ${esc(v.fix)}` : '')).join(''));
+      }
+      if (r.approvalsRequired.length) {
+        parts.push('<div class="sec">ต้องยื่นขออนุญาตโฆษณาก่อน</div>');
+        parts.push(r.approvalsRequired.map((a) => fdaItemHtml(a.topic, a.clause, a.matched,
+          a.condition ? `<b>เงื่อนไข:</b> ${esc(a.condition)}` : '')).join(''));
+      }
+      if (r.requiredWarnings.length) {
+        parts.push('<div class="sec">ต้องมีคำเตือน</div>');
+        parts.push(r.requiredWarnings.map((w) => `<div class="item">${esc(w)}</div>`).join(''));
+      }
+      if (!parts.length && r.recommendations.length) {
+        // ไม่พบข้อห้าม → แสดงข้อแนะนำแทน (ระบบตรวจจากตัวข้อความ ยังต้องดูภาพ/เสียงเอง)
+        parts.push(r.recommendations.slice(0, 2).map((c) =>
+          `<div class="item"><div class="it-title">${esc(c.title)}</div>
+           <div class="it-fix">${esc(c.detail)}</div></div>`).join(''));
+      }
+      if (r.regulationTitle) {
+        parts.push(`<div class="foot">อ้างอิง: ${esc(r.regulationTitle)}</div>`);
+      }
+
+      box.innerHTML = `
+        <div class="fda-bubble ${style.cls}">
+          <span class="dot">${style.dot}</span>
+          <span><span class="label">${esc(r.verdictLabel)}</span>
+            <span class="score"> · ความเสี่ยง ${esc(String(r.riskLevel).toUpperCase())} (${r.riskScore}/100)</span>
+          </span>
+          ${parts.length ? '<button class="fda-more" onclick="toggleFdaDetail(this)">รายละเอียด</button>' : ''}
+        </div>
+        ${parts.length ? `<div class="fda-detail" hidden>${parts.join('')}</div>` : ''}`;
+    }
+
+    function toggleFdaDetail(btn) {
+      const d = btn.closest('#fdaResult').querySelector('.fda-detail');
+      d.hidden = !d.hidden;
+      btn.textContent = d.hidden ? 'รายละเอียด' : 'ซ่อน';
     }
 
     // ---------- Export CSV ----------

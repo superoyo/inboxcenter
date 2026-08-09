@@ -7,4 +7,5 @@ export * from './project';
 export * from './content';
 export * from './analytics';
 export * from './competitor';
+export * from './fda';
 export * from './sync';
