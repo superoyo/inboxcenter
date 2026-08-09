@@ -123,27 +123,75 @@
     .fda-block { border-color: #d93025; background: #fdecea; color: #8c1d18; }
     .fda-err   { border-color: var(--border); background: var(--bg); color: var(--muted); }
     .fda-bubble.loading { border-style: dashed; }
-    /* ปุ่มกางรายละเอียด + รายการข้อที่ตรวจพบ */
-    .fda-more {
-      margin-left: auto; flex-shrink: 0; align-self: flex-start; background: none; border: 0; cursor: pointer;
-      font: inherit; font-size: 12px; color: inherit; opacity: .75; text-decoration: underline;
+    /* ---- ลิ้นชักผลตรวจ (สไลด์จากขวา) ---- */
+    .fda-scrim {
+      position: fixed; inset: 0; z-index: 90;
+      background: rgba(0,0,0,.35);
+      opacity: 0; transition: opacity .22s ease;
     }
-    .fda-detail {
-      margin-top: 8px; border: 1px solid var(--border); border-radius: 10px;
-      background: var(--bg); padding: 10px 12px; font-size: 12.5px; line-height: 1.5;
-      max-height: 260px; overflow-y: auto; text-align: left;
+    .fda-scrim.show { opacity: 1; }
+    .fda-drawer {
+      position: fixed; top: 0; right: 0; bottom: 0; z-index: 91;
+      width: min(560px, 100vw);
+      background: var(--card);
+      box-shadow: -8px 0 30px rgba(0,0,0,.18);
+      display: flex; flex-direction: column;
+      transform: translateX(100%);
+      transition: transform .26s cubic-bezier(.22,.7,.3,1);
     }
-    .fda-detail .item { padding: 8px 0; border-bottom: 1px solid var(--border); }
-    .fda-detail .item:last-child { border-bottom: 0; }
-    .fda-detail .it-title { font-weight: 700; }
-    .fda-detail .it-clause { color: var(--muted); font-size: 11.5px; margin-top: 1px; }
-    .fda-detail .it-fix { margin-top: 4px; }
-    .fda-detail .hit {
-      display: inline-block; background: #fdecea; color: #8c1d18;
-      border-radius: 4px; padding: 0 5px; margin: 2px 4px 0 0; font-size: 11.5px;
+    .fda-drawer.show { transform: translateX(0); }
+    .fda-dhead {
+      display: flex; align-items: center; gap: 10px;
+      padding: 14px 18px; border-bottom: 1px solid var(--border); flex-shrink: 0;
     }
-    .fda-detail .sec { font-weight: 800; margin: 6px 0 2px; font-size: 12px; }
-    .fda-detail .foot { color: var(--muted); font-size: 11px; margin-top: 8px; }
+    .fda-dhead .t { font-weight: 800; font-size: 15px; }
+    .fda-dhead .x {
+      margin-left: auto; border: 0; background: none; cursor: pointer;
+      font-size: 22px; line-height: 1; color: var(--muted); padding: 2px 6px; border-radius: 6px;
+    }
+    .fda-dhead .x:hover { background: var(--bg); color: var(--text); }
+    /* ส่วนบนติดหนึบ: ผลสรุป + ภาพ + ข้อความที่ตรวจ (มีไฮไลต์) */
+    .fda-dtop { padding: 14px 18px 12px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+    .fda-dimg {
+      width: 100%; max-height: 190px; object-fit: contain;
+      border-radius: 10px; background: var(--bg); margin-bottom: 10px;
+      cursor: zoom-in;
+    }
+    .fda-dtext {
+      background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
+      padding: 10px 12px; font-size: 13px; line-height: 1.75;
+      max-height: 132px; overflow-y: auto; white-space: pre-wrap; word-break: break-word;
+    }
+    .fda-dtext-cap { font-size: 11.5px; color: var(--muted); margin: 0 0 4px; }
+    /* คำที่ตรวจพบ — สีตามความหนักของปัญหา */
+    .fda-hl { border-radius: 3px; padding: 1px 2px; cursor: pointer; scroll-margin: 40px; }
+    .fda-hl-bad  { background: #fbd5d1; box-shadow: inset 0 -2px 0 #d93025; }
+    .fda-hl-appr { background: #fde3bf; box-shadow: inset 0 -2px 0 #e08b1e; }
+    .fda-hl-cond { background: #fbf0c4; box-shadow: inset 0 -2px 0 #d4a017; }
+    @keyframes fdaFlash { 0%,100% { filter: none; } 35% { filter: brightness(.82); } }
+    .fda-hl.flash { animation: fdaFlash .8s ease 2; }
+    /* รายการข้อที่ตรวจพบ */
+    .fda-dbody { flex: 1; overflow-y: auto; padding: 4px 18px 20px; }
+    .fda-sec { font-weight: 800; font-size: 13px; margin: 14px 0 6px; display: flex; gap: 6px; }
+    .fda-item {
+      border: 1px solid var(--border); border-left-width: 4px; border-radius: 8px;
+      padding: 9px 11px; margin-bottom: 8px; font-size: 12.5px; line-height: 1.55;
+      cursor: pointer; background: var(--card);
+    }
+    .fda-item:hover { background: var(--bg); }
+    .fda-item.on { border-color: var(--primary); border-left-color: var(--primary); }
+    .fda-item.k-bad  { border-left-color: #d93025; }
+    .fda-item.k-appr { border-left-color: #e08b1e; }
+    .fda-item.k-cond { border-left-color: #d4a017; }
+    .fda-item .it-title { font-weight: 700; }
+    .fda-item .it-clause { color: var(--muted); font-size: 11.5px; margin-top: 1px; }
+    .fda-item .it-body { margin-top: 5px; }
+    .fda-item .hit {
+      display: inline-block; border-radius: 4px; padding: 0 5px;
+      margin: 4px 4px 0 0; font-size: 11.5px; background: var(--bg); border: 1px solid var(--border);
+    }
+    .fda-item .jump { color: var(--primary); font-size: 11.5px; margin-top: 5px; display: block; }
+    .fda-foot { color: var(--muted); font-size: 11px; margin-top: 14px; line-height: 1.5; }
 
     /* สถิติเชิงลึก */
     .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
@@ -569,6 +617,8 @@
 
     // ---------- ตรวจโฆษณากับระบบ อย. (FDA Verify) ----------
     // เรียกผ่าน /api/fda/check ของเราเอง — API key อยู่ฝั่ง server ไม่ลงมาถึงหน้าเว็บ
+    // ผลแสดงในลิ้นชักที่สไลด์มาจากขวา: ภาพ + ข้อความที่ตรวจ (ไฮไลต์คำที่มีปัญหา) + รายการข้อ
+    // คลิกข้อ → กระโดดไปคำนั้นในข้อความ · คลิกคำ → กระโดดไปข้อที่เกี่ยวข้อง
 
     // ผลสรุป 4 ระดับของ อย. → สี + จุดนำหน้า (อิงหน้าตาของระบบ อย.)
     const FDA_STYLE = {
@@ -596,18 +646,82 @@
       if (!fdaConfigReady) return; // ยังไม่ได้ตั้งคีย์ที่เซิร์ฟเวอร์ → ไม่ต้องโชว์ปุ่มให้กดแล้วพัง
       row.hidden = false;
 
-      // เคยตรวจโพสต์นี้ไปแล้วในรอบนี้ → แสดงผลเดิมทันที ไม่ยิงซ้ำ
+      // เคยตรวจโพสต์นี้ไปแล้วในรอบนี้ → แสดงผลสรุปเดิมทันที ไม่ยิงซ้ำ
       const cached = fdaCache.get(post.id);
-      if (cached) renderFdaResult(cached);
+      if (cached) renderFdaSummary(cached);
     }
+
+    // แถบสรุปเล็ก ๆ ใต้ปุ่ม (คลิกเพื่อเปิดลิ้นชักอีกครั้ง)
+    function renderFdaSummary(r) {
+      const box = $('fdaResult');
+      if (!box) return;
+      const style = FDA_STYLE[r.verdict] || FDA_STYLE.not_allowed;
+      box.innerHTML = `
+        <div class="fda-bubble ${style.cls}" style="cursor:pointer" onclick="openFdaDrawer()"
+             title="กดเพื่อดูรายละเอียด">
+          <span class="dot">${style.dot}</span>
+          <span><span class="label">${esc(r.verdictLabel)}</span>
+            <span class="score"> · ความเสี่ยง ${esc(String(r.riskLevel).toUpperCase())} (${r.riskScore}/100)</span>
+          </span>
+        </div>`;
+    }
+
+    // ---- ลิ้นชัก ----
+    function ensureFdaDrawer() {
+      if ($('fdaDrawer')) return;
+      const scrim = document.createElement('div');
+      scrim.className = 'fda-scrim'; scrim.id = 'fdaScrim'; scrim.hidden = true;
+      scrim.addEventListener('click', closeFdaDrawer);
+
+      const d = document.createElement('aside');
+      d.className = 'fda-drawer'; d.id = 'fdaDrawer'; d.hidden = true;
+      d.setAttribute('role', 'dialog');
+      d.setAttribute('aria-label', 'ผลตรวจโฆษณากับระบบ อย.');
+      d.innerHTML = `
+        <div class="fda-dhead">
+          <span class="t">🛡 ตรวจโฆษณากับระบบ อย.</span>
+          <button class="x" type="button" aria-label="ปิด" onclick="closeFdaDrawer()">×</button>
+        </div>
+        <div class="fda-dtop" id="fdaDTop"></div>
+        <div class="fda-dbody" id="fdaDBody"></div>`;
+      document.body.append(scrim, d);
+    }
+
+    function openFdaDrawer() {
+      ensureFdaDrawer();
+      $('fdaScrim').hidden = false; $('fdaDrawer').hidden = false;
+      // อ่าน offsetWidth เพื่อบังคับ reflow ให้เบราว์เซอร์รับรู้สถานะเริ่มต้นก่อน แล้วค่อยติด class
+      // (ไม่ใช้ requestAnimationFrame เพราะแท็บที่ไม่ได้อยู่หน้าจออาจไม่ยิง → ลิ้นชักจะเปิดแต่มองไม่เห็น)
+      void $('fdaDrawer').offsetWidth;
+      $('fdaScrim').classList.add('show'); $('fdaDrawer').classList.add('show');
+      document.addEventListener('keydown', fdaEscClose);
+      const cached = fdaCache.get(activePostId);
+      if (cached) renderFdaDrawer(cached);
+    }
+
+    function closeFdaDrawer() {
+      const scrim = $('fdaScrim'), d = $('fdaDrawer');
+      if (!d) return;
+      scrim.classList.remove('show'); d.classList.remove('show');
+      document.removeEventListener('keydown', fdaEscClose);
+      // รอสไลด์ออกให้จบก่อนค่อยซ่อน ไม่งั้นจะวูบหาย
+      setTimeout(() => { scrim.hidden = true; d.hidden = true; }, 260);
+    }
+
+    function fdaEscClose(e) { if (e.key === 'Escape') closeFdaDrawer(); }
 
     async function runFdaCheck() {
       const post = posts.find((p) => p.id === activePostId);
       if (!post) return;
-      const btn = $('fdaBtn'), box = $('fdaResult');
-      btn.disabled = true;
-      box.innerHTML = '<div class="fda-bubble fda-err loading"><span class="dot">⏳</span>'
-        + '<span>กำลังตรวจกับระบบ อย....</span></div>';
+      openFdaDrawer();
+      renderFdaDrawerShell(post, '<div class="fda-bubble fda-err loading" style="margin-bottom:10px">'
+        + '<span class="dot">⏳</span><span>กำลังตรวจกับระบบ อย....</span></div>');
+
+      const cached = fdaCache.get(post.id);
+      if (cached) { renderFdaDrawer(cached); return; }
+
+      const btn = $('fdaBtn');
+      if (btn) btn.disabled = true;
       try {
         const res = await fetch('/api/fda/check', {
           method: 'POST',
@@ -617,69 +731,177 @@
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'ตรวจไม่สำเร็จ');
         fdaCache.set(post.id, data);
-        renderFdaResult(data);
+        renderFdaDrawer(data);
+        renderFdaSummary(data);
       } catch (err) {
-        box.innerHTML = '<div class="fda-bubble fda-err"><span class="dot">⚠️</span><span>'
-          + esc(err.message || 'ตรวจไม่สำเร็จ') + '</span></div>';
+        renderFdaDrawerShell(post, '<div class="fda-bubble fda-err" style="margin-bottom:10px">'
+          + '<span class="dot">⚠️</span><span>' + esc(err.message || 'ตรวจไม่สำเร็จ') + '</span></div>');
       } finally {
-        btn.disabled = false;
+        if (btn) btn.disabled = false;
       }
     }
 
-    function fdaItemHtml(title, clause, matched, body) {
-      return `<div class="item">
+    // ---- ไฮไลต์คำที่ตรวจพบในข้อความ ----
+    // รวมช่วงคำจากทุกกลุ่ม เรียงตามตำแหน่ง แล้วตัดช่วงที่ทับกัน (กลุ่มที่หนักกว่าชนะ)
+    function fdaHighlight(text, r) {
+      const groups = [
+        { kind: 'bad',  items: r.violations || [],        key: (it) => it.title },
+        { kind: 'appr', items: r.approvalsRequired || [], key: (it) => it.topic },
+        { kind: 'cond', items: r.conditionalItems || [],  key: (it) => it.topic },
+      ];
+      const hay = text.toLowerCase();
+      const ranges = [];
+      groups.forEach((g, rank) => g.items.forEach((it, idx) => {
+        (it.matched || []).forEach((m) => {
+          const needle = String(m || '').trim();
+          if (!needle) return;
+          const nee = needle.toLowerCase();
+          let from = 0, at;
+          while ((at = hay.indexOf(nee, from)) !== -1) {
+            ranges.push({ start: at, end: at + needle.length, kind: g.kind, fid: g.kind + '-' + idx, rank });
+            from = at + needle.length;
+          }
+        });
+      }));
+      // ตำแหน่งเดียวกันให้ตัวที่หนักกว่า (rank น้อยกว่า) และช่วงที่ยาวกว่าชนะ
+      ranges.sort((a, b) => a.start - b.start || a.rank - b.rank || (b.end - b.start) - (a.end - a.start));
+
+      let html = '', cursor = 0, n = 0;
+      for (const rg of ranges) {
+        if (rg.start < cursor) continue; // ทับกับช่วงก่อนหน้า — ข้าม
+        html += esc(text.slice(cursor, rg.start));
+        html += `<mark class="fda-hl fda-hl-${rg.kind}" id="fdaHl${n}" data-fid="${rg.fid}"
+                   onclick="fdaJumpToItem('${rg.fid}')" title="กดเพื่อดูข้อที่เกี่ยวข้อง"
+                 >${esc(text.slice(rg.start, rg.end))}</mark>`;
+        cursor = rg.end; n++;
+      }
+      html += esc(text.slice(cursor));
+      return { html, count: n };
+    }
+
+    // ส่วนบนของลิ้นชัก: ผลสรุป + ภาพ + ข้อความ
+    function renderFdaDrawerShell(post, topHtml, textHtml, hlCount) {
+      ensureFdaDrawer();
+      const img = post.picture
+        ? `<img class="fda-dimg" src="${esc(post.picture)}" alt="" onclick="openLightbox(this.src)">` : '';
+      const hint = hlCount
+        ? `<div class="fda-dtext-cap">ข้อความที่ตรวจ · ไฮไลต์ ${hlCount} จุด — กดที่คำเพื่อดูข้อที่เกี่ยวข้อง</div>`
+        : '<div class="fda-dtext-cap">ข้อความที่ตรวจ</div>';
+      $('fdaDTop').innerHTML = topHtml + img + hint
+        + `<div class="fda-dtext" id="fdaDText">${textHtml != null ? textHtml : esc(post.message || '')}</div>`;
+    }
+
+    function fdaItemHtml(kind, idx, title, clause, matched, body) {
+      return `<div class="fda-item k-${kind}" id="fdaItem-${kind}-${idx}"
+                   onclick="fdaJumpToText('${kind}-${idx}')">
         <div class="it-title">${esc(title)}</div>
         <div class="it-clause">${esc(clause)}</div>
         ${(matched || []).map((m) => `<span class="hit">${esc(m)}</span>`).join('')}
-        ${body ? `<div class="it-fix">${body}</div>` : ''}
+        ${body ? `<div class="it-body">${body}</div>` : ''}
+        ${(matched || []).length ? '<span class="jump">↑ กดเพื่อกระโดดไปจุดที่พบในข้อความ</span>' : ''}
       </div>`;
     }
 
-    function renderFdaResult(r) {
-      const box = $('fdaResult');
-      if (!box) return;
+    function renderFdaDrawer(r) {
+      const post = posts.find((p) => p.id === activePostId);
+      if (!post) return;
+      ensureFdaDrawer();
       const style = FDA_STYLE[r.verdict] || FDA_STYLE.not_allowed;
-      const parts = [];
+      const hl = fdaHighlight(String(post.message || ''), r);
 
-      if (r.violations.length) {
-        parts.push('<div class="sec">ขัดต่อข้อห้าม — ต้องแก้ไข ขออนุญาตไม่ได้</div>');
-        parts.push(r.violations.map((v) => fdaItemHtml(v.title, v.clause, v.matched,
-          v.fix ? `<b>แก้อย่างไร:</b> ${esc(v.fix)}` : '')).join(''));
-      }
-      if (r.approvalsRequired.length) {
-        parts.push('<div class="sec">ต้องยื่นขออนุญาตโฆษณาก่อน</div>');
-        parts.push(r.approvalsRequired.map((a) => fdaItemHtml(a.topic, a.clause, a.matched,
-          a.condition ? `<b>เงื่อนไข:</b> ${esc(a.condition)}` : '')).join(''));
-      }
-      if (r.requiredWarnings.length) {
-        parts.push('<div class="sec">ต้องมีคำเตือน</div>');
-        parts.push(r.requiredWarnings.map((w) => `<div class="item">${esc(w)}</div>`).join(''));
-      }
-      if (!parts.length && r.recommendations.length) {
-        // ไม่พบข้อห้าม → แสดงข้อแนะนำแทน (ระบบตรวจจากตัวข้อความ ยังต้องดูภาพ/เสียงเอง)
-        parts.push(r.recommendations.slice(0, 2).map((c) =>
-          `<div class="item"><div class="it-title">${esc(c.title)}</div>
-           <div class="it-fix">${esc(c.detail)}</div></div>`).join(''));
-      }
-      if (r.regulationTitle) {
-        parts.push(`<div class="foot">อ้างอิง: ${esc(r.regulationTitle)}</div>`);
-      }
-
-      box.innerHTML = `
-        <div class="fda-bubble ${style.cls}">
+      renderFdaDrawerShell(post, `
+        <div class="fda-bubble ${style.cls}" style="margin-bottom:10px">
           <span class="dot">${style.dot}</span>
           <span><span class="label">${esc(r.verdictLabel)}</span>
             <span class="score"> · ความเสี่ยง ${esc(String(r.riskLevel).toUpperCase())} (${r.riskScore}/100)</span>
           </span>
-          ${parts.length ? '<button class="fda-more" onclick="toggleFdaDetail(this)">รายละเอียด</button>' : ''}
-        </div>
-        ${parts.length ? `<div class="fda-detail" hidden>${parts.join('')}</div>` : ''}`;
+        </div>`, hl.html, hl.count);
+
+      const parts = [];
+      if (r.violations.length) {
+        parts.push(`<div class="fda-sec">❌ ขัดต่อข้อห้าม — ต้องแก้ไข ขออนุญาตไม่ได้ (${r.violations.length})</div>`);
+        parts.push(r.violations.map((v, i) => fdaItemHtml('bad', i, v.title, v.clause, v.matched,
+          v.fix ? `<b>แก้อย่างไร:</b> ${esc(v.fix)}` : '')).join(''));
+      }
+      if (r.approvalsRequired.length) {
+        parts.push(`<div class="fda-sec">📋 ต้องยื่นขออนุญาตโฆษณาก่อน (${r.approvalsRequired.length})</div>`);
+        parts.push(r.approvalsRequired.map((a, i) => fdaItemHtml('appr', i, a.topic, a.clause, a.matched,
+          [a.evidence ? `<b>หลักฐาน:</b> ${esc(a.evidence)}` : '',
+           a.condition ? `<b>เงื่อนไข:</b> ${esc(a.condition)}` : ''].filter(Boolean).join('<br>'))).join(''));
+      }
+      if (r.conditionalItems.length) {
+        parts.push(`<div class="fda-sec">🟡 โฆษณาได้ถ้าเข้าเงื่อนไข (${r.conditionalItems.length})</div>`);
+        parts.push(r.conditionalItems.map((c, i) => fdaItemHtml('cond', i, c.topic, c.clause, c.matched,
+          c.condition ? `<b>เงื่อนไข:</b> ${esc(c.condition)}` : '')).join(''));
+      }
+      if (r.requiredWarnings.length) {
+        parts.push('<div class="fda-sec">⚠️ ต้องมีคำเตือน</div>');
+        parts.push(r.requiredWarnings.map((w) => `<div class="fda-item">${esc(w)}</div>`).join(''));
+      }
+      if (r.recommendations.length) {
+        parts.push('<div class="fda-sec">💡 คำแนะนำ</div>');
+        parts.push(r.recommendations.slice(0, 4).map((c) =>
+          `<div class="fda-item" style="cursor:default">
+             <div class="it-title">${esc(c.title)}</div>
+             <div class="it-body">${esc(c.detail)}</div>
+           </div>`).join(''));
+      }
+      if (r.manualChecks.length) {
+        parts.push(`<div class="fda-sec">👁 ต้องตรวจเองเพิ่ม (${r.manualChecks.length})</div>`);
+        parts.push(r.manualChecks.map((m) =>
+          `<div class="fda-item" style="cursor:default">
+             <div class="it-title">${esc(m.title)}</div>
+             <div class="it-clause">${esc(m.clause)}</div>
+             <div class="it-body">${esc(m.note)}</div>
+           </div>`).join(''));
+      }
+      parts.push(`<div class="fda-foot">
+        ระบบตรวจจากตัวข้อความเป็นหลัก ยังต้องตรวจภาพ เสียง กราฟิก และบริบทโดยรวมเอง<br>
+        ${r.regulationTitle ? 'อ้างอิง: ' + esc(r.regulationTitle) : ''}
+      </div>`);
+
+      $('fdaDBody').innerHTML = parts.join('');
     }
 
-    function toggleFdaDetail(btn) {
-      const d = btn.closest('#fdaResult').querySelector('.fda-detail');
-      d.hidden = !d.hidden;
-      btn.textContent = d.hidden ? 'รายละเอียด' : 'ซ่อน';
+    /**
+     * เลื่อน container ให้ el มาอยู่กลางกล่อง
+     *
+     * จงใจกำหนด scrollTop ตรง ๆ ไม่ทำอนิเมชัน — ทดสอบแล้วพบว่าทั้ง
+     * scrollIntoView({behavior:'smooth'}), CSS scroll-behavior: smooth และ
+     * requestAnimationFrame ถูกเมินได้ในบางบริบท (เช่นแท็บที่ไม่ได้อยู่หน้าจอ)
+     * ซึ่งจะทำให้ "กระโดดไม่ไป" เลย · การกะพริบที่คำ (.flash) ทำหน้าที่ชี้จุดให้ตาแทนอยู่แล้ว
+     */
+    function fdaScrollWithin(container, el) {
+      const delta = el.getBoundingClientRect().top - container.getBoundingClientRect().top;
+      const max = container.scrollHeight - container.clientHeight;
+      container.scrollTop = Math.max(0, Math.min(max,
+        container.scrollTop + delta - container.clientHeight / 2 + el.offsetHeight / 2));
+    }
+
+    // คลิกที่ "ข้อ" → เลื่อนข้อความไปหาคำแรกของข้อนั้น แล้วกะพริบให้เห็น
+    function fdaJumpToText(fid) {
+      const mark = document.querySelector(`#fdaDText [data-fid="${fid}"]`);
+      if (!mark) return;
+      fdaScrollWithin($('fdaDText'), mark);
+      document.querySelectorAll('#fdaDText .fda-hl.flash').forEach((m) => m.classList.remove('flash'));
+      // ต้อง reflow ก่อน ไม่งั้นการใส่ class ซ้ำจะไม่รีสตาร์ต animation
+      void mark.offsetWidth;
+      mark.classList.add('flash');
+      fdaMarkActive(fid);
+    }
+
+    // คลิกที่ "คำ" ในข้อความ → เลื่อนรายการไปหาข้อที่เกี่ยวข้อง
+    function fdaJumpToItem(fid) {
+      const item = $('fdaItem-' + fid);
+      if (!item) return;
+      fdaScrollWithin($('fdaDBody'), item);
+      fdaMarkActive(fid);
+    }
+
+    function fdaMarkActive(fid) {
+      document.querySelectorAll('#fdaDBody .fda-item.on').forEach((el) => el.classList.remove('on'));
+      const item = $('fdaItem-' + fid);
+      if (item) item.classList.add('on');
     }
 
     // ---------- Export CSV ----------
