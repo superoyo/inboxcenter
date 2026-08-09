@@ -182,10 +182,8 @@
       .fda-dtext { flex: 0 0 auto; max-height: 26vh; }
     }
     /* คำที่ตรวจพบ — สีตามความหนักของปัญหา */
-    .fda-hl { border-radius: 3px; padding: 1px 2px; cursor: pointer; scroll-margin: 40px; }
-    .fda-hl-bad  { background: #fbd5d1; box-shadow: inset 0 -2px 0 #d93025; }
-    .fda-hl-appr { background: #fde3bf; box-shadow: inset 0 -2px 0 #e08b1e; }
-    .fda-hl-cond { background: #fbf0c4; box-shadow: inset 0 -2px 0 #d4a017; }
+    /* สีมาจาก JS (จานสี FDA_COLORS) — หนึ่งข้อหนึ่งสี ไม่ใช่หนึ่งหมวดหนึ่งสี */
+    .fda-hl { border-radius: 3px; padding: 1px 2px; cursor: pointer; scroll-margin: 40px; color: inherit; }
     @keyframes fdaFlash { 0%,100% { filter: none; } 35% { filter: brightness(.82); } }
     .fda-hl.flash { animation: fdaFlash .8s ease 2; }
     /* รายการข้อที่ตรวจพบ */
@@ -197,11 +195,14 @@
       cursor: pointer; background: var(--card);
     }
     .fda-item:hover { background: var(--bg); }
-    .fda-item.on { border-color: var(--primary); border-left-color: var(--primary); }
-    .fda-item.k-bad  { border-left-color: #d93025; }
-    .fda-item.k-appr { border-left-color: #e08b1e; }
-    .fda-item.k-cond { border-left-color: #d4a017; }
+    .fda-item.no-jump { cursor: default; }
+    /* ตอนถูกเลือกใช้วงแหวนแทนการเปลี่ยนสีขอบ ไม่งั้นจะกลืนสีประจำข้อไป */
+    .fda-item.on { box-shadow: 0 0 0 2px var(--primary); }
     .fda-item .it-title { font-weight: 700; }
+    .fda-item .it-dot {
+      display: inline-block; width: 9px; height: 9px; border-radius: 50%;
+      margin-right: 6px; vertical-align: 1px;
+    }
     .fda-item .it-clause { color: var(--muted); font-size: 11.5px; margin-top: 1px; }
     .fda-item .it-body { margin-top: 5px; }
     .fda-item .hit {
@@ -646,6 +647,28 @@
       not_allowed:             { cls: 'fda-block', dot: '🔴' },
     };
 
+    /**
+     * จานสีสำหรับแยก "แต่ละข้อ" ไม่ใช่แต่ละหมวด
+     * ข้อเดียวกัน = สีเดียวกันทั้งคำในข้อความและการ์ดฝั่งขวา → จับคู่ได้ด้วยตาโดยไม่ต้องกด
+     * (หมวด ขัดข้อห้าม/ต้องขออนุญาต/มีเงื่อนไข ยังดูได้จากหัวข้อที่แยกกลุ่มไว้)
+     * เรียงให้สีที่อยู่ติดกันต่างกันชัด เพราะข้อที่ติดกันมักถูกเทียบกันเอง
+     */
+    const FDA_COLORS = [
+      { bg: '#ffd4d1', line: '#d93025' }, // แดง
+      { bg: '#d5e4ff', line: '#1877f2' }, // น้ำเงิน
+      { bg: '#ffe6bd', line: '#e08b1e' }, // ส้ม
+      { bg: '#d3efd8', line: '#2e9e4f' }, // เขียว
+      { bg: '#e6dcff', line: '#7c4dff' }, // ม่วง
+      { bg: '#fff2b0', line: '#c99700' }, // เหลือง
+      { bg: '#ffd9ec', line: '#d63384' }, // ชมพู
+      { bg: '#c9eef0', line: '#0f9aa0' }, // เขียวน้ำทะเล
+      { bg: '#e8ddc8', line: '#8d6e3a' }, // น้ำตาล
+      { bg: '#dde1e6', line: '#5f6b7a' }, // เทา
+    ];
+    /** ข้อที่ไม่มีคำโผล่ในข้อความ ไม่ต้องกินสีในจาน — ใช้สีกลางแทน */
+    const FDA_NEUTRAL = { bg: '#eceff2', line: '#98a2ad' };
+    const fdaColorOf = (i) => (i == null ? FDA_NEUTRAL : FDA_COLORS[i % FDA_COLORS.length]);
+
     let fdaConfigReady = null; // null = ยังไม่รู้, true/false = ตั้ง FDA_API_KEY ไว้ไหม
     const fdaCache = new Map(); // postId -> ผลตรวจ (กันยิงซ้ำเมื่อสลับโพสต์ไปมา)
 
@@ -787,17 +810,24 @@
       // ตำแหน่งเดียวกันให้ตัวที่หนักกว่า (rank น้อยกว่า) และช่วงที่ยาวกว่าชนะ
       ranges.sort((a, b) => a.start - b.start || a.rank - b.rank || (b.end - b.start) - (a.end - a.start));
 
+      // แจกสีเฉพาะข้อที่มีคำโผล่จริงในข้อความ เรียงตามลำดับที่พบจากบนลงล่าง
+      // (ถ้าแจกให้ทุกข้อรวมข้อที่ไม่มีคำ เลขสีจะวนเกินจานแล้วสีซ้ำกันทั้งที่ยังมีสีว่าง)
+      const colorOfFid = new Map();
+
       let html = '', cursor = 0, n = 0;
       for (const rg of ranges) {
         if (rg.start < cursor) continue; // ทับกับช่วงก่อนหน้า — ข้าม
+        if (!colorOfFid.has(rg.fid)) colorOfFid.set(rg.fid, colorOfFid.size);
+        const c = fdaColorOf(colorOfFid.get(rg.fid));
         html += esc(text.slice(cursor, rg.start));
-        html += `<mark class="fda-hl fda-hl-${rg.kind}" id="fdaHl${n}" data-fid="${rg.fid}"
+        html += `<mark class="fda-hl" id="fdaHl${n}" data-fid="${rg.fid}"
+                   style="background:${c.bg};box-shadow:inset 0 -2px 0 ${c.line}"
                    onclick="fdaJumpToItem('${rg.fid}')" title="กดเพื่อดูข้อที่เกี่ยวข้อง"
                  >${esc(text.slice(rg.start, rg.end))}</mark>`;
         cursor = rg.end; n++;
       }
       html += esc(text.slice(cursor));
-      return { html, count: n };
+      return { html, count: n, colorOfFid };
     }
 
     // ส่วนบนของลิ้นชัก: ผลสรุป + ภาพ + ข้อความ
@@ -813,14 +843,21 @@
         + `<div class="fda-dtext" id="fdaDText">${textHtml != null ? textHtml : esc(post.message || '')}</div>`;
     }
 
-    function fdaItemHtml(kind, idx, title, clause, matched, body) {
-      return `<div class="fda-item k-${kind}" id="fdaItem-${kind}-${idx}"
-                   onclick="fdaJumpToText('${kind}-${idx}')">
-        <div class="it-title">${esc(title)}</div>
+    /**
+     * colorIdx = undefined แปลว่าข้อนี้ไม่มีคำไฮไลต์ในข้อความ
+     * (เกิดได้เมื่อคำเดียวกันถูกสองข้ออ้าง แล้วอีกข้อชนะการทับซ้อน) → ใช้สีกลางและไม่ชวนให้กดกระโดด
+     */
+    function fdaItemHtml(kind, idx, title, clause, matched, body, colorIdx) {
+      const c = fdaColorOf(colorIdx);
+      const jumpable = colorIdx != null;
+      return `<div class="fda-item${jumpable ? '' : ' no-jump'}" id="fdaItem-${kind}-${idx}"
+                   style="border-left-color:${c.line}"
+                   ${jumpable ? `onclick="fdaJumpToText('${kind}-${idx}')"` : ''}>
+        <div class="it-title"><span class="it-dot" style="background:${c.line}"></span>${esc(title)}</div>
         <div class="it-clause">${esc(clause)}</div>
         ${(matched || []).map((m) => `<span class="hit">${esc(m)}</span>`).join('')}
         ${body ? `<div class="it-body">${body}</div>` : ''}
-        ${(matched || []).length ? '<span class="jump">↑ กดเพื่อกระโดดไปจุดที่พบในข้อความ</span>' : ''}
+        ${jumpable ? '<span class="jump">↑ กดเพื่อกระโดดไปจุดที่พบในข้อความ</span>' : ''}
       </div>`;
     }
 
@@ -843,18 +880,19 @@
       if (r.violations.length) {
         parts.push(`<div class="fda-sec">❌ ขัดต่อข้อห้าม — ต้องแก้ไข ขออนุญาตไม่ได้ (${r.violations.length})</div>`);
         parts.push(r.violations.map((v, i) => fdaItemHtml('bad', i, v.title, v.clause, v.matched,
-          v.fix ? `<b>แก้อย่างไร:</b> ${esc(v.fix)}` : '')).join(''));
+          v.fix ? `<b>แก้อย่างไร:</b> ${esc(v.fix)}` : '', hl.colorOfFid.get('bad-' + i))).join(''));
       }
       if (r.approvalsRequired.length) {
         parts.push(`<div class="fda-sec">📋 ต้องยื่นขออนุญาตโฆษณาก่อน (${r.approvalsRequired.length})</div>`);
         parts.push(r.approvalsRequired.map((a, i) => fdaItemHtml('appr', i, a.topic, a.clause, a.matched,
           [a.evidence ? `<b>หลักฐาน:</b> ${esc(a.evidence)}` : '',
-           a.condition ? `<b>เงื่อนไข:</b> ${esc(a.condition)}` : ''].filter(Boolean).join('<br>'))).join(''));
+           a.condition ? `<b>เงื่อนไข:</b> ${esc(a.condition)}` : ''].filter(Boolean).join('<br>'),
+          hl.colorOfFid.get('appr-' + i))).join(''));
       }
       if (r.conditionalItems.length) {
         parts.push(`<div class="fda-sec">🟡 โฆษณาได้ถ้าเข้าเงื่อนไข (${r.conditionalItems.length})</div>`);
         parts.push(r.conditionalItems.map((c, i) => fdaItemHtml('cond', i, c.topic, c.clause, c.matched,
-          c.condition ? `<b>เงื่อนไข:</b> ${esc(c.condition)}` : '')).join(''));
+          c.condition ? `<b>เงื่อนไข:</b> ${esc(c.condition)}` : '', hl.colorOfFid.get('cond-' + i))).join(''));
       }
       if (r.requiredWarnings.length) {
         parts.push('<div class="fda-sec">⚠️ ต้องมีคำเตือน</div>');
