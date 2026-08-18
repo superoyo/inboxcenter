@@ -49,7 +49,12 @@ export const requests = [
       packageImage: '',
       startDate: '2026-02-01',
       character: 'โทนสุภาพ',
-      competitors: [{ name: 'คู่แข่ง ข', url: 'example.com/b' }],
+      competitors: [
+        { name: 'คู่แข่ง ข', url: 'example.com/b' }, // ไม่ใช่เพจ FB → ต้องไม่ถูกดึงเข้าหน้า Competitor
+        // เป็นเพจ FB → หลัง PUT แล้ว competitors.list ต้องมีเพจนี้เพิ่มมาเอง พร้อม owners
+        { name: 'คู่แข่ง ค', url: 'https://www.facebook.com/smokerival/?locale=th' },
+        { name: 'คู่แข่ง ค', url: 'https://www.facebook.com/smokerival' }, // URL ซ้ำ ต้องยุบเป็นรายการเดียว
+      ],
       teams: { content: [{ empCode: 'E002', name: 'มานี' }], graphic: [], chatInbox: [], am: [] },
     },
   },

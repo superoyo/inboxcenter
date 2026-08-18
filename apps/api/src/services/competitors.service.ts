@@ -3,6 +3,7 @@ import type {
   Competitor,
   CompetitorDetail,
   CompetitorListResponse,
+  CompetitorOwner,
   CompetitorSyncRun,
   DateRange,
   SyncRangeKey,
@@ -65,12 +66,75 @@ async function findOrThrow(id: string): Promise<Competitor> {
   return c;
 }
 
+/** id ของเพจคู่แข่ง สร้างจาก handle เพื่อให้ URL เดียวกันได้ id เดิมเสมอ */
+const idFromHandle = (handle: string): string =>
+  `cmp_${handle.toLowerCase().replace(/[^a-z0-9._-]/g, '_')}`;
+
+function newCompetitor(handle: string, name?: string): Competitor {
+  return {
+    id: idFromHandle(handle),
+    url: `https://www.facebook.com/${handle}`,
+    handle,
+    name: (name || '').trim() || handle,
+    pictureUrl: '',
+    addedAt: new Date().toISOString(),
+    lastSyncAt: null,
+    coveredFrom: null,
+    coveredTo: null,
+  };
+}
+
+/**
+ * ดึงคู่แข่งที่กรอกไว้ในหน้า Admin (ตั้งค่ารายเพจ) เข้ามาเป็นเพจคู่แข่งอัตโนมัติ
+ * และคืนแผนที่ว่า "คู่แข่งรายนี้เป็นคู่แข่งของเพจไหนบ้าง"
+ *
+ * แถวที่ URL ไม่ใช่เพจ Facebook จะถูกข้าม (กรอกเว็บแบรนด์ไว้ก็มี) — ไม่ถือเป็นข้อผิดพลาด
+ * เพจที่มีอยู่แล้วจะไม่ถูกเขียนทับ เพื่อไม่ให้ช่วงข้อมูลที่ดึงมาแล้วหาย
+ */
+async function ownersFromPageConfigs(): Promise<Map<string, CompetitorOwner[]>> {
+  const [configs, pages, existing] = await Promise.all([
+    repository.getPageConfigs(),
+    repository.getPages(),
+    repository.getCompetitors(),
+  ]);
+  const nameOfPage = new Map(pages.map((p) => [p.id, p.name]));
+  const have = new Set(existing.map((c) => c.id));
+  const owners = new Map<string, CompetitorOwner[]>();
+
+  for (const [pageId, config] of Object.entries(configs)) {
+    for (const ref of config.competitors ?? []) {
+      const handle = competitorHandle(String(ref.url || ''));
+      if (!handle) continue;
+      const id = idFromHandle(handle);
+
+      const list = owners.get(id) ?? [];
+      // เพจเดียวกันกรอก URL ซ้ำสองแถว ไม่ต้องนับซ้ำ
+      if (!list.some((o) => o.pageId === pageId)) {
+        list.push({
+          pageId,
+          pageName: nameOfPage.get(pageId) || pageId,
+          brandName: String(ref.name || '').trim(),
+        });
+        owners.set(id, list);
+      }
+
+      if (!have.has(id)) {
+        await repository.saveCompetitor(newCompetitor(handle, ref.name));
+        have.add(id);
+      }
+    }
+  }
+  return owners;
+}
+
 export async function listCompetitors(): Promise<CompetitorListResponse> {
+  const owners = await ownersFromPageConfigs();
   const list = await repository.getCompetitors();
   const items = await Promise.all(
     list.map(async (c) => ({
       ...c,
       postCount: (await repository.getCompetitorPosts(c.id)).length,
+      owners: owners.get(c.id) ?? [],
     })),
   );
   return { items, apifyReady: apify.hasToken() };
@@ -88,21 +152,11 @@ export async function addCompetitor(url: string): Promise<Competitor> {
       'ใส่ URL เพจ Facebook ให้ถูกต้อง เช่น https://www.facebook.com/systemathailand',
     );
   }
-  const id = `cmp_${handle.toLowerCase().replace(/[^a-z0-9._-]/g, '_')}`;
+  const id = idFromHandle(handle);
   const existing = (await repository.getCompetitors()).find((c) => c.id === id);
   if (existing) throw AppError.badRequest(`มีเพจ "${existing.name || handle}" อยู่แล้ว`);
 
-  const competitor: Competitor = {
-    id,
-    url: `https://www.facebook.com/${handle}`,
-    handle,
-    name: handle,
-    pictureUrl: '',
-    addedAt: new Date().toISOString(),
-    lastSyncAt: null,
-    coveredFrom: null,
-    coveredTo: null,
-  };
+  const competitor = newCompetitor(handle);
   await repository.saveCompetitor(competitor);
   return competitor;
 }

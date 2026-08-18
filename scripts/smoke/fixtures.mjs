@@ -85,7 +85,14 @@ export const fixtures = {
       packageImage: '',
       startDate: '2026-01-01',
       character: 'โทนเป็นกันเอง',
-      competitors: [{ name: 'คู่แข่ง ก', url: 'https://example.com/a' }],
+      competitors: [
+        // ไม่ใช่ URL เพจ Facebook → ต้องถูกข้าม ไม่สร้างเพจคู่แข่งอัตโนมัติ
+        { name: 'คู่แข่ง ก', url: 'https://example.com/a' },
+        // เป็นเพจ Facebook → ต้องโผล่ในหน้า Competitor เองพร้อมบอกว่าเป็นคู่แข่งของเพจไหน
+        { name: 'คู่แข่ง ข', url: 'https://www.facebook.com/smokerival/?locale=th' },
+        // URL เดิมคนละรูปแบบ → ต้องยุบเป็นรายการเดียว ไม่นับซ้ำ
+        { name: 'คู่แข่ง ข', url: 'https://www.facebook.com/smokerival' },
+      ],
       teams: {
         content: [{ empCode: 'E001', name: 'สมชาย ใจดี' }],
         graphic: [],

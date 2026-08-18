@@ -13,8 +13,18 @@ export interface Competitor {
   coveredTo: string | null;
 }
 
+/** เพจของเราที่ระบุคู่แข่งรายนี้ไว้ในหน้า Admin */
+export interface CompetitorOwner {
+  pageId: string;
+  pageName: string;
+  /** ชื่อแบรนด์ที่กรอกในช่องคู่แข่ง (อาจว่างได้ถ้ากรอกแต่ URL) */
+  brandName: string;
+}
+
 export interface CompetitorWithCount extends Competitor {
   postCount: number;
+  /** ว่าง = เพิ่มเองในหน้า Competitor ไม่ได้มาจากการตั้งค่าใน Admin */
+  owners: CompetitorOwner[];
 }
 
 export interface CompetitorPost {

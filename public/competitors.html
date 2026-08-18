@@ -37,6 +37,29 @@
     .cp-empty { border: 2px dashed var(--border); border-radius: 14px; padding: 40px 24px; text-align: center; color: var(--muted); margin-top: 18px; }
     .cp-empty .big { font-size: 44px; display: block; margin-bottom: 10px; }
     .badge-new { background: #fff4e0; color: #b25e00; }
+    /* บอกว่าเป็นคู่แข่งของแบรนด์ไหน (มาจากการตั้งค่าใน Admin) */
+    .cp-owner { color: var(--muted); font-size: 11.5px; margin-top: 3px; }
+    .cp-owner b { color: var(--text); font-weight: 600; }
+    .cp-owner .brand { color: var(--primary); font-weight: 600; }
+    /* แถบเลือกวิธีเรียง */
+    .cp-tools { display: flex; align-items: center; gap: 8px; margin-top: 18px; flex-wrap: wrap; }
+    .cp-tools .lbl { color: var(--muted); font-size: 12.5px; }
+    .cp-sort {
+      border: 1px solid var(--border); background: var(--card); color: var(--muted);
+      border-radius: 999px; padding: 5px 13px; font-size: 12.5px; font-family: inherit; cursor: pointer;
+    }
+    .cp-sort:hover { background: var(--bg); color: var(--text); }
+    .cp-sort.on { border-color: var(--primary); color: var(--primary); background: #e7f0fe; font-weight: 600; }
+    /* หัวกลุ่มตอนจัดกลุ่มตามเพจของเรา */
+    .cp-group { margin-top: 20px; }
+    .cp-group-head { display: flex; align-items: center; gap: 9px; margin-bottom: 8px; }
+    .cp-group-head .g-ava {
+      width: 26px; height: 26px; border-radius: 50%; object-fit: cover; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; font-weight: 700; font-size: 12px;
+    }
+    .cp-group-head .g-nm { font-weight: 700; font-size: 14px; }
+    .cp-group-head .g-ct { color: var(--muted); font-size: 12px; }
   </style>
 </head>
 <body>
@@ -64,6 +87,12 @@
       </div>
     </div>
 
+    <div class="cp-tools" id="tools" hidden>
+      <span class="lbl">เรียงแบบ</span>
+      <button class="cp-sort" id="sortAz" onclick="setSort('az')">ก–ฮ / A–Z</button>
+      <button class="cp-sort" id="sortGroup" onclick="setSort('group')">จัดกลุ่มตามเพจของเรา</button>
+    </div>
+
     <div id="list"><p class="muted" style="margin-top:18px;">กำลังโหลด...</p></div>
   </div>
 
@@ -77,21 +106,36 @@
     function color(k){ let h=0; for(const ch of String(k||'?')) h=(h*31+ch.codePointAt(0))>>>0; return COLORS[h%COLORS.length]; }
     const fmtDate=(iso)=> iso ? new Date(iso).toLocaleString('th-TH',{dateStyle:'short',timeStyle:'short'}) : 'ยังไม่เคยดึง';
 
-    async function load(){
-      const data = await fetch('/api/competitors').then(r=>r.json()).catch(()=>({items:[]}));
-      $('apifyWarn').style.display = data.apifyReady ? 'none' : 'block';
-      const items = data.items || [];
-      if(!items.length){
-        $('list').innerHTML = `<div class="cp-empty"><span class="big">⚔️</span>
-          <div>ยังไม่มีเพจคู่แข่ง</div>
-          <div style="margin-top:6px;">วาง URL เพจ Facebook ด้านบน เช่น <code>https://www.facebook.com/systemathailand</code></div></div>`;
-        return;
-      }
-      $('list').innerHTML = '<div class="cp-list">' + items.map(c=>{
-        const covered = (c.coveredFrom && c.coveredTo)
-          ? `ข้อมูลช่วง ${c.coveredFrom} → ${c.coveredTo}`
-          : '<b style="color:#b25e00;">ยังไม่เคยดึงข้อมูล — กดเข้าไปแล้วกดดึงข้อมูล</b>';
-        return `
+    // ---- วิธีเรียง: A–Z หรือจัดกลุ่มตามเพจของเรา (จำค่าไว้ต่อเครื่อง) ----
+    const SORT_KEY = 'cp_sort';
+    let sortMode = localStorage.getItem(SORT_KEY) === 'group' ? 'group' : 'az';
+    let cached = [];
+
+    function setSort(mode){
+      sortMode = mode;
+      localStorage.setItem(SORT_KEY, mode);
+      render();
+    }
+
+    const byName = (a, b) =>
+      String(a.name || a.handle).localeCompare(String(b.name || b.handle), 'th', { numeric: true });
+
+    /** บรรทัดเล็กใต้ชื่อ: เป็นคู่แข่งของแบรนด์ไหน (มาจากที่กรอกไว้ในหน้า Admin) */
+    function ownerLine(c){
+      if(!c.owners || !c.owners.length) return '<div class="cp-owner">เพิ่มเองในหน้านี้ · ยังไม่ได้ผูกกับเพจของเรา</div>';
+      const parts = c.owners.map(o => {
+        const brand = o.brandName && o.brandName !== c.name ? ` <span class="brand">(${esc(o.brandName)})</span>` : '';
+        return `<b>${esc(o.pageName)}</b>${brand}`;
+      });
+      return `<div class="cp-owner">⚔️ คู่แข่งของ ${parts.join(' · ')}</div>`;
+    }
+
+    function itemHtml(c){
+      const covered = (c.coveredFrom && c.coveredTo)
+        ? `ข้อมูลช่วง ${c.coveredFrom} → ${c.coveredTo}`
+        : '<b style="color:#b25e00;">ยังไม่เคยดึงข้อมูล — กดเข้าไปแล้วกดดึงข้อมูล</b>';
+      const linked = (c.owners || []).length > 0;
+      return `
         <a class="cp-item" href="competitor.html?id=${encodeURIComponent(c.id)}">
           ${c.pictureUrl
             ? `<img class="cp-ava" src="${esc(c.pictureUrl)}" alt="">`
@@ -100,12 +144,67 @@
             <div class="nm">${esc(c.name || c.handle)}</div>
             <div class="meta">facebook.com/${esc(c.handle)} · ดึงล่าสุด: ${fmtDate(c.lastSyncAt)}</div>
             <div class="meta">${covered}</div>
+            ${ownerLine(c)}
           </div>
           <div class="cp-count"><b>${c.postCount}</b><span>โพสต์</span></div>
           <button class="cp-del" title="ลบเพจนี้"
-            onclick="event.preventDefault();event.stopPropagation();removeCompetitor('${esc(c.id)}','${esc((c.name||c.handle).replace(/'/g,"\\'"))}')">🗑</button>
+            onclick="event.preventDefault();event.stopPropagation();removeCompetitor('${esc(c.id)}','${esc((c.name||c.handle).replace(/'/g,"\\'"))}',${linked})">🗑</button>
         </a>`;
-      }).join('') + '</div>';
+    }
+
+    function renderAz(items){
+      return '<div class="cp-list">' + [...items].sort(byName).map(itemHtml).join('') + '</div>';
+    }
+
+    /** จัดกลุ่มตามเพจของเรา — คู่แข่งหนึ่งรายอยู่ได้หลายกลุ่มถ้าหลายเพจระบุไว้ */
+    function renderGrouped(items){
+      const groups = new Map(); // pageId -> { name, items[] }
+      const orphans = [];
+      for(const c of items){
+        if(!c.owners || !c.owners.length){ orphans.push(c); continue; }
+        for(const o of c.owners){
+          const g = groups.get(o.pageId) || { name: o.pageName, items: [] };
+          g.items.push(c);
+          groups.set(o.pageId, g);
+        }
+      }
+      const head = (id, name, n) => `
+        <div class="cp-group-head">
+          <span class="g-ava" style="background:${color(id)}">${esc((name||'?')[0].toUpperCase())}</span>
+          <span class="g-nm">${esc(name)}</span>
+          <span class="g-ct">· ${n} คู่แข่ง</span>
+        </div>`;
+      let html = '';
+      for(const [pageId, g] of [...groups.entries()].sort((a,b)=>a[1].name.localeCompare(b[1].name,'th'))){
+        html += `<div class="cp-group">${head(pageId, g.name, g.items.length)}
+          <div class="cp-list">${[...g.items].sort(byName).map(itemHtml).join('')}</div></div>`;
+      }
+      if(orphans.length){
+        html += `<div class="cp-group">${head('อื่น ๆ', 'ไม่ได้ผูกกับเพจของเรา', orphans.length)}
+          <div class="cp-list">${[...orphans].sort(byName).map(itemHtml).join('')}</div></div>`;
+      }
+      return html;
+    }
+
+    function render(){
+      $('sortAz').classList.toggle('on', sortMode === 'az');
+      $('sortGroup').classList.toggle('on', sortMode === 'group');
+      if(!cached.length){
+        $('tools').hidden = true;
+        $('list').innerHTML = `<div class="cp-empty"><span class="big">⚔️</span>
+          <div>ยังไม่มีเพจคู่แข่ง</div>
+          <div style="margin-top:6px;">วาง URL เพจ Facebook ด้านบน หรือกรอกคู่แข่งไว้ในเมนู Admin ของแต่ละเพจ แล้วระบบจะดึงมาให้เอง</div></div>`;
+        return;
+      }
+      $('tools').hidden = false;
+      $('list').innerHTML = sortMode === 'group' ? renderGrouped(cached) : renderAz(cached);
+    }
+
+    async function load(){
+      const data = await fetch('/api/competitors').then(r=>r.json()).catch(()=>({items:[]}));
+      $('apifyWarn').style.display = data.apifyReady ? 'none' : 'block';
+      cached = data.items || [];
+      render();
     }
 
     async function addCompetitor(){
@@ -126,8 +225,11 @@
       finally{ btn.disabled=false; btn.textContent='+ เพิ่มเพจ'; }
     }
 
-    async function removeCompetitor(id, name){
-      if(!confirm(`ลบเพจคู่แข่ง "${name}"? โพสต์ที่ดึงมาแล้วจะถูกลบด้วย`)) return;
+    async function removeCompetitor(id, name, linked){
+      const warn = linked
+        ? `\n\nเพจนี้มาจากช่องคู่แข่งในเมนู Admin — ลบที่นี่แล้วจะกลับมาอีกเมื่อโหลดหน้าใหม่\nถ้าต้องการเอาออกถาวร ให้ลบแถวคู่แข่งในหน้า Admin ของเพจนั้นก่อน`
+        : '';
+      if(!confirm(`ลบเพจคู่แข่ง "${name}"? โพสต์ที่ดึงมาแล้วจะถูกลบด้วย${warn}`)) return;
       await fetch('/api/competitors/'+encodeURIComponent(id), { method:'DELETE' });
       toast('ลบแล้ว'); load();
     }

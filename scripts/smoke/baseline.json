@@ -112,6 +112,14 @@
           {
             "name": "คู่แข่ง ก",
             "url": "https://example.com/a"
+          },
+          {
+            "name": "คู่แข่ง ข",
+            "url": "https://www.facebook.com/smokerival/?locale=th"
+          },
+          {
+            "name": "คู่แข่ง ข",
+            "url": "https://www.facebook.com/smokerival"
           }
         ],
         "packageImage": "",
@@ -139,6 +147,14 @@
           {
             "name": "คู่แข่ง ข",
             "url": "example.com/b"
+          },
+          {
+            "name": "คู่แข่ง ค",
+            "url": "https://www.facebook.com/smokerival/?locale=th"
+          },
+          {
+            "name": "คู่แข่ง ค",
+            "url": "https://www.facebook.com/smokerival"
           }
         ],
         "packageImage": "",
@@ -167,6 +183,14 @@
           {
             "name": "คู่แข่ง ข",
             "url": "example.com/b"
+          },
+          {
+            "name": "คู่แข่ง ค",
+            "url": "https://www.facebook.com/smokerival/?locale=th"
+          },
+          {
+            "name": "คู่แข่ง ค",
+            "url": "https://www.facebook.com/smokerival"
           }
         ],
         "packageImage": "",
@@ -2184,9 +2208,29 @@
           "id": "cmp_smokebrand",
           "lastSyncAt": "<ISO>",
           "name": "Smoke Brand",
+          "owners": [],
           "pictureUrl": "",
           "postCount": 1,
           "url": "https://www.facebook.com/smokebrand"
+        },
+        {
+          "addedAt": "<ISO>",
+          "coveredFrom": null,
+          "coveredTo": null,
+          "handle": "smokerival",
+          "id": "cmp_smokerival",
+          "lastSyncAt": null,
+          "name": "คู่แข่ง ค",
+          "owners": [
+            {
+              "brandName": "คู่แข่ง ค",
+              "pageId": "100000000000001",
+              "pageName": "Smoke FB Page"
+            }
+          ],
+          "pictureUrl": "",
+          "postCount": 0,
+          "url": "https://www.facebook.com/smokerival"
         }
       ]
     }
