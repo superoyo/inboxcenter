@@ -531,6 +531,8 @@ input:focus, textarea:focus, select:focus { outline: 2px solid var(--primary); b
 .cs-closed  { background: #e9f6ed; border-color: #62b97a; color: #17603a; }
 .cs-closed  .cs-head, .cs-closed .cs-note { color: #17603a; }
 .cs-waiting { background: #fdf3e4; border-color: #e0a45c; color: #8a5200; }
+.cs-reopened { background: var(--bg); border-color: var(--border); color: var(--muted); }
+.cs-reopened .cs-head, .cs-reopened .cs-note { color: var(--muted); }
 .cs-waiting .cs-head, .cs-waiting .cs-note { color: #8a5200; }
 /* ชิปบอกสถานะเคสในรายการห้องแชท */
 .cs-chip {
@@ -544,6 +546,8 @@ input:focus, textarea:focus, select:focus { outline: 2px solid var(--primary); b
 .reply-bar input { min-width: 160px; }
 .reply-bar .btn.cs-close { background: var(--green); }
 .reply-bar .btn.cs-close:hover { background: #278a3f; }
+.reply-bar .btn.cs-reopen { background: var(--bg); color: var(--text); border: 1px solid var(--border); }
+.reply-bar .btn.cs-reopen:hover { background: var(--border); }
 .reply-bar .btn.cs-wait { background: #e08b1e; }
 .reply-bar .btn.cs-wait:hover { background: #c2760f; }
 

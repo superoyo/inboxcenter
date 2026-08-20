@@ -41,6 +41,7 @@ function caseHandled(events, messages) {
   if (!events || !events.length) return false;
   const latest = events.reduce((a, b) =>
     new Date(b.createdTime).getTime() > new Date(a.createdTime).getTime() ? b : a);
+  if (latest.type === 'reopened') return false; // ยกเลิกแล้ว กลับมานับค้างตอบ
   let lastCustAt = 0;
   for (let i = messages.length - 1; i >= 0; i--) {
     if (!messages[i].isFromPage) { lastCustAt = new Date(messages[i].createdTime).getTime(); break; }

@@ -664,11 +664,12 @@
               if (item.kind === 'cs') {
                 const e = item.e;
                 const t = new Date(e.createdTime);
-                const closed = e.type === 'closed';
+                const LABEL = { closed: '✅ ปิดเคส', waiting: '⏳ รอคำตอบ', reopened: '↩️ ยกเลิกปิดเคส' };
+                const CLS = { closed: 'cs-closed', waiting: 'cs-waiting', reopened: 'cs-reopened' };
                 return `
             <div class="msg-row fw-row">
-              <div class="cs-bubble ${closed ? 'cs-closed' : 'cs-waiting'}">
-                <div class="cs-head">${closed ? '✅ ปิดเคส' : '⏳ รอคำตอบ'} โดย ${esc(e.by)}</div>
+              <div class="cs-bubble ${CLS[e.type] || 'cs-waiting'}">
+                <div class="cs-head">${LABEL[e.type] || e.type} โดย ${esc(e.by)}</div>
                 ${e.note ? `<div class="cs-text">${esc(e.note)}</div>` : ''}
                 <div class="meta">
                   <span class="meta-time">${t.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.</span>
@@ -725,7 +726,9 @@
           <input type="file" id="attachInput" hidden>
           <input type="text" id="replyInput" placeholder="พิมพ์ข้อความตอบกลับในนาม ${esc(c.pageName)}..." autocomplete="off">
           <button class="btn" id="replySendBtn">ส่ง</button>
-          <button class="btn cs-close" id="closeCaseBtn" title="ปิดเคสนี้ (สถานะภายใน ลูกค้าไม่เห็น) — จะไม่นับเป็นห้องค้างตอบ">✅ ปิดเคส</button>
+          ${(c.caseState && c.caseState.active && c.caseState.type === 'closed')
+            ? '<button class="btn cs-reopen" id="reopenCaseBtn" title="ยกเลิกการปิดเคส — เคสจะกลับมานับเป็นห้องค้างตอบ">↩️ ยกเลิกปิดเคส</button>'
+            : '<button class="btn cs-close" id="closeCaseBtn" title="ปิดเคสนี้ (สถานะภายใน ลูกค้าไม่เห็น) — จะไม่นับเป็นห้องค้างตอบ">✅ ปิดเคส</button>'}
           <button class="btn cs-wait" id="waitCaseBtn" title="บันทึกว่ารอคำตอบ (สถานะภายใน ลูกค้าไม่เห็น) — จะไม่นับเป็นห้องค้างตอบ">⏳ รอคำตอบ</button>
         </div>`;
       if (window.innerWidth <= 800) $('backBtn').style.display = 'inline-flex';
@@ -740,7 +743,9 @@
       $('replyInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendReply(c.id); });
       $('savedReplyBtn').addEventListener('click', () => openSavedRepliesPanel(c.id));
       $('forwardBtn').addEventListener('click', () => openForwardPanel(c.id));
-      $('closeCaseBtn').addEventListener('click', () => closeCase(c.id));
+      // มีแค่ปุ่มใดปุ่มหนึ่งตามสถานะปัจจุบัน
+      if ($('closeCaseBtn')) $('closeCaseBtn').addEventListener('click', () => closeCase(c.id));
+      if ($('reopenCaseBtn')) $('reopenCaseBtn').addEventListener('click', () => reopenCase(c.id));
       $('waitCaseBtn').addEventListener('click', () => openWaitPanel(c.id));
       $('attachBtn').addEventListener('click', () => $('attachInput').click());
       $('attachInput').addEventListener('change', () => sendAttachment(c.id));
@@ -848,6 +853,12 @@
     }
 
     async function closeCase(convId) {
+      const ok = confirm(
+        'ปิดเคสนี้?\n\n' +
+        'เคสจะไม่ถูกนับเป็นห้องค้างตอบ จนกว่าลูกค้าจะทักเข้ามาใหม่\n' +
+        'สถานะนี้เห็นเฉพาะภายในทีม ลูกค้าไม่เห็น'
+      );
+      if (!ok) return;
       const btn = $('closeCaseBtn');
       if (btn) { btn.disabled = true; btn.textContent = '⏳ กำลังปิด...'; }
       try {
@@ -856,6 +867,23 @@
       } catch (err) {
         toast('❌ ' + err.message);
         if (btn) { btn.disabled = false; btn.textContent = '✅ ปิดเคส'; }
+      }
+    }
+
+    /** ยกเลิกการปิดเคส — บันทึกเป็นเหตุการณ์ reopened ทำให้กลับมานับค้างตอบตามปกติ */
+    async function reopenCase(convId) {
+      const btn = $('reopenCaseBtn');
+      if (btn) { btn.disabled = true; btn.textContent = '⏳ กำลังยกเลิก...'; }
+      try {
+        await postCaseEvent(convId, 'reopened');
+        // reopened = ไม่มีสถานะค้างอยู่ → ล้าง caseState ออกจากรายการ แล้วโหลดห้องใหม่
+        const sum = conversations.find((x) => x.id === convId);
+        if (sum) { sum.caseState = null; renderConvList(true); }
+        if (activeThread && activeThread.id === convId) openConv(convId);
+        toast('ยกเลิกการปิดเคสแล้ว ↩️ — กลับมานับเป็นห้องค้างตอบ');
+      } catch (err) {
+        toast('❌ ' + err.message);
+        if (btn) { btn.disabled = false; btn.textContent = '↩️ ยกเลิกปิดเคส'; }
       }
     }
 

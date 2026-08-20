@@ -89,6 +89,9 @@ export const requests = [
   { name: 'case.ห้องไม่มี→404', method: 'POST', path: '/api/conversations/no_such_room/case', body: { type: 'closed' } },
   // ต้องมี caseEvents ครบ 2 รายการ caseState เป็นตัวล่าสุด และไม่มีอะไรปนเข้า messages
   { name: 'thread (หลังปิดเคส/รอคำตอบ)', path: `/api/conversations/${CONV}/thread` },
+  // ยกเลิกปิดเคส: caseState ต้องกลับเป็น null แต่ประวัติยังอยู่ครบ
+  { name: 'case.reopened', method: 'POST', path: `/api/conversations/${CONV}/case`, body: { type: 'reopened', by: 'ผู้ทดสอบ' } },
+  { name: 'thread (หลังยกเลิกปิดเคส)', path: `/api/conversations/${CONV}/thread` },
   // ---------- ไฟล์แนบ ----------
   // เส้นเสิร์ฟไฟล์ต้องเข้าได้โดยไม่มี token (Facebook/LINE มาดึงเอง) แต่ id ที่เดาไม่ถูกต้องได้ 404
   { name: 'attachment.ไม่มีไฟล์→404 (ไม่ต้อง login)', path: '/api/attachments/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', auth: false },

@@ -6,7 +6,7 @@ import type { CaseEvent, CaseEventType, CaseState, Message } from '@inboxcenter/
 import { repository } from '../repositories';
 import { AppError } from '../utils/app-error';
 
-const TYPES: readonly string[] = ['closed', 'waiting'];
+const TYPES: readonly string[] = ['closed', 'waiting', 'reopened'];
 const MAX_NOTE = 1000;
 const MAX_NAME = 60;
 
@@ -33,6 +33,8 @@ export function caseStateOf(
   const latest = [...events].sort(
     (a, b) => new Date(a.createdTime).getTime() - new Date(b.createdTime).getTime(),
   )[events.length - 1]!;
+  // ยกเลิกไปแล้ว = ไม่มีสถานะค้างอยู่ กลับไปนับค้างตอบตามปกติ
+  if (latest.type === 'reopened') return null;
   return {
     type: latest.type,
     by: latest.by,
@@ -57,7 +59,9 @@ export async function addCaseEvent(
 
   const type = String(input.type ?? '');
   if (!TYPES.includes(type)) {
-    throw AppError.badRequest('type ต้องเป็น closed (ปิดเคส) หรือ waiting (รอคำตอบ)');
+    throw AppError.badRequest(
+      'type ต้องเป็น closed (ปิดเคส) · waiting (รอคำตอบ) · reopened (ยกเลิกปิดเคส)',
+    );
   }
 
   const entry: CaseEvent = {

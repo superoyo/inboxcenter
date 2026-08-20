@@ -47,7 +47,7 @@
         "id": "100000000000001",
         "lastSyncAt": "<ISO>",
         "name": "Smoke FB Page",
-        "pictureUrl": "",
+        "pictureUrl": "https://graph.facebook.com/100000000000001/picture?type=square&width=96&height=96",
         "todayNewMessages": 0
       },
       {
@@ -71,7 +71,7 @@
         "id": "100000000000001",
         "lastSyncAt": "<ISO>",
         "name": "Smoke FB Page",
-        "pictureUrl": "",
+        "pictureUrl": "https://graph.facebook.com/100000000000001/picture?type=square&width=96&height=96",
         "todayNewMessages": 0
       }
     ]
@@ -84,7 +84,7 @@
         "id": "100000000000001",
         "lastSyncAt": "<ISO>",
         "name": "Smoke FB Page",
-        "pictureUrl": "",
+        "pictureUrl": "https://graph.facebook.com/100000000000001/picture?type=square&width=96&height=96",
         "todayNewMessages": 0
       }
     ]
@@ -708,7 +708,7 @@
     "status": 400,
     "body": {
       "code": "BAD_REQUEST",
-      "error": "type ต้องเป็น closed (ปิดเคส) หรือ waiting (รอคำตอบ)"
+      "error": "type ต้องเป็น closed (ปิดเคส) · waiting (รอคำตอบ) · reopened (ยกเลิกปิดเคส)"
     }
   },
   "case.ห้องไม่มี→404": {
@@ -745,6 +745,130 @@
         "note": "รอลูกค้าส่งสลิป",
         "type": "waiting"
       },
+      "customerId": "cust_1",
+      "customerName": "ลูกค้า ทดสอบ",
+      "customerPic": "",
+      "forwards": [
+        {
+          "createdTime": "<ISO>",
+          "fromName": "ผู้ทดสอบ",
+          "id": "fw_smoke",
+          "text": "ฝากดูเคสนี้",
+          "toNames": [
+            "สมชาย ใจดี"
+          ]
+        },
+        {
+          "createdTime": "<ISO>",
+          "fromName": "ผู้ทดสอบ",
+          "id": "fw_<GEN>",
+          "text": "ส่งต่อจาก smoke",
+          "toNames": [
+            "มานี"
+          ]
+        }
+      ],
+      "id": "t_smoke_1",
+      "keywords": [
+        {
+          "count": 2,
+          "word": "ราคา"
+        },
+        {
+          "count": 1,
+          "word": "สินค้า"
+        },
+        {
+          "count": 1,
+          "word": "ใบ"
+        },
+        {
+          "count": 1,
+          "word": "เสนอ"
+        }
+      ],
+      "messages": [
+        {
+          "attachments": [],
+          "createdTime": "<ISO>",
+          "fromId": "cust_1",
+          "fromName": "ลูกค้า ทดสอบ",
+          "id": "m1",
+          "isFromPage": false,
+          "text": "สวัสดีค่ะ สอบถามราคาสินค้า"
+        },
+        {
+          "attachments": [],
+          "createdTime": "<ISO>",
+          "fromId": "100000000000001",
+          "fromName": "Smoke FB Page",
+          "id": "m2",
+          "isFromPage": true,
+          "text": "สวัสดีครับ ยินดีให้บริการครับ"
+        },
+        {
+          "attachments": [],
+          "createdTime": "<ISO>",
+          "fromId": "cust_1",
+          "fromName": "ลูกค้า ทดสอบ",
+          "id": "m3",
+          "isFromPage": false,
+          "text": "ขอใบเสนอราคาด้วยค่ะ"
+        }
+      ],
+      "pageId": "100000000000001",
+      "pageName": "Smoke FB Page",
+      "remark": "โน้ตใหม่",
+      "statusOverride": "red",
+      "tags": [
+        "VIP",
+        "ด่วน"
+      ],
+      "unreadCount": 1,
+      "updatedTime": "<ISO>"
+    }
+  },
+  "case.reopened": {
+    "status": 200,
+    "body": {
+      "event": {
+        "by": "ผู้ทดสอบ",
+        "createdTime": "<ISO>",
+        "id": "cs_<GEN>",
+        "note": "",
+        "type": "reopened"
+      },
+      "ok": true
+    }
+  },
+  "thread (หลังยกเลิกปิดเคส)": {
+    "status": 200,
+    "body": {
+      "botTexts": [],
+      "caseEvents": [
+        {
+          "by": "ผู้ทดสอบ",
+          "createdTime": "<ISO>",
+          "id": "cs_<GEN>",
+          "note": "",
+          "type": "closed"
+        },
+        {
+          "by": "ผู้ทดสอบ",
+          "createdTime": "<ISO>",
+          "id": "cs_<GEN>",
+          "note": "รอลูกค้าส่งสลิป",
+          "type": "waiting"
+        },
+        {
+          "by": "ผู้ทดสอบ",
+          "createdTime": "<ISO>",
+          "id": "cs_<GEN>",
+          "note": "",
+          "type": "reopened"
+        }
+      ],
+      "caseState": null,
       "customerId": "cust_1",
       "customerName": "ลูกค้า ทดสอบ",
       "customerPic": "",
@@ -980,11 +1104,22 @@
   "analytics": {
     "status": 200,
     "body": {
-      "alerts": [],
+      "alerts": [
+        {
+          "customerId": "cust_1",
+          "customerName": "ลูกค้า ทดสอบ",
+          "customerPic": "",
+          "id": "t_smoke_1",
+          "lastText": "ขอใบเสนอราคาด้วยค่ะ",
+          "level": "red",
+          "pageName": "Smoke FB Page",
+          "waitedMs": "<DURATION>"
+        }
+      ],
       "answeredList": {
         "buckets": [
           {
-            "count": 1,
+            "count": 0,
             "label": "ตอบใน 1 ชม."
           },
           {
@@ -1000,20 +1135,8 @@
             "label": "เกิน 24 ชม."
           }
         ],
-        "rooms": [
-          {
-            "customerId": "cust_1",
-            "customerName": "ลูกค้า ทดสอบ",
-            "customerPic": "",
-            "id": "t_smoke_1",
-            "lastText": "ขอใบเสนอราคาด้วยค่ะ",
-            "level": "red",
-            "pageName": "Smoke FB Page",
-            "repliedAt": "<ISO>",
-            "replyDelta": 30000
-          }
-        ],
-        "total": 1
+        "rooms": [],
+        "total": 0
       },
       "chatOverview": {
         "customerChats": {
@@ -1581,12 +1704,12 @@
       "perPage": [
         {
           "avgHumanMs": 30000,
-          "over24h": 0,
+          "over24h": 1,
           "pageId": "100000000000001",
           "pageName": "Smoke FB Page",
           "periodIn": 2,
           "red": 1,
-          "waiting": 0
+          "waiting": 1
         }
       ],
       "period": {
@@ -1607,7 +1730,7 @@
       "scope": "all",
       "totals": {
         "activeRooms": 1,
-        "answeredPct": 1,
+        "answeredPct": 0,
         "conversations": 1,
         "periodIn": 2,
         "prevIn": 0
@@ -1632,24 +1755,46 @@
             "label": "6–24 ชม."
           },
           {
-            "count": 0,
+            "count": 1,
             "label": "เกิน 24 ชม. ⛔"
           }
         ],
-        "over24h": 0,
-        "rooms": [],
-        "total": 0
+        "over24h": 1,
+        "rooms": [
+          {
+            "customerId": "cust_1",
+            "customerName": "ลูกค้า ทดสอบ",
+            "customerPic": "",
+            "id": "t_smoke_1",
+            "lastText": "ขอใบเสนอราคาด้วยค่ะ",
+            "level": "red",
+            "pageName": "Smoke FB Page",
+            "waitedMs": "<DURATION>"
+          }
+        ],
+        "total": 1
       }
     }
   },
   "analytics (รายเพจ)": {
     "status": 200,
     "body": {
-      "alerts": [],
+      "alerts": [
+        {
+          "customerId": "cust_1",
+          "customerName": "ลูกค้า ทดสอบ",
+          "customerPic": "",
+          "id": "t_smoke_1",
+          "lastText": "ขอใบเสนอราคาด้วยค่ะ",
+          "level": "red",
+          "pageName": "Smoke FB Page",
+          "waitedMs": "<DURATION>"
+        }
+      ],
       "answeredList": {
         "buckets": [
           {
-            "count": 1,
+            "count": 0,
             "label": "ตอบใน 1 ชม."
           },
           {
@@ -1665,20 +1810,8 @@
             "label": "เกิน 24 ชม."
           }
         ],
-        "rooms": [
-          {
-            "customerId": "cust_1",
-            "customerName": "ลูกค้า ทดสอบ",
-            "customerPic": "",
-            "id": "t_smoke_1",
-            "lastText": "ขอใบเสนอราคาด้วยค่ะ",
-            "level": "red",
-            "pageName": "Smoke FB Page",
-            "repliedAt": "<ISO>",
-            "replyDelta": 30000
-          }
-        ],
-        "total": 1
+        "rooms": [],
+        "total": 0
       },
       "chatOverview": {
         "customerChats": {
@@ -2262,7 +2395,7 @@
       "scope": "100000000000001",
       "totals": {
         "activeRooms": 1,
-        "answeredPct": 1,
+        "answeredPct": 0,
         "conversations": 1,
         "periodIn": 2,
         "prevIn": 0
@@ -2287,13 +2420,24 @@
             "label": "6–24 ชม."
           },
           {
-            "count": 0,
+            "count": 1,
             "label": "เกิน 24 ชม. ⛔"
           }
         ],
-        "over24h": 0,
-        "rooms": [],
-        "total": 0
+        "over24h": 1,
+        "rooms": [
+          {
+            "customerId": "cust_1",
+            "customerName": "ลูกค้า ทดสอบ",
+            "customerPic": "",
+            "id": "t_smoke_1",
+            "lastText": "ขอใบเสนอราคาด้วยค่ะ",
+            "level": "red",
+            "pageName": "Smoke FB Page",
+            "waitedMs": "<DURATION>"
+          }
+        ],
+        "total": 1
       }
     }
   },

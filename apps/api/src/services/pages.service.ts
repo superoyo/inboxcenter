@@ -7,10 +7,24 @@ import { AppError } from '../utils/app-error';
 import { dayKeyFactory } from '../utils/date';
 import { projectPageIds } from './projects.service';
 
+/**
+ * รูปโปรไฟล์เพจ Facebook แบบ "ไม่หมดอายุ"
+ *
+ * picture.data.url ที่ Graph คืนมาตอนเชื่อมเพจเป็น URL ของ CDN ที่มีวันหมดอายุ
+ * เก็บไว้แล้วผ่านไปสักพักจะกลายเป็น 403 รูปในหน้าเว็บจึงหายไปเหลือแต่ตัวอักษรย่อ
+ * เส้น /{page-id}/picture ของ Graph เป็นเส้นถาวร (302 ไปหารูปล่าสุด) และเปิดสาธารณะ
+ * ไม่ต้องแนบ token จึงคำนวณสด ๆ ตอนส่งออกดีกว่าเก็บค่าไว้
+ */
+const fbPictureUrl = (pageId: string): string =>
+  `https://graph.facebook.com/${encodeURIComponent(pageId)}/picture?type=square&width=96&height=96`;
+
 /** ตัด token/secret ออกก่อนส่งออก API เสมอ — ชั้นเดียวที่ทำหน้าที่นี้ */
 export function toPublicPage(page: StoredPage): Page {
   const { accessToken: _t, channelSecret: _s, ...safe } = page;
-  return safe as unknown as Page;
+  const pub = safe as unknown as Page;
+  // LINE ใช้รูปจาก LINE ซึ่งไม่มีเส้นถาวรแบบนี้ จึงคงค่าที่เก็บไว้
+  if (page.platform !== 'line') pub.pictureUrl = fbPictureUrl(page.id);
+  return pub;
 }
 
 export interface ListPagesQuery {

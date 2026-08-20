@@ -31,10 +31,13 @@ export interface Forward {
 }
 
 /**
- * สถานะเคสที่ทีมกดเอง — "ปิดเคส" หรือ "รอคำตอบ"
+ * สถานะเคสที่ทีมกดเอง — เก็บเป็น "เหตุการณ์" เรียงตามเวลา ตัวล่าสุดคือสถานะปัจจุบัน
  * เก็บแยกจาก messages เหมือน forwards ลูกค้าจึงไม่เห็นเด็ดขาด
+ *
+ * closed   = ปิดเคส · waiting = รอคำตอบ · ทั้งสองทำให้ไม่ถูกนับเป็นห้องค้างตอบ
+ * reopened = ยกเลิกสถานะที่กดไว้ กลับมานับค้างตอบตามปกติ
  */
-export type CaseEventType = 'closed' | 'waiting';
+export type CaseEventType = 'closed' | 'waiting' | 'reopened';
 
 export interface CaseEvent {
   id: string;
@@ -46,9 +49,9 @@ export interface CaseEvent {
   createdTime: string;
 }
 
-/** สถานะล่าสุดของเคส พร้อมบอกว่ายังมีผลอยู่ไหม */
+/** สถานะล่าสุดของเคส พร้อมบอกว่ายังมีผลอยู่ไหม (reopened ถือว่าไม่มีสถานะ → เป็น null) */
 export interface CaseState {
-  type: CaseEventType;
+  type: 'closed' | 'waiting';
   by: string;
   note: string;
   createdTime: string;
