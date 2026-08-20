@@ -12,10 +12,11 @@
     .cm-layout {
       display: grid;
       grid-template-columns: 1fr 420px;
-      height: calc(100vh - 56px);
+      /* --chrome = navbar 56 + แถบแท็บ 44 (โหมด embed = 0) — เดิมลบแค่ 56
+         ทำให้คอลัมน์ซ้ายยาวเกินจอ 44px และของที่อยู่ก้นคอลัมน์ถูกดันตกขอบจอ */
+      height: calc(100vh - var(--chrome));
       background: var(--card);
     }
-    html.embed .cm-layout { height: 100vh; }
     .cm-left { border-right: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; }
     .cm-left-head {
       padding: 12px 16px; border-bottom: 1px solid var(--border);
@@ -31,6 +32,20 @@
 
     /* ปฏิทินโพสต์ */
     .cal-wrap { flex: 1; overflow-y: auto; padding: 10px 14px 20px; }
+    /* แถบสถานะการดึงข้อมูล ล่างสุดของคอลัมน์ซ้าย */
+    .sync-strip {
+      flex-shrink: 0; width: 100%; text-align: left;
+      border: 0; border-top: 1px solid var(--border);
+      background: var(--card); color: var(--muted);
+      font: inherit; font-size: 12px; padding: 9px 14px;
+      display: flex; align-items: center; gap: 7px; cursor: pointer;
+    }
+    .sync-strip:hover { background: var(--bg); color: var(--text); }
+    .sync-strip:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+    .sync-strip .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; background: var(--green); }
+    .sync-strip .dot.busy { background: #f0a020; }
+    .sync-strip .dot.never { background: var(--muted); }
+    .sync-strip .more { margin-left: auto; color: var(--primary); white-space: nowrap; }
     .cal-dow { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; margin-bottom: 4px; }
     .cal-dow span { text-align: center; font-size: 11px; font-weight: 700; color: var(--muted); padding: 4px 0; }
     /* ทุกช่องกว้าง+สูงเท่ากันหมด ไม่ว่าเนื้อหา/เดือน/ขนาดจอ
@@ -319,7 +334,6 @@
           </button>
           <div class="pg-dd-menu" id="pgDdMenu"></div>
         </div>
-        <button class="btn small secondary" data-sync-history title="ประวัติการดึงข้อมูล">📜 ประวัติการดึงข้อมูล</button>
         <div class="cal-nav-group">
           <button class="cal-nav" id="calPrev">‹</button>
           <span class="cal-title" id="calTitle"></span>
@@ -329,6 +343,13 @@
       <div class="cal-wrap" id="calWrap">
         <div class="cm-empty"><span class="big">📅</span>เลือกเพจเพื่อดูปฏิทินโพสต์</div>
       </div>
+      <!-- สถานะการดึงข้อมูลล่าสุด — เป็นข้อความ ไม่ใช่ปุ่ม กดแล้วค่อยเปิดประวัติเต็ม
+           ใช้ <button> เพื่อให้กด Tab/Enter ได้ แต่ตัดหน้าตาปุ่มออกหมด -->
+      <button class="sync-strip" id="syncStrip" data-sync-history>
+        <span class="dot" id="syncDot"></span>
+        <span id="syncStripText">กำลังตรวจสถานะการดึงข้อมูล...</span>
+        <span class="more">ดูประวัติ ›</span>
+      </button>
     </aside>
 
     <!-- ขวา: คอมเมนต์ของโพสต์ที่เลือก -->
@@ -633,6 +654,35 @@
         el.innerHTML = '';
       }
     }
+
+    // ---------- สถานะการดึงข้อมูลล่าสุด (แถบล่างคอลัมน์ซ้าย) ----------
+    let syncPoll = null;
+    async function loadSyncStrip(){
+      const el = $('syncStripText'), dot = $('syncDot');
+      if(!el) return;
+      const fmt = (iso) => new Date(iso).toLocaleString('th-TH', { dateStyle:'short', timeStyle:'short' });
+      try{
+        const s = await fetch('/api/sync-status').then(r=>r.json());
+        if(s.running){
+          dot.className = 'dot busy';
+          el.textContent = 'กำลังดึงข้อมูล...';
+          // กำลังดึงอยู่ → ตามดูจนเสร็จ แล้วหยุด ไม่ยิงถี่ตลอดเวลา
+          if(!syncPoll) syncPoll = setInterval(loadSyncStrip, 5000);
+          return;
+        }
+        if(syncPoll){ clearInterval(syncPoll); syncPoll = null; }
+        dot.className = 'dot' + (s.lastRefreshAt ? '' : ' never');
+        el.textContent = s.lastRefreshAt
+          ? `ดึงล่าสุด ${fmt(s.lastRefreshAt)} น. · รอบถัดไป ${fmt(s.nextRefreshAt)} น.`
+          : `ยังไม่เคยดึงข้อมูล · รอบถัดไป ${fmt(s.nextRefreshAt)} น.`;
+      }catch{
+        if(syncPoll){ clearInterval(syncPoll); syncPoll = null; }
+        dot.className = 'dot never';
+        el.textContent = 'ดูประวัติการดึงข้อมูล';
+      }
+    }
+    // history.js เรียกตัวนี้หลังกด "ดึงตอนนี้" ในป็อปอัป
+    window.onSyncHistoryDone = loadSyncStrip;
 
     // ---------- ตรวจโฆษณากับระบบ อย. (FDA Verify) ----------
     // เรียกผ่าน /api/fda/check ของเราเอง — API key อยู่ฝั่ง server ไม่ลงมาถึงหน้าเว็บ
@@ -1041,6 +1091,7 @@
     });
 
     loadPages();
+    loadSyncStrip();
   </script>
   <script src="https://agencyitelligence-production.up.railway.app/global-menu.js" defer></script>
 </body>
