@@ -11,13 +11,48 @@
   <style>
     .cm-layout {
       display: grid;
-      grid-template-columns: 1fr 420px;
+      /* ซ้ายสุด = เพจเรา + เพจคู่แข่ง · กลาง = ปฏิทิน · ขวา = รายละเอียดโพสต์ */
+      grid-template-columns: 208px 1fr 420px;
       /* --chrome = navbar 56 + แถบแท็บ 44 (โหมด embed = 0) — เดิมลบแค่ 56
          ทำให้คอลัมน์ซ้ายยาวเกินจอ 44px และของที่อยู่ก้นคอลัมน์ถูกดันตกขอบจอ */
       height: calc(100vh - var(--chrome));
       background: var(--card);
     }
     .cm-left { border-right: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; }
+
+    /* ---- คอลัมน์ซ้ายสุด: เพจเราและเพจคู่แข่ง ---- */
+    .cm-brands {
+      border-right: 1px solid var(--border);
+      display: flex; flex-direction: column; min-height: 0; min-width: 0;
+      overflow-y: auto; padding: 10px 8px 14px; gap: 3px;
+    }
+    .cm-brands .grp {
+      font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+      color: var(--muted); padding: 10px 8px 4px;
+    }
+    .brand-item {
+      display: flex; align-items: center; gap: 8px; padding: 7px 8px;
+      border-radius: 8px; cursor: pointer; border: 1px solid transparent; min-width: 0;
+    }
+    .brand-item:hover { background: var(--bg); }
+    .brand-item.active { background: #e7f0fe; border-color: var(--primary); }
+    .brand-item .ava {
+      width: 28px; height: 28px; border-radius: 50%; object-fit: cover; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; font-weight: 700; font-size: 12px;
+    }
+    .brand-item .nm {
+      font-size: 12.5px; line-height: 1.3; min-width: 0;
+      overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    }
+    .brand-item.active .nm { font-weight: 600; color: var(--primary); }
+    .brand-item .n { margin-left: auto; font-size: 11px; color: var(--muted); flex-shrink: 0; }
+    .cm-brands .none { font-size: 11.5px; color: var(--muted); padding: 4px 8px 0; line-height: 1.6; }
+    /* ป้ายบอกว่ากำลังดูปฏิทินของคู่แข่ง ไม่ใช่ของเรา */
+    .src-tag {
+      font-size: 11.5px; padding: 2px 9px; border-radius: 999px;
+      background: #fdf3e4; color: #8a5200; border: 1px solid #e08b1e; white-space: nowrap;
+    }
     .cm-left-head {
       padding: 12px 16px; border-bottom: 1px solid var(--border);
       display: flex; align-items: center; gap: 12px;
@@ -296,9 +331,19 @@
       display: flex; align-items: center; justify-content: center; color: #fff; font-size: 12px; font-weight: 700;
     }
 
+    @media (max-width: 1100px) { .cm-layout { grid-template-columns: 176px 1fr 370px; } }
     @media (max-width: 800px) {
-      .cm-layout { grid-template-columns: 1fr; }
+      /* จอแคบ: คอลัมน์แบรนด์กลายเป็นแถบเลื่อนแนวนอนบนสุด */
+      .cm-layout { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }
+      .cm-brands {
+        flex-direction: row; align-items: center; overflow-x: auto; overflow-y: hidden;
+        border-right: 0; border-bottom: 1px solid var(--border); padding: 8px 10px;
+      }
+      .cm-brands .grp, .cm-brands .none { display: none; }
+      .brand-item { flex-shrink: 0; max-width: 190px; }
+      .brand-item .nm { -webkit-line-clamp: 1; white-space: nowrap; }
       .cm-right { display: none; }
+      .cm-layout.post-open .cm-brands,
       .cm-layout.post-open .cm-left { display: none; }
       .cm-layout.post-open .cm-right { display: flex; }
     }
@@ -323,7 +368,12 @@
   </div>
 
   <div class="cm-layout" id="cmLayout">
-    <!-- ซ้าย: เลือกเพจ + รายการโพสต์ -->
+    <!-- ซ้ายสุด: เพจของเรา + เพจคู่แข่งของเพจนั้น (คู่แข่งมาจากที่กรอกไว้ในเมนู Admin) -->
+    <aside class="cm-brands" id="cmBrands">
+      <div class="none">เลือกเพจก่อน</div>
+    </aside>
+
+    <!-- กลาง: ปฏิทินโพสต์ -->
     <aside class="cm-left">
       <div class="cm-left-head">
         <div class="pg-dd" id="pgDd" style="min-width: 220px;">
@@ -377,6 +427,9 @@
     let activePostId = null;
     let currentComments = [];
     let dayPostSel = {}; // dayKey -> postId ที่เลือกแสดงในวันที่มีหลายโพสต์
+    // แหล่งที่มาของปฏิทินที่กำลังดู — เพจของเราเอง หรือเพจคู่แข่งรายหนึ่ง
+    let activeSource = null;   // { kind: 'page' | 'competitor', id, name }
+    let rivals = [];           // คู่แข่งของเพจที่เลือก (มาจากที่กรอกในเมนู Admin)
     let calMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 
     function toast(msg) {
@@ -446,6 +499,60 @@
       $('pgDdAvaWrap').innerHTML = pgAvatarHtml(selectedPage);
       $('pgDdMenu').classList.remove('open');
       loadPages(); // อัปเดต active ในเมนู
+      activeSource = { kind: 'page', id: selectedPage.id, name: selectedPage.name };
+      loadRivals();
+      loadPosts();
+    }
+
+    // ---------- คอลัมน์แบรนด์: เพจเรา + คู่แข่งของเพจนั้น ----------
+    async function loadRivals() {
+      renderBrands(); // วาดเพจเราไว้ก่อน ไม่ต้องรอ API
+      try {
+        const data = await fetch('/api/competitors').then((r) => r.json());
+        // เอาเฉพาะคู่แข่งที่ผูกกับเพจที่เลือกอยู่ (owners มาจากช่องคู่แข่งในเมนู Admin)
+        rivals = (data.items || [])
+          .filter((c) => (c.owners || []).some((o) => o.pageId === selectedPage.id))
+          .sort((a, b) => String(a.name).localeCompare(String(b.name), 'th'));
+      } catch { rivals = []; }
+      renderBrands();
+    }
+
+    function brandItemHtml(o) {
+      const on = activeSource && activeSource.kind === o.kind && activeSource.id === o.id;
+      const ava = o.pictureUrl
+        ? `<img class="ava" src="${esc(o.pictureUrl)}" alt="">`
+        : `<span class="ava" style="background:${avatarColor(o.id)}">${esc((o.name || '?')[0].toUpperCase())}</span>`;
+      return `
+        <div class="brand-item ${on ? 'active' : ''}" title="${esc(o.name)}"
+             onclick="pickSource('${o.kind}','${esc(o.id)}')">
+          ${ava}
+          <span class="nm">${esc(o.name)}</span>
+          ${o.postCount != null ? `<span class="n">${o.postCount}</span>` : ''}
+        </div>`;
+    }
+
+    function renderBrands() {
+      const el = $('cmBrands');
+      if (!el || !selectedPage) return;
+      const mine = brandItemHtml({
+        kind: 'page', id: selectedPage.id, name: selectedPage.name, pictureUrl: selectedPage.pictureUrl,
+      });
+      const rivalHtml = rivals.length
+        ? rivals.map((c) => brandItemHtml({
+            kind: 'competitor', id: c.id, name: c.name || c.handle,
+            pictureUrl: c.pictureUrl, postCount: c.postCount,
+          })).join('')
+        : '<div class="none">ยังไม่มีคู่แข่งของเพจนี้ — กรอกได้ในเมนู Admin</div>';
+      el.innerHTML = `<div class="grp">เพจของเรา</div>${mine}<div class="grp">คู่แข่ง</div>${rivalHtml}`;
+    }
+
+    function pickSource(kind, id) {
+      if (activeSource && activeSource.kind === kind && activeSource.id === id) return;
+      const name = kind === 'page'
+        ? selectedPage.name
+        : (rivals.find((c) => c.id === id) || {}).name || id;
+      activeSource = { kind, id, name };
+      renderBrands();
       loadPosts();
     }
 
@@ -456,16 +563,48 @@
     document.addEventListener('click', () => $('pgDdMenu').classList.remove('open'));
 
     // ---------- โพสต์ (ปฏิทิน) ----------
+    /**
+     * โพสต์ของคู่แข่งมาจาก Apify ซึ่งใช้ชื่อฟิลด์ต่างจากโพสต์เพจเราที่มาจาก Graph API
+     * แปลงให้เป็นรูปเดียวกันตรงนี้ที่เดียว ปฏิทินและตัวเปิดโพสต์จึงไม่ต้องรู้ว่ามาจากไหน
+     */
+    function fromRivalPost(p) {
+      return {
+        id: p.id,
+        message: p.text || '(ไม่มีข้อความ)',
+        createdTime: p.time,
+        picture: p.imageUrl || '',
+        permalink: p.url || '',
+        reactionCount: p.likes || 0,
+        commentCount: p.comments || 0,
+        shareCount: p.shares || 0,
+        isRival: true, // ใช้บอกว่าโพสต์นี้ดึงคอมเมนต์/สถิติเชิงลึกไม่ได้
+      };
+    }
+
     async function loadPosts() {
       if (!selectedPage) return;
+      if (!activeSource) activeSource = { kind: 'page', id: selectedPage.id, name: selectedPage.name };
       activePostId = null;
       dayPostSel = {};
+      // ล้างโพสต์ของแหล่งก่อนหน้าทันที ไม่รอผลสำเร็จ
+      // ไม่งั้นถ้าโหลดแหล่งใหม่พลาด ปฏิทินจะยังวาดโพสต์ของแบรนด์เดิมค้างไว้
+      posts = [];
+      // ไม่มีโพสต์เปิดอยู่แล้ว ต้องถอด post-open ด้วย
+      // ไม่งั้นบนจอแคบจะซ่อนทั้งแถบแบรนด์และปฏิทินทิ้ง เหลือแต่คอลัมน์ขวาที่ว่างเปล่า
+      $('cmLayout').classList.remove('post-open');
       $('calWrap').innerHTML = '<div class="cm-empty"><span class="big">⏳</span>กำลังดึงโพสต์...</div>';
       try {
-        const res = await fetch(`/api/pages/${encodeURIComponent(selectedPage.id)}/posts`);
+        const rival = activeSource.kind === 'competitor';
+        const url = rival
+          ? `/api/competitors/${encodeURIComponent(activeSource.id)}`
+          : `/api/pages/${encodeURIComponent(selectedPage.id)}/posts`;
+        const res = await fetch(url);
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
-        posts = data;
+        posts = rival
+          ? (data.posts || []).map(fromRivalPost)
+              .sort((a, b) => new Date(b.createdTime) - new Date(a.createdTime))
+          : data;
         // เด้งไปเดือนของโพสต์ล่าสุด เพื่อให้เห็นโพสต์ทันที
         if (posts.length) {
           const d = new Date(posts[0].createdTime);
@@ -474,7 +613,12 @@
         renderCalendar();
         // เปิดโพสต์ล่าสุดอัตโนมัติบนจอกว้าง
         if (posts.length && window.innerWidth > 800) openPost(posts[0].id);
-        else if (!posts.length) $('cmRight').innerHTML = '<div class="cm-empty"><span class="big">📭</span>เพจนี้ยังไม่มีโพสต์</div>';
+        else if (!posts.length) {
+          $('cmRight').innerHTML = activeSource.kind === 'competitor'
+            ? '<div class="cm-empty"><span class="big">📭</span><div style="max-width:320px;text-align:center;">'
+              + 'ยังไม่มีโพสต์ของเพจคู่แข่งนี้ — ไปที่เมนู Competitor แล้วกดดึงข้อมูลก่อน</div></div>'
+            : '<div class="cm-empty"><span class="big">📭</span>เพจนี้ยังไม่มีโพสต์</div>';
+        }
       } catch (err) {
         $('calWrap').innerHTML = `<div class="cm-empty" style="padding:20px; text-align:center;"><span class="big">⚠️</span>${esc(err.message)}</div>`;
       }
@@ -586,41 +730,72 @@
         </div>`;
     }
 
+    /** หัวโพสต์ในคอลัมน์ขวา — ใช้ร่วมกันทั้งโพสต์เราและโพสต์คู่แข่ง */
+    function postHeadHtml(post, engBarHtml, extra) {
+      return `
+        <div class="cm-post-head">
+          <button class="btn small secondary" onclick="closePost()" style="display:none; float:left; margin-right:10px;" id="backBtn">←</button>
+          ${extra && extra.topRight ? extra.topRight : ''}
+          <div class="txt">${esc(post.message)}</div>
+          <div class="muted" style="margin-top:4px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+            <span>${fmtAgo(post.createdTime)}</span>
+            ${post.permalink ? `· <a href="${esc(post.permalink)}" target="_blank">เปิดโพสต์บน Facebook ↗</a>` : ''}
+            ${post.isRival ? `<span class="src-tag">⚔️ ${esc(activeSource.name)}</span>` : ''}
+          </div>
+          <!-- ตรวจ caption กับหลักเกณฑ์การโฆษณาอาหารของ อย. (อยู่เหนือภาพตามที่ออกแบบไว้) -->
+          <div class="fda-row" id="fdaRow" hidden>
+            <button class="btn small secondary fda-btn" id="fdaBtn" onclick="runFdaCheck()"
+                    title="ตรวจข้อความโพสต์กับหลักเกณฑ์การโฆษณาอาหารของ อย.">🛡 FDA Verify</button>
+            <div class="fda-out" id="fdaResult"></div>
+          </div>
+          ${post.picture ? `<img class="post-hero" src="${esc(post.picture)}" alt="" onclick="openLightbox(this.src)">` : ''}
+          ${engBarHtml}
+          ${extra && extra.below ? extra.below : ''}
+        </div>`;
+    }
+
+    /** โพสต์คู่แข่ง: ดึงคอมเมนต์และสถิติเชิงลึกไม่ได้ (ไม่ใช่เพจเรา) แต่ตรวจ อย. ได้ */
+    function openRivalPost(post) {
+      $('cmRight').innerHTML = postHeadHtml(post, `
+        <div class="eng-bar">
+          <span class="eng">👍 <b>${post.reactionCount.toLocaleString()}</b> <span>ถูกใจ</span></span>
+          <span class="eng">💬 <b>${post.commentCount.toLocaleString()}</b> <span>คอมเมนต์</span></span>
+          <span class="eng">↗ <b>${post.shareCount.toLocaleString()}</b> <span>แชร์</span></span>
+        </div>`)
+        + `<div class="cm-list">
+             <div class="muted" style="text-align:center; padding:30px; line-height:1.7;">
+               เพจคู่แข่งดึงได้แค่โพสต์และตัวเลขการมีส่วนร่วม<br>
+               คอมเมนต์และสถิติเชิงลึกเปิดได้เฉพาะเพจที่เราเชื่อมต่อไว้
+             </div>
+           </div>`;
+      if (window.innerWidth <= 800) $('backBtn').style.display = 'inline-flex';
+      setupFdaButton(post);
+    }
+
     async function openPost(postId) {
       activePostId = postId;
       renderCalendar();
       $('cmLayout').classList.add('post-open');
       const post = posts.find((p) => p.id === postId);
+      if (post && post.isRival) { openRivalPost(post); return; }
       $('cmRight').innerHTML = '<div class="cm-empty"><span class="big">⏳</span>กำลังดึงคอมเมนต์...</div>';
       try {
         const res = await fetch(`/api/posts/${encodeURIComponent(postId)}/comments?pageId=${encodeURIComponent(selectedPage.id)}`);
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
         currentComments = data; // เก็บไว้ให้ export CSV
-        $('cmRight').innerHTML = `
-          <div class="cm-post-head">
-            <button class="btn small secondary" onclick="closePost()" style="display:none; float:left; margin-right:10px;" id="backBtn">←</button>
-            <button class="btn small secondary" onclick="exportCommentsCSV()" style="float:right;" title="ดาวน์โหลดคอมเมนต์ทั้งหมดเป็นไฟล์ CSV">⬇ Export CSV</button>
-            <div class="txt">${esc(post.message)}</div>
-            <div class="muted" style="margin-top:4px;">
-              ${fmtAgo(post.createdTime)}
-              ${post.permalink ? ` · <a href="${esc(post.permalink)}" target="_blank">เปิดโพสต์บน Facebook ↗</a>` : ''}
-            </div>
-            <!-- ตรวจ caption กับหลักเกณฑ์การโฆษณาอาหารของ อย. (อยู่เหนือภาพตามที่ออกแบบไว้) -->
-            <div class="fda-row" id="fdaRow" hidden>
-              <button class="btn small secondary fda-btn" id="fdaBtn" onclick="runFdaCheck()"
-                      title="ตรวจข้อความโพสต์กับหลักเกณฑ์การโฆษณาอาหารของ อย.">🛡 FDA Verify</button>
-              <div class="fda-out" id="fdaResult"></div>
-            </div>
-            ${post.picture ? `<img class="post-hero" src="${esc(post.picture)}" alt="" onclick="openLightbox(this.src)">` : ''}
+        $('cmRight').innerHTML = postHeadHtml(post, `
             <div class="eng-bar">
               <span class="eng">👍 <b>${post.reactionCount.toLocaleString()}</b> <span>ถูกใจ</span></span>
               <span class="eng">💬 <b>${data.length.toLocaleString()}</b> <span>คอมเมนต์</span></span>
               <span class="eng">↗ <b>${post.shareCount.toLocaleString()}</b> <span>แชร์</span></span>
-            </div>
-            <div class="stat-grid" id="statGrid"><div class="muted" style="font-size:12px;">⏳ กำลังโหลดสถิติเชิงลึก...</div></div>
-          </div>
-          <div class="cm-list" id="cmList">
+            </div>`, {
+            topRight: '<button class="btn small secondary" onclick="exportCommentsCSV()" style="float:right;"'
+              + ' title="ดาวน์โหลดคอมเมนต์ทั้งหมดเป็นไฟล์ CSV">⬇ Export CSV</button>',
+            below: '<div class="stat-grid" id="statGrid"><div class="muted" style="font-size:12px;">'
+              + '⏳ กำลังโหลดสถิติเชิงลึก...</div></div>',
+          })
+          + `<div class="cm-list" id="cmList">
             ${data.length ? data.map((c) => cmtHtml(c, false)).join('')
               : '<div class="muted" style="text-align:center; padding: 30px;">โพสต์นี้ยังไม่มีคอมเมนต์</div>'}
           </div>`;
