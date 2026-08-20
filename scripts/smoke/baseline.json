@@ -93,14 +93,14 @@
     "status": 400,
     "body": {
       "code": "BAD_REQUEST",
-      "error": "เชื่อมต่อไม่สำเร็จ: Invalid OAuth access token - Cannot parse access token — ถ้าเป็น User token ต้องติ๊กเลือกเพจตอนขอสิทธิ์ หรือถ้าเป็น Page token ต้องมีสิทธิ์ pages_read_engagement"
+      "error": "เชื่อมต่อไม่สำเร็จ: <UPSTREAM>"
     }
   },
   "pages.fromUserToken (ปลอม)": {
     "status": 400,
     "body": {
       "code": "BAD_REQUEST",
-      "error": "เชื่อมต่อไม่สำเร็จ: Invalid OAuth access token - Cannot parse access token"
+      "error": "เชื่อมต่อไม่สำเร็จ: <UPSTREAM>"
     }
   },
   "pageConfig.list": {
@@ -586,7 +586,7 @@
     "status": 400,
     "body": {
       "code": "BAD_REQUEST",
-      "error": "ส่งไม่ได้: Invalid OAuth access token data."
+      "error": "ส่งไม่ได้: <UPSTREAM>"
     }
   },
   "thread (หลัง mutate)": {
@@ -1084,7 +1084,7 @@
     "status": 400,
     "body": {
       "code": "BAD_REQUEST",
-      "error": "ดึง inbox ไม่สำเร็จ: Invalid OAuth access token data."
+      "error": "ดึง inbox ไม่สำเร็จ: <UPSTREAM>"
     }
   },
   "sync.all": {
@@ -2457,19 +2457,19 @@
   "report.posts (token ปลอม)": {
     "status": 400,
     "body": {
-      "error": "ดึงโพสต์ไม่สำเร็จ: Invalid OAuth access token data."
+      "error": "ดึงโพสต์ไม่สำเร็จ: <UPSTREAM>"
     }
   },
   "report.comments (token ปลอม)": {
     "status": 400,
     "body": {
-      "error": "ดึงคอมเมนต์ไม่สำเร็จ: Invalid OAuth access token data."
+      "error": "ดึงคอมเมนต์ไม่สำเร็จ: <UPSTREAM>"
     }
   },
   "posts (token ปลอม)": {
     "status": 400,
     "body": {
-      "error": "ดึงโพสต์ไม่สำเร็จ: Invalid OAuth access token data."
+      "error": "ดึงโพสต์ไม่สำเร็จ: <UPSTREAM>"
     }
   },
   "post.insights (token ปลอม)": {
@@ -2482,7 +2482,7 @@
   "post.comments (token ปลอม)": {
     "status": 400,
     "body": {
-      "error": "ดึงคอมเมนต์ไม่สำเร็จ: Invalid OAuth access token data."
+      "error": "ดึงคอมเมนต์ไม่สำเร็จ: <UPSTREAM>"
     }
   },
   "comment.reply (token ปลอม)": {
@@ -2650,7 +2650,7 @@
     "status": 400,
     "body": {
       "code": "BAD_REQUEST",
-      "error": "เชื่อมต่อ LINE ไม่สำเร็จ: Authentication failed. Confirm that the access token in the authorization header is valid."
+      "error": "เชื่อมต่อ LINE ไม่สำเร็จ: <UPSTREAM>"
     }
   },
   "connections.line.add (ไม่ครบ→400)": {

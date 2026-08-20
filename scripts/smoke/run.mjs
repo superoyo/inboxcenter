@@ -57,7 +57,14 @@ function normalize(value, key = '') {
     // เพื่อไม่ให้ชนกับ id จริงอย่าง t_smoke_1 หรือ cmp_smokebrand)
     .replace(/\b([a-z][a-z_]*)_\d{10,}(?:_[a-z0-9]+)?\b/g, '$1_<GEN>')
     .replace(/127\.0\.0\.1:\d+/g, '<HOST>')
-    .replace(/localhost:\d+/g, '<HOST>');
+    .replace(/localhost:\d+/g, '<HOST>')
+    // ข้อความจากปลายทางภายนอก (Facebook / LINE / อย.) ขึ้นกับว่าตอนนั้นต่อเน็ตได้ไหม
+    // เคยเจอผลสลับระหว่าง "Authentication failed..." กับ "fetch failed" ทำให้เทสไม่นิ่ง
+    // ส่วนที่เราคุมคือ "คำนำหน้า + สถานะ" จึงเก็บไว้ แล้วแทนรายละเอียดของปลายทางด้วย placeholder
+    .replace(
+      /^(เชื่อมต่อ[^:]*ไม่สำเร็จ|ส่งไม่ได้|ดึง[^:]*ไม่สำเร็จ|เข้าสู่ระบบไม่สำเร็จ|โหลด[^:]*ไม่สำเร็จ): .+$/,
+      '$1: <UPSTREAM>',
+    );
 }
 
 async function waitReady(timeoutMs = 20000) {

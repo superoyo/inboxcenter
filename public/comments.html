@@ -24,7 +24,24 @@
     .cm-brands {
       border-right: 1px solid var(--border);
       display: flex; flex-direction: column; min-height: 0; min-width: 0;
-      overflow-y: auto; padding: 10px 8px 14px; gap: 3px;
+    }
+    /* ตัวเลือกเพจของเรา — ติดหัวคอลัมน์ ไม่เลื่อนไปกับรายการ */
+    .cm-brand-pick { flex-shrink: 0; padding: 10px 8px; border-bottom: 1px solid var(--border); }
+    .cm-brand-pick .pg-dd-btn { width: 100%; }
+    .cm-brand-list {
+      flex: 1; min-height: 0; overflow-y: auto;
+      display: flex; flex-direction: column; padding: 8px 8px 14px; gap: 3px;
+    }
+    /* หัวปฏิทิน: แบรนด์ที่กำลังดูอยู่ */
+    .cal-brand { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; }
+    .cal-brand .ava {
+      width: 26px; height: 26px; border-radius: 50%; object-fit: cover; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; font-weight: 700; font-size: 12px;
+    }
+    .cal-brand .nm {
+      font-weight: 700; font-size: 15px; min-width: 0;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
     .cm-brands .grp {
       font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
@@ -335,9 +352,12 @@
     @media (max-width: 800px) {
       /* จอแคบ: คอลัมน์แบรนด์กลายเป็นแถบเลื่อนแนวนอนบนสุด */
       .cm-layout { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }
-      .cm-brands {
-        flex-direction: row; align-items: center; overflow-x: auto; overflow-y: hidden;
-        border-right: 0; border-bottom: 1px solid var(--border); padding: 8px 10px;
+      .cm-brands { border-right: 0; border-bottom: 1px solid var(--border); }
+      .cm-brands { flex-direction: column; }
+      .cm-brand-pick { border-bottom: 0; padding-bottom: 0; }
+      .cm-brand-list {
+        flex: 0 0 auto; flex-direction: row; align-items: center;
+        overflow-x: auto; overflow-y: hidden; padding: 8px 10px;
       }
       .cm-brands .grp, .cm-brands .none { display: none; }
       .brand-item { flex-shrink: 0; max-width: 190px; }
@@ -369,21 +389,26 @@
 
   <div class="cm-layout" id="cmLayout">
     <!-- ซ้ายสุด: เพจของเรา + เพจคู่แข่งของเพจนั้น (คู่แข่งมาจากที่กรอกไว้ในเมนู Admin) -->
-    <aside class="cm-brands" id="cmBrands">
-      <div class="none">เลือกเพจก่อน</div>
+    <aside class="cm-brands">
+      <!-- ตัวเลือกเพจของเรา อยู่หัวคอลัมน์นี้ -->
+      <div class="pg-dd cm-brand-pick" id="pgDd">
+        <button class="pg-dd-btn" id="pgDdBtn">
+          <span id="pgDdAvaWrap" style="display:flex;"><span class="pg-ava-fb" style="background:var(--primary);">📄</span></span>
+          <span id="pgDdLabel">เลือกเพจ...</span>
+          <span class="caret">▼</span>
+        </button>
+        <div class="pg-dd-menu" id="pgDdMenu"></div>
+      </div>
+      <div class="cm-brand-list" id="cmBrands">
+        <div class="none">เลือกเพจก่อน</div>
+      </div>
     </aside>
 
     <!-- กลาง: ปฏิทินโพสต์ -->
     <aside class="cm-left">
       <div class="cm-left-head">
-        <div class="pg-dd" id="pgDd" style="min-width: 220px;">
-          <button class="pg-dd-btn" id="pgDdBtn">
-            <span id="pgDdAvaWrap" style="display:flex;"><span class="pg-ava-fb" style="background:var(--primary);">📄</span></span>
-            <span id="pgDdLabel">เลือกเพจ...</span>
-            <span class="caret">▼</span>
-          </button>
-          <div class="pg-dd-menu" id="pgDdMenu"></div>
-        </div>
+        <!-- หัวปฏิทิน = แบรนด์ที่กำลังดูอยู่ (เพจเราหรือคู่แข่ง) -->
+        <div class="cal-brand" id="calBrand"></div>
         <div class="cal-nav-group">
           <button class="cal-nav" id="calPrev">‹</button>
           <span class="cal-title" id="calTitle"></span>
@@ -395,10 +420,10 @@
       </div>
       <!-- สถานะการดึงข้อมูลล่าสุด — เป็นข้อความ ไม่ใช่ปุ่ม กดแล้วค่อยเปิดประวัติเต็ม
            ใช้ <button> เพื่อให้กด Tab/Enter ได้ แต่ตัดหน้าตาปุ่มออกหมด -->
-      <button class="sync-strip" id="syncStrip" data-sync-history>
+      <button class="sync-strip" id="syncStrip">
         <span class="dot" id="syncDot"></span>
         <span id="syncStripText">กำลังตรวจสถานะการดึงข้อมูล...</span>
-        <span class="more">ดูประวัติ ›</span>
+        <span class="more" id="syncMore">ดูประวัติ ›</span>
       </button>
     </aside>
 
@@ -500,6 +525,8 @@
       $('pgDdMenu').classList.remove('open');
       loadPages(); // อัปเดต active ในเมนู
       activeSource = { kind: 'page', id: selectedPage.id, name: selectedPage.name };
+      renderCalBrand();
+      loadSyncStrip();
       loadRivals();
       loadPosts();
     }
@@ -515,6 +542,8 @@
           .sort((a, b) => String(a.name).localeCompare(String(b.name), 'th'));
       } catch { rivals = []; }
       renderBrands();
+      renderCalBrand(); // รูป/ชื่อคู่แข่งเพิ่งมา
+      loadSyncStrip();
     }
 
     function brandItemHtml(o) {
@@ -546,6 +575,21 @@
       el.innerHTML = `<div class="grp">เพจของเรา</div>${mine}<div class="grp">คู่แข่ง</div>${rivalHtml}`;
     }
 
+    /** หัวปฏิทิน = แบรนด์ที่กำลังดูอยู่ (เพจเราหรือคู่แข่ง) */
+    function renderCalBrand() {
+      const el = $('calBrand');
+      if (!el || !activeSource) return;
+      const rival = activeSource.kind === 'competitor';
+      const c = rival ? rivals.find((x) => x.id === activeSource.id) : null;
+      const pic = rival ? (c && c.pictureUrl) : (selectedPage && selectedPage.pictureUrl);
+      const ava = pic
+        ? `<img class="ava" src="${esc(pic)}" alt="">`
+        : `<span class="ava" style="background:${avatarColor(activeSource.id)}">${esc((activeSource.name || '?')[0].toUpperCase())}</span>`;
+      el.innerHTML = ava
+        + `<span class="nm">${esc(activeSource.name)}</span>`
+        + (rival ? '<span class="src-tag">⚔️ คู่แข่ง</span>' : '');
+    }
+
     function pickSource(kind, id) {
       if (activeSource && activeSource.kind === kind && activeSource.id === id) return;
       const name = kind === 'page'
@@ -553,6 +597,8 @@
         : (rivals.find((c) => c.id === id) || {}).name || id;
       activeSource = { kind, id, name };
       renderBrands();
+      renderCalBrand();
+      loadSyncStrip();
       loadPosts();
     }
 
@@ -832,10 +878,37 @@
 
     // ---------- สถานะการดึงข้อมูลล่าสุด (แถบล่างคอลัมน์ซ้าย) ----------
     let syncPoll = null;
+
+    /** แถบล่างกดแล้วไปไหน — เพจเรา = ป็อปอัปประวัติ · คู่แข่ง = หน้า Competitor ของแบรนด์นั้น
+     *  (หน้านั้นเป็นที่เดียวที่กดดึงข้อมูลคู่แข่งได้ จึงไม่ทำ UI ซ้ำ) */
+    function onSyncStripClick() {
+      if (activeSource && activeSource.kind === 'competitor') {
+        location.href = 'competitor.html?id=' + encodeURIComponent(activeSource.id);
+        return;
+      }
+      window.SyncHistory.open();
+    }
+
     async function loadSyncStrip(){
       const el = $('syncStripText'), dot = $('syncDot');
       if(!el) return;
       const fmt = (iso) => new Date(iso).toLocaleString('th-TH', { dateStyle:'short', timeStyle:'short' });
+
+      // คู่แข่ง: ใช้ข้อมูลที่โหลดมาพร้อมรายการแบรนด์แล้ว ไม่ต้องยิง API ซ้ำ
+      if (activeSource && activeSource.kind === 'competitor') {
+        if (syncPoll) { clearInterval(syncPoll); syncPoll = null; }
+        $('syncMore').textContent = 'ไปดึงข้อมูล ›';
+        const c = rivals.find((x) => x.id === activeSource.id);
+        if (!c) { dot.className = 'dot never'; el.textContent = 'เพจคู่แข่ง'; return; }
+        dot.className = 'dot' + (c.lastSyncAt ? '' : ' never');
+        el.textContent = c.lastSyncAt
+          ? `${c.name} · ดึงล่าสุด ${fmt(c.lastSyncAt)} น.`
+            + (c.coveredFrom && c.coveredTo ? ` · ข้อมูลช่วง ${c.coveredFrom} → ${c.coveredTo}` : '')
+          : `${c.name} · ยังไม่เคยดึงข้อมูล — กดเพื่อไปดึง`;
+        return;
+      }
+
+      $('syncMore').textContent = 'ดูประวัติ ›';
       try{
         const s = await fetch('/api/sync-status').then(r=>r.json());
         if(s.running){
@@ -1265,6 +1338,7 @@
       else loadPosts();
     });
 
+    $('syncStrip').addEventListener('click', onSyncStripClick);
     loadPages();
     loadSyncStrip();
   </script>
