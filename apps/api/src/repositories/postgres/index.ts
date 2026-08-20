@@ -7,6 +7,8 @@ import type {
   CompetitorPost,
   CompetitorSyncRun,
   Conversation,
+  CaseEvent,
+  StoredAttachment,
   Forward,
   PageConfig,
   Project,
@@ -15,6 +17,7 @@ import type {
 } from '@inboxcenter/shared';
 import { getPool } from './pool';
 import type {
+  CaseEventsMap,
   ForwardsMap,
   PageConfigMapStored,
   ProfilePicCache,
@@ -422,6 +425,58 @@ export const postgresRepository: StorageRepository = {
       [conversationId, JSON.stringify(entry)],
     );
     return entry;
+  },
+
+  // ---- สถานะเคส: ปิดเคส / รอคำตอบ ----
+  async getCaseEvents() {
+    const { rows } = await getPool().query(
+      'SELECT conversation_id, events FROM conversation_case_events',
+    );
+    return Object.fromEntries(
+      rows.map((r) => [r.conversation_id, (r.events || []) as CaseEvent[]]),
+    ) as CaseEventsMap;
+  },
+
+  async addCaseEvent(conversationId, entry) {
+    await getPool().query(
+      `INSERT INTO conversation_case_events (conversation_id, events)
+       VALUES ($1, jsonb_build_array($2::jsonb))
+       ON CONFLICT (conversation_id) DO UPDATE
+         SET events = conversation_case_events.events || $2::jsonb`,
+      [conversationId, JSON.stringify(entry)],
+    );
+    return entry;
+  },
+
+  // ---- ไฟล์แนบ (เก็บเป็น bytea) ----
+  async saveAttachment(meta, data) {
+    await getPool().query(
+      `INSERT INTO attachments (id, conversation_id, name, mime_type, size, created_at, data)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [meta.id, meta.conversationId, meta.name, meta.mimeType, meta.size, meta.createdAt, data],
+    );
+    return meta;
+  },
+
+  async getAttachment(id) {
+    const { rows } = await getPool().query(
+      `SELECT id, conversation_id, name, mime_type, size, created_at, data
+       FROM attachments WHERE id = $1`,
+      [id],
+    );
+    const r = rows[0];
+    if (!r) return null;
+    return {
+      meta: {
+        id: r.id,
+        conversationId: r.conversation_id,
+        name: r.name,
+        mimeType: r.mime_type,
+        size: r.size,
+        createdAt: new Date(r.created_at).toISOString(),
+      } as StoredAttachment,
+      data: r.data as Buffer,
+    };
   },
 
   // ---- Competitors ----

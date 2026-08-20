@@ -1,5 +1,7 @@
 // Storage backend: ไฟล์ JSON ในโฟลเดอร์ data/ — ใช้ตอนรันในเครื่อง (ไม่มี DATABASE_URL)
 // ทุกฟังก์ชันเป็น async ให้ interface ตรงกับฝั่ง Postgres (บังคับด้วย StorageRepository)
+import fs from 'node:fs';
+import path from 'node:path';
 import type {
   Competitor,
   CompetitorPost,
@@ -8,9 +10,11 @@ import type {
   Project,
   SavedReply,
   SyncRun,
+  StoredAttachment,
 } from '@inboxcenter/shared';
-import { FILES, readJson, writeJson } from './json-file';
+import { DATA_DIR, FILES, readJson, writeJson } from './json-file';
 import type {
+  CaseEventsMap,
   ForwardsMap,
   PageConfigMapStored,
   ProfilePicCache,
@@ -238,6 +242,40 @@ export const fileRepository: StorageRepository = {
     (map[conversationId] = map[conversationId] || []).push(entry);
     writeJson(FILES.forwards, map);
     return entry;
+  },
+
+  // ---- สถานะเคส: ปิดเคส / รอคำตอบ ----
+  async getCaseEvents() {
+    return readJson<CaseEventsMap>(FILES.caseEvents, {});
+  },
+
+  async addCaseEvent(conversationId, entry) {
+    const map = readJson<CaseEventsMap>(FILES.caseEvents, {});
+    (map[conversationId] = map[conversationId] || []).push(entry);
+    writeJson(FILES.caseEvents, map);
+    return entry;
+  },
+
+  // ---- ไฟล์แนบ ----
+  // เก็บ metadata ใน JSON และตัวไฟล์เป็นไฟล์จริง (ไม่ยัด base64 ลง JSON ให้ไฟล์บวม)
+  async saveAttachment(meta, data) {
+    const dir = path.join(DATA_DIR, 'attachments');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, meta.id), data);
+    const map = readJson<Record<string, StoredAttachment>>(FILES.attachments, {});
+    map[meta.id] = meta;
+    writeJson(FILES.attachments, map);
+    return meta;
+  },
+
+  async getAttachment(id) {
+    const meta = readJson<Record<string, StoredAttachment>>(FILES.attachments, {})[id];
+    if (!meta) return null;
+    try {
+      return { meta, data: fs.readFileSync(path.join(DATA_DIR, 'attachments', id)) };
+    } catch {
+      return null; // metadata มีแต่ตัวไฟล์หาย (เช่นดิสก์ถูกล้าง)
+    }
   },
 
   // ---- Competitors ----

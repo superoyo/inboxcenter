@@ -30,6 +30,46 @@ export interface Forward {
   createdTime: string;
 }
 
+/**
+ * สถานะเคสที่ทีมกดเอง — "ปิดเคส" หรือ "รอคำตอบ"
+ * เก็บแยกจาก messages เหมือน forwards ลูกค้าจึงไม่เห็นเด็ดขาด
+ */
+export type CaseEventType = 'closed' | 'waiting';
+
+export interface CaseEvent {
+  id: string;
+  type: CaseEventType;
+  /** ชื่อผู้กด */
+  by: string;
+  /** รายละเอียด — "รอคำตอบ" ใช้บันทึกว่ารออะไรอยู่ */
+  note: string;
+  createdTime: string;
+}
+
+/** สถานะล่าสุดของเคส พร้อมบอกว่ายังมีผลอยู่ไหม */
+export interface CaseState {
+  type: CaseEventType;
+  by: string;
+  note: string;
+  createdTime: string;
+  /**
+   * true = ลูกค้ายังไม่ทักมาใหม่หลังกด → ถือว่าจัดการแล้ว ไม่นับเป็นห้องค้างตอบ
+   * false = ลูกค้าทักมาใหม่หลังจากนั้น → กลับมาเป็นเคสใหม่ที่ต้องตอบ
+   */
+  active: boolean;
+}
+
+/** ไฟล์แนบที่อัปโหลดขึ้นมาเพื่อส่งให้ลูกค้า */
+export interface StoredAttachment {
+  /** id สุ่มยาว — เป็นส่วนหนึ่งของ URL สาธารณะ จึงต้องเดาไม่ได้ */
+  id: string;
+  conversationId: string;
+  name: string;
+  mimeType: string;
+  size: number;
+  createdAt: string;
+}
+
 /** ระดับความเร่งด่วนของห้อง (แดง/เหลือง/เขียว) */
 export type UrgencyLevel = 'red' | 'yellow' | 'green';
 
@@ -51,6 +91,10 @@ export interface ConversationThread extends Conversation {
   remark: string;
   statusOverride: UrgencyLevel | '';
   forwards: Forward[];
+  /** ประวัติการกดปิดเคส/รอคำตอบ (แสดงแทรกในแชท — ลูกค้าไม่เห็น) */
+  caseEvents: CaseEvent[];
+  /** สถานะเคสล่าสุด · null = ไม่เคยกด */
+  caseState: CaseState | null;
   /** ข้อความของเพจที่ซ้ำ ≥3 ครั้งทั้งเพจ = ถือว่าเป็นข้อความอัตโนมัติ */
   botTexts: string[];
   /** คำสำคัญของห้องนี้ (นับจากข้อความลูกค้า) — หน้าเว็บแสดงเป็นชิป word + count */
@@ -87,6 +131,8 @@ export interface ConversationSummary {
   statusOverride: UrgencyLevel | '';
   /** จำนวนครั้งที่ห้องนี้ถูกส่งต่อเคสภายใน */
   forwardCount: number;
+  /** สถานะเคสล่าสุด · null = ไม่เคยกด — ใช้ตัดสินว่ายังค้างตอบอยู่ไหม */
+  caseState: CaseState | null;
 }
 
 export interface ConversationListResponse {

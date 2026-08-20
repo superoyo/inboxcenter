@@ -1,6 +1,7 @@
 // Unified inbox — รายการห้องแชท / ปฏิทิน / ห้องเดียวแบบเต็ม
 import type {
   CalendarCounts,
+  CaseEvent,
   Conversation,
   ConversationListResponse,
   ConversationSummary,
@@ -12,6 +13,7 @@ import { BOT_REPEAT_THRESHOLD } from '../config/constants';
 import { repository } from '../repositories';
 import { AppError } from '../utils/app-error';
 import { dayKeyFactory } from '../utils/date';
+import { caseStateOf } from './case-events.service';
 import { roomKeywords } from './keywords.service';
 import { projectPageIds } from './projects.service';
 
@@ -61,11 +63,11 @@ export function responseTiming(messages: Message[]): ResponseTiming {
 /**
  * ย่อ conversation ให้เหลือเฉพาะข้อมูลที่ "รายการห้องแชท" ต้องใช้ — ตัด messages ทั้งก้อนออก
  * (ข้อความเต็มโหลดทีหลังผ่าน /conversations/:id/thread เมื่อผู้ใช้เปิดห้อง)
- * annotation (tags/remark/status/forwardCount) เติมโดยผู้เรียก
+ * annotation (tags/remark/status/forwardCount/caseState) เติมโดยผู้เรียก
  */
 export function toSummary(
   c: Conversation,
-): Omit<ConversationSummary, 'tags' | 'remark' | 'statusOverride' | 'forwardCount'> {
+): Omit<ConversationSummary, 'tags' | 'remark' | 'statusOverride' | 'forwardCount' | 'caseState'> {
   const messages = c.messages || [];
   const last = messages[messages.length - 1];
   return {
@@ -147,11 +149,12 @@ export async function listConversations(
     convs = convs.filter((c) => c.messages.some((m) => dayKey(m.createdTime) === query.date));
   }
 
-  const [tagsMap, remarksMap, statusMap, forwardsMap] = await Promise.all([
+  const [tagsMap, remarksMap, statusMap, forwardsMap, caseMap] = await Promise.all([
     repository.getTags(),
     repository.getRemarks(),
     repository.getStatuses(),
     repository.getForwards(),
+    repository.getCaseEvents(),
   ]);
 
   // แท็บ "ข้อความที่ส่งต่อ" — เฉพาะห้องที่มีการส่งต่อเคสภายใน
@@ -167,6 +170,7 @@ export async function listConversations(
     remark: remarksMap[c.id] || '',
     statusOverride: toStatusOverride(statusMap[c.id]),
     forwardCount: (forwardsMap[c.id] || []).length,
+    caseState: caseStateOf(caseMap[c.id], c.messages),
   }));
   return { items, total, hasMore: offset + items.length < total };
 }
@@ -197,11 +201,12 @@ export async function getThread(id: string): Promise<ConversationThread> {
   const conv = await repository.getConversation(id);
   if (!conv) throw AppError.notFound('ไม่พบการสนทนานี้');
 
-  const [tagsMap, remarksMap, statusMap, forwardsMap, pageConvs] = await Promise.all([
+  const [tagsMap, remarksMap, statusMap, forwardsMap, caseMap, pageConvs] = await Promise.all([
     repository.getTags(),
     repository.getRemarks(),
     repository.getStatuses(),
     repository.getForwards(),
+    repository.getCaseEvents(),
     repository.getConversationsForPage(conv.pageId),
   ]);
 
@@ -222,6 +227,9 @@ export async function getThread(id: string): Promise<ConversationThread> {
     statusOverride: toStatusOverride(statusMap[conv.id]),
     // การส่งต่อเคสภายใน (แสดงแทรกในแชท — ไม่ใช่ข้อความถึงลูกค้า)
     forwards: forwardsMap[conv.id] || [],
+    // ปิดเคส / รอคำตอบ — ภายในทีมเช่นกัน
+    caseEvents: (caseMap[conv.id] || []) as CaseEvent[],
+    caseState: caseStateOf(caseMap[conv.id], conv.messages),
     botTexts,
     keywords: roomKeywords(conv.messages), // คำสำคัญของห้องนี้ (จากข้อความลูกค้า)
   };

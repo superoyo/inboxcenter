@@ -173,6 +173,24 @@
     </div>
   </div>
 
+  <!-- Panel บันทึกสถานะ "รอคำตอบ" (สไลด์จากขวา) — สถานะภายใน ลูกค้าไม่เห็น -->
+  <div class="sr-panel" id="waitPanel">
+    <div class="sr-head">
+      <span>⏳ บันทึกสถานะรอคำตอบ</span>
+      <button class="btn small secondary" onclick="closeWaitPanel()">✕</button>
+    </div>
+    <div class="fw-body">
+      <div class="muted">
+        บันทึกว่ากำลังรออะไรอยู่ เคสนี้จะไม่ถูกนับเป็นห้องค้างตอบ
+        จนกว่าลูกค้าจะทักเข้ามาใหม่
+      </div>
+      <div class="fw-people" id="waitPresets" style="max-height:none;"></div>
+      <textarea id="waitText" rows="3" placeholder="รออะไรอยู่ เช่น รอลูกค้าส่งสลิป / รอฝ่ายคลังเช็คสต็อก..."></textarea>
+      <button class="btn cs-wait" id="waitSendBtn">⏳ บันทึกสถานะรอคำตอบ</button>
+      <div class="fw-warn">🔒 สถานะภายในทีมเท่านั้น — ลูกค้าไม่เห็นเด็ดขาด</div>
+    </div>
+  </div>
+
   <script>
     const $ = (id) => document.getElementById(id);
     const PAGE_SIZE = 50; // โหลดห้องแชททีละ 50 ห้อง แล้วค่อยโหลดเพิ่มเมื่อเลื่อนถึงล่าง
@@ -561,7 +579,7 @@
                 <span class="time">${fmtTime(c.updatedTime)}</span>
               </div>
               <div class="preview">${esc(preview)}</div>
-              <div class="page-tag">${platformIcon(c.pageId)}<span>${esc(c.pageName)}</span>${c.forwardCount ? `<span class="fw-chip" title="มีการส่งต่อเคสภายใน ${c.forwardCount} ครั้ง">🔁 ${c.forwardCount}</span>` : ''}</div>
+              <div class="page-tag">${platformIcon(c.pageId)}<span>${esc(c.pageName)}</span>${c.forwardCount ? `<span class="fw-chip" title="มีการส่งต่อเคสภายใน ${c.forwardCount} ครั้ง">🔁 ${c.forwardCount}</span>` : ''}${caseChip(c.caseState)}</div>
               ${(c.tags && c.tags.length)
                 ? `<div>${c.tags.map((t) => `<span class="tag-chip">${esc(t)}</span>`).join('')}</div>`
                 : ''}
@@ -637,10 +655,29 @@
             const timeline = [
               ...c.messages.map((m, i) => ({ kind: 'msg', time: new Date(m.createdTime).getTime(), m, i })),
               ...(c.forwards || []).map((f) => ({ kind: 'fw', time: new Date(f.createdTime).getTime(), f })),
+              // ปิดเคส / รอคำตอบ — ภายในทีมเหมือนการส่งต่อ ลูกค้าไม่เห็น
+              ...(c.caseEvents || []).map((e) => ({ kind: 'cs', time: new Date(e.createdTime).getTime(), e })),
             ].sort((a, b) => a.time - b.time);
             // จับเวลาตอบ: ข้อความแรกของเพจหลังลูกค้าถาม จะแสดงว่าตอบช้าไปเท่าไหร่
             let lastAsk = null, answered = true;
             return timeline.map((item) => {
+              if (item.kind === 'cs') {
+                const e = item.e;
+                const t = new Date(e.createdTime);
+                const closed = e.type === 'closed';
+                return `
+            <div class="msg-row fw-row">
+              <div class="cs-bubble ${closed ? 'cs-closed' : 'cs-waiting'}">
+                <div class="cs-head">${closed ? '✅ ปิดเคส' : '⏳ รอคำตอบ'} โดย ${esc(e.by)}</div>
+                ${e.note ? `<div class="cs-text">${esc(e.note)}</div>` : ''}
+                <div class="meta">
+                  <span class="meta-time">${t.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.</span>
+                  · ${t.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })}
+                  · <span class="cs-note">🔒 ข้อความภายใน — ไม่ส่งถึงลูกค้า</span>
+                </div>
+              </div>
+            </div>`;
+              }
               if (item.kind === 'fw') {
                 const f = item.f;
                 const t = new Date(f.createdTime);
@@ -684,8 +721,12 @@
         <div class="reply-bar">
           <button class="btn small secondary" id="savedReplyBtn" title="คำตอบสำเร็จรูปของเพจนี้">💬</button>
           <button class="btn small secondary" id="forwardBtn" title="ส่งต่อเคสให้ทีม (ข้อความภายใน ไม่ส่งถึงลูกค้า)">🔁</button>
+          <button class="btn small secondary" id="attachBtn" title="แนบไฟล์ส่งให้ลูกค้า">📎</button>
+          <input type="file" id="attachInput" hidden>
           <input type="text" id="replyInput" placeholder="พิมพ์ข้อความตอบกลับในนาม ${esc(c.pageName)}..." autocomplete="off">
           <button class="btn" id="replySendBtn">ส่ง</button>
+          <button class="btn cs-close" id="closeCaseBtn" title="ปิดเคสนี้ (สถานะภายใน ลูกค้าไม่เห็น) — จะไม่นับเป็นห้องค้างตอบ">✅ ปิดเคส</button>
+          <button class="btn cs-wait" id="waitCaseBtn" title="บันทึกว่ารอคำตอบ (สถานะภายใน ลูกค้าไม่เห็น) — จะไม่นับเป็นห้องค้างตอบ">⏳ รอคำตอบ</button>
         </div>`;
       if (window.innerWidth <= 800) $('backBtn').style.display = 'inline-flex';
       renderThreadTags(c);
@@ -699,6 +740,10 @@
       $('replyInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendReply(c.id); });
       $('savedReplyBtn').addEventListener('click', () => openSavedRepliesPanel(c.id));
       $('forwardBtn').addEventListener('click', () => openForwardPanel(c.id));
+      $('closeCaseBtn').addEventListener('click', () => closeCase(c.id));
+      $('waitCaseBtn').addEventListener('click', () => openWaitPanel(c.id));
+      $('attachBtn').addEventListener('click', () => $('attachInput').click());
+      $('attachInput').addEventListener('change', () => sendAttachment(c.id));
       $('replyInput').focus();
     }
 
@@ -731,6 +776,121 @@
 
     function closeSavedRepliesPanel() {
       $('srPanel').classList.remove('open');
+    }
+
+    // ---------- แนบไฟล์ส่งให้ลูกค้า ----------
+    // ส่งตัวไฟล์เป็น body ตรง ๆ (ไม่ใช้ multipart) ชื่อ/ชนิดไปทาง query
+    const MAX_ATTACH = 20 * 1024 * 1024;
+
+    async function sendAttachment(convId) {
+      const input = $('attachInput');
+      const file = input.files && input.files[0];
+      input.value = ''; // เคลียร์ทันที เพื่อให้เลือกไฟล์เดิมซ้ำได้
+      if (!file) return;
+      if (file.size > MAX_ATTACH) { toast('❌ ไฟล์ใหญ่เกิน 20MB'); return; }
+
+      const btn = $('attachBtn');
+      btn.disabled = true; btn.textContent = '⏳';
+      try {
+        const qs = `name=${encodeURIComponent(file.name)}&type=${encodeURIComponent(file.type || 'application/octet-stream')}`;
+        const res = await fetch(`/api/conversations/${encodeURIComponent(convId)}/attachment?${qs}`, {
+          method: 'POST',
+          headers: { 'Content-Type': file.type || 'application/octet-stream' },
+          body: file,
+        });
+        const d = await res.json();
+        if (!res.ok) throw new Error(d.error || 'ส่งไฟล์ไม่สำเร็จ');
+        // โหลดห้องใหม่เพื่อให้เห็นไฟล์ที่ส่งไปในไทม์ไลน์ (การวาดแชทอยู่ใน openConv)
+        if (activeThread && activeThread.id === convId) openConv(convId);
+        toast('ส่งไฟล์แล้ว 📎');
+      } catch (err) {
+        toast('❌ ' + err.message);
+      } finally {
+        btn.disabled = false; btn.textContent = '📎';
+      }
+    }
+
+    // ---------- สถานะเคส: ปิดเคส / รอคำตอบ (ภายในทีม ไม่ส่งถึงลูกค้า) ----------
+    /** ชื่อผู้กด — เอาจากคนที่ล็อกอินอยู่ */
+    function myName() {
+      const u = (window.Auth && window.Auth.user) || {};
+      return (u.empThaiName || u.empEngName || u.nickName || u.email || 'ทีมงาน').trim();
+    }
+
+    /** ชิปเล็กในรายการห้อง — แสดงเฉพาะสถานะที่ยังมีผล (ลูกค้ายังไม่ทักมาใหม่) */
+    function caseChip(st) {
+      if (!st || !st.active) return '';
+      return st.type === 'closed'
+        ? '<span class="cs-chip closed" title="ปิดเคสแล้ว — ไม่นับเป็นห้องค้างตอบ">✅ ปิดเคส</span>'
+        : '<span class="cs-chip waiting" title="รอคำตอบ — ไม่นับเป็นห้องค้างตอบ">⏳ รอคำตอบ</span>';
+    }
+
+    async function postCaseEvent(convId, type, note) {
+      const res = await fetch(`/api/conversations/${encodeURIComponent(convId)}/case`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type, by: myName(), note: note || '' }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || 'บันทึกไม่สำเร็จ');
+      return d.event;
+    }
+
+    /**
+     * อัปเดตหน้าจอหลังบันทึกสถานะเคส
+     * การวาดแชทอยู่ใน openConv จึงโหลดห้องใหม่ (ได้ค่าตรงจาก server ชัวร์กว่าต่อ DOM เอง)
+     * ส่วนชิปในรายการอัปเดตในหน่วยความจำได้เลย ไม่ต้องโหลดรายการทั้งหมดใหม่
+     */
+    function applyCaseEvent(convId, event) {
+      const s = conversations.find((x) => x.id === convId);
+      if (s) { s.caseState = { ...event, active: true }; renderConvList(true); }
+      if (activeThread && activeThread.id === convId) openConv(convId);
+    }
+
+    async function closeCase(convId) {
+      const btn = $('closeCaseBtn');
+      if (btn) { btn.disabled = true; btn.textContent = '⏳ กำลังปิด...'; }
+      try {
+        applyCaseEvent(convId, await postCaseEvent(convId, 'closed'));
+        toast('ปิดเคสแล้ว ✅ — จะไม่นับเป็นห้องค้างตอบจนลูกค้าทักมาใหม่');
+      } catch (err) {
+        toast('❌ ' + err.message);
+        if (btn) { btn.disabled = false; btn.textContent = '✅ ปิดเคส'; }
+      }
+    }
+
+    // ---- Panel รอคำตอบ ----
+    let waitConvId = null;
+    const WAIT_PRESETS = [
+      'รอลูกค้าส่งสลิปโอนเงิน',
+      'รอลูกค้าตอบกลับเรื่องที่อยู่จัดส่ง',
+      'รอฝ่ายคลังเช็คสต็อก',
+      'รอทีมที่เกี่ยวข้องยืนยันข้อมูล',
+    ];
+
+    function openWaitPanel(convId) {
+      waitConvId = convId;
+      $('waitText').value = '';
+      $('waitPresets').innerHTML = WAIT_PRESETS.map((t) =>
+        `<div class="fw-person" onclick="document.getElementById('waitText').value=this.dataset.t;"
+              data-t="${esc(t)}" style="cursor:pointer;">⏳ ${esc(t)}</div>`).join('');
+      $('waitPanel').classList.add('open');
+      $('waitText').focus();
+    }
+    function closeWaitPanel() { $('waitPanel').classList.remove('open'); waitConvId = null; }
+
+    async function saveWaitCase() {
+      if (!waitConvId) return;
+      const note = $('waitText').value.trim();
+      if (!note) { toast('บันทึกไว้หน่อยว่ารออะไรอยู่'); $('waitText').focus(); return; }
+      const btn = $('waitSendBtn');
+      btn.disabled = true; btn.textContent = '⏳ กำลังบันทึก...';
+      try {
+        applyCaseEvent(waitConvId, await postCaseEvent(waitConvId, 'waiting', note));
+        toast('บันทึกสถานะรอคำตอบแล้ว ⏳');
+        closeWaitPanel();
+      } catch (err) { toast('❌ ' + err.message); }
+      finally { btn.disabled = false; btn.textContent = '⏳ บันทึกสถานะรอคำตอบ'; }
     }
 
     // ---------- Panel ส่งต่อเคสภายในทีม (ข้อความภายใน ไม่ส่งถึงลูกค้า) ----------
@@ -856,6 +1016,8 @@
       $('fwText').focus();
     }
     function closeForwardPanel() { $('fwPanel').classList.remove('open'); }
+
+    $('waitSendBtn').addEventListener('click', saveWaitCase);
 
     $('fwSendBtn').addEventListener('click', async () => {
       const text = $('fwText').value.trim();

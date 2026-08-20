@@ -12,7 +12,12 @@ export type { GraphList, GraphParams, GraphPaging } from './client';
 export { getPageInfo, getUserPages, exchangeLongLivedToken } from './pages';
 export type { FbPageInfo, FbUserPage } from './pages';
 
-export { getConversations, sendMessage, normalizeConversation } from './conversations';
+export {
+  getConversations,
+  sendMessage,
+  sendAttachment,
+  normalizeConversation,
+} from './conversations';
 export type {
   FbConversation,
   FbMessage,

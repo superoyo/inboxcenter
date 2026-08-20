@@ -19,6 +19,8 @@ export const FILES = {
   pageConfig: 'page-config.json',
   settings: 'settings.json',
   forwards: 'forwards.json',
+  caseEvents: 'case-events.json',
+  attachments: 'attachments.json',
   competitors: 'competitors.json',
   competitorPosts: 'competitor-posts.json',
   competitorSync: 'competitor-sync.json',

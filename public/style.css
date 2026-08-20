@@ -518,6 +518,35 @@ input:focus, textarea:focus, select:focus { outline: 2px solid var(--primary); b
 .fw-bubble .fw-text { word-wrap: break-word; }
 .fw-bubble .meta { font-size: 11px; opacity: 0.8; margin-top: 5px; }
 .fw-bubble .fw-note { color: #b25e00; font-weight: 700; }
+/* บับเบิลสถานะเคส: ปิดเคส / รอคำตอบ — ภายในทีมเช่นเดียวกับการส่งต่อ */
+.cs-bubble {
+  max-width: 82%;
+  border: 1px dashed; border-radius: 14px;
+  padding: 10px 14px; font-size: 13.5px; line-height: 1.5;
+}
+.cs-bubble .cs-head { font-size: 12.5px; font-weight: 700; }
+.cs-bubble .cs-text { word-wrap: break-word; margin-top: 4px; }
+.cs-bubble .meta { font-size: 11px; opacity: 0.85; margin-top: 5px; }
+.cs-bubble .cs-note { font-weight: 700; }
+.cs-closed  { background: #e9f6ed; border-color: #62b97a; color: #17603a; }
+.cs-closed  .cs-head, .cs-closed .cs-note { color: #17603a; }
+.cs-waiting { background: #fdf3e4; border-color: #e0a45c; color: #8a5200; }
+.cs-waiting .cs-head, .cs-waiting .cs-note { color: #8a5200; }
+/* ชิปบอกสถานะเคสในรายการห้องแชท */
+.cs-chip {
+  display: inline-flex; align-items: center; gap: 3px; border-radius: 999px;
+  padding: 0 8px; font-size: 11px; font-weight: 700; margin-left: 6px;
+}
+.cs-chip.closed  { background: #e9f6ed; color: #17603a; }
+.cs-chip.waiting { background: #fdf3e4; color: #8a5200; }
+/* แถบพิมพ์ตอบกลับ: ให้ตกบรรทัดได้เมื่อปุ่มเยอะ/จอแคบ */
+.reply-bar { flex-wrap: wrap; }
+.reply-bar input { min-width: 160px; }
+.reply-bar .btn.cs-close { background: var(--green); }
+.reply-bar .btn.cs-close:hover { background: #278a3f; }
+.reply-bar .btn.cs-wait { background: #e08b1e; }
+.reply-bar .btn.cs-wait:hover { background: #c2760f; }
+
 /* panel เลือกคน + พิมพ์รายละเอียดส่งต่อ */
 .fw-body { padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; flex: 1; min-height: 0; }
 .fw-people { display: flex; flex-direction: column; gap: 6px; overflow-y: auto; max-height: 45vh; flex-shrink: 0; }

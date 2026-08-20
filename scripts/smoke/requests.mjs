@@ -82,6 +82,18 @@ export const requests = [
   { name: 'conv.reply (token ปลอม)', method: 'POST', path: `/api/conversations/${CONV}/reply`, body: { text: 'ตอบทดสอบ' } },
   { name: 'thread (หลัง mutate)', path: `/api/conversations/${CONV}/thread` },
 
+  // ---------- สถานะเคส: ปิดเคส / รอคำตอบ (ภายในทีม ไม่ส่งถึงลูกค้า) ----------
+  { name: 'case.closed', method: 'POST', path: `/api/conversations/${CONV}/case`, body: { type: 'closed', by: 'ผู้ทดสอบ' } },
+  { name: 'case.waiting', method: 'POST', path: `/api/conversations/${CONV}/case`, body: { type: 'waiting', by: 'ผู้ทดสอบ', note: 'รอลูกค้าส่งสลิป' } },
+  { name: 'case.type ผิด→400', method: 'POST', path: `/api/conversations/${CONV}/case`, body: { type: 'mistake' } },
+  { name: 'case.ห้องไม่มี→404', method: 'POST', path: '/api/conversations/no_such_room/case', body: { type: 'closed' } },
+  // ต้องมี caseEvents ครบ 2 รายการ caseState เป็นตัวล่าสุด และไม่มีอะไรปนเข้า messages
+  { name: 'thread (หลังปิดเคส/รอคำตอบ)', path: `/api/conversations/${CONV}/thread` },
+  // ---------- ไฟล์แนบ ----------
+  // เส้นเสิร์ฟไฟล์ต้องเข้าได้โดยไม่มี token (Facebook/LINE มาดึงเอง) แต่ id ที่เดาไม่ถูกต้องได้ 404
+  { name: 'attachment.ไม่มีไฟล์→404 (ไม่ต้อง login)', path: '/api/attachments/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', auth: false },
+  { name: 'attachment.ไม่มีข้อมูลไฟล์→400', method: 'POST', path: `/api/conversations/${CONV}/attachment?name=x.png&type=image/png` },
+
   // ---------- saved replies ----------
   { name: 'savedReplies.list', path: `/api/pages/${FB}/saved-replies` },
   { name: 'savedReplies.add', method: 'POST', path: `/api/pages/${FB}/saved-replies`, body: { text: 'คำตอบใหม่', tags: ['ใหม่'] } },

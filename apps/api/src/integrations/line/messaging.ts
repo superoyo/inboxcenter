@@ -35,3 +35,17 @@ export async function pushMessage(token: string, to: string, text: string): Prom
     body: JSON.stringify({ to, messages: [{ type: 'text', text: String(text).slice(0, 5000) }] }),
   });
 }
+
+/**
+ * ส่งรูปให้ผู้ใช้ LINE — ต้องเป็น URL สาธารณะแบบ HTTPS เท่านั้น (LINE ไปดึงเอง)
+ * LINE ไม่มีชนิดข้อความสำหรับไฟล์เอกสาร จึงส่ง pdf/doc ทางนี้ไม่ได้
+ */
+export async function pushImage(token: string, to: string, imageUrl: string): Promise<unknown> {
+  return lineFetch('/v2/bot/message/push', token, {
+    method: 'POST',
+    body: JSON.stringify({
+      to,
+      messages: [{ type: 'image', originalContentUrl: imageUrl, previewImageUrl: imageUrl }],
+    }),
+  });
+}

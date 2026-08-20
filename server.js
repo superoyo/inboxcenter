@@ -31,6 +31,23 @@ function dayKeyFactory(tzMin) {
   return (time) => new Date(new Date(time).getTime() + offsetMs).toISOString().slice(0, 10);
 }
 
+/**
+ * ห้องนี้ถูกทีมกด "ปิดเคส" หรือ "รอคำตอบ" ไว้หลังข้อความลูกค้าล่าสุดหรือยัง
+ * true = ถือว่าจัดการแล้ว ไม่นับเป็นห้องค้างตอบ
+ * (ตรรกะเดียวกับ caseStateOf ใน apps/api/src/services/case-events.service.ts —
+ *  ที่นี่คำนวณเองเพราะ analytics ยังไม่ได้ย้ายเข้า MVC)
+ */
+function caseHandled(events, messages) {
+  if (!events || !events.length) return false;
+  const latest = events.reduce((a, b) =>
+    new Date(b.createdTime).getTime() > new Date(a.createdTime).getTime() ? b : a);
+  let lastCustAt = 0;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (!messages[i].isFromPage) { lastCustAt = new Date(messages[i].createdTime).getTime(); break; }
+  }
+  return new Date(latest.createdTime).getTime() >= lastCustAt;
+}
+
 // คืน Set ของ pageId ในโปรเจกต์ (null = ไม่ระบุโปรเจกต์ = ทุกเพจ)
 // (ตัวเดียวกับ services/projects.service.ts — เหลือไว้ให้ analytics ที่ยังไม่ย้าย)
 async function projectPageIds(projectId) {
@@ -91,6 +108,8 @@ app.get('/api/analytics', async (req, res) => {
   const inProjectA = await projectPageIds(req.query.project);
   if (inProjectA) convs = convs.filter((c) => inProjectA.has(c.pageId));
   const statusMap = await store.getStatuses();
+  // ห้องที่ทีมกด "ปิดเคส" หรือ "รอคำตอบ" ถือว่าจัดการแล้ว ไม่นับเป็นห้องค้างตอบ
+  const caseMap = await store.getCaseEvents();
 
   // ข้อความเพจที่ซ้ำ ≥3 ครั้งในเพจเดียวกัน = ข้อความอัตโนมัติ (bot)
   const textCount = {};
@@ -199,8 +218,11 @@ app.get('/api/analytics', async (req, res) => {
     if (level === 'red') pp.red++;
 
     // รอตอบ = ข้อความล่าสุดของห้องเป็นของลูกค้า และอยู่ในช่วงที่เลือก
+    // ยกเว้นห้องที่ทีมกดปิดเคส/รอคำตอบไว้ "หลัง" ข้อความลูกค้าล่าสุด ถือว่าจัดการแล้ว
+    // (ถ้าลูกค้าทักมาใหม่หลังกด สถานะจะหมดผลเอง แล้วกลับมานับค้างตามปกติ)
     const lastMsgKey = lastMsg ? dayKey(new Date(lastMsg.createdTime).getTime()) : null;
-    if (lastMsg && !lastMsg.isFromPage && inPeriod(lastMsgKey)) {
+    const handled = caseHandled(caseMap[c.id], c.messages);
+    if (lastMsg && !lastMsg.isFromPage && inPeriod(lastMsgKey) && !handled) {
       const waitedMs = now - new Date(lastMsg.createdTime).getTime();
       waiting.push({
         id: c.id, customerName: c.customerName, pageName: c.pageName,

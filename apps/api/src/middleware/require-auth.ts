@@ -21,6 +21,9 @@ const PUBLIC_PATHS = new Set([
 const isPublic = (path: string): boolean =>
   PUBLIC_PATHS.has(path) ||
   path.startsWith('/api/line/webhook/') ||
+  // Facebook/LINE เข้ามาดึงไฟล์แนบเองโดยไม่มี token — ป้องกันด้วย id ที่สุ่มเดาไม่ได้แทน
+  path.startsWith('/api/attachments/') ||
+  path.startsWith('/api/v1/attachments/') ||
   // รองรับทั้ง /api/... และ /api/v1/... (ช่วงที่ยังคงเส้นเดิมไว้)
   PUBLIC_PATHS.has(path.replace('/api/v1/', '/api/')) ||
   path.startsWith('/api/v1/line/webhook/');

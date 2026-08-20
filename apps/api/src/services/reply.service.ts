@@ -2,12 +2,13 @@
 //
 // ⚠️ อ่านและเขียนที่ conversation.messages เท่านั้น
 // ข้อความส่งต่อภายในทีม (forwards.service) เก็บแยกคนละที่ จึงไม่มีทางถูกส่งออกจากที่นี่
-import type { Message } from '@inboxcenter/shared';
+import type { Message, StoredAttachment } from '@inboxcenter/shared';
 import { logger } from '../config/logger';
 import * as fb from '../integrations/facebook';
 import { GraphApiError } from '../integrations/facebook/client';
 import * as line from '../integrations/line';
 import { repository } from '../repositories';
+import { isImage } from './attachments.service';
 import { AppError } from '../utils/app-error';
 
 /** แปลง error จาก Send API เป็นข้อความไทยที่เข้าใจง่าย */
@@ -76,6 +77,74 @@ export async function sendReply(conversationId: string, rawText: unknown): Promi
       { err, conversationId, pageId: page.id },
       'ส่งข้อความสำเร็จ แต่บันทึกลง storage ไม่ได้',
     );
+  }
+  return message;
+}
+
+/**
+ * ส่งไฟล์แนบให้ลูกค้า — ทั้ง Facebook และ LINE ไปดึงจาก publicUrl ที่เราให้
+ * LINE ส่งได้แค่รูป ไม่มีชนิดข้อความสำหรับไฟล์เอกสาร จึงบอกให้ชัดแทนที่จะปล่อยพัง
+ */
+export async function sendAttachment(
+  conversationId: string,
+  attachment: StoredAttachment,
+  publicUrl: string,
+): Promise<Message> {
+  const conv = (await repository.getAllConversations()).find((c) => c.id === conversationId);
+  if (!conv) throw AppError.notFound('ไม่พบการสนทนานี้');
+  const page = (await repository.getPages()).find((p) => p.id === conv.pageId);
+  if (!page) throw AppError.notFound('ไม่พบเพจของการสนทนานี้');
+  if (!conv.customerId) throw AppError.badRequest('ไม่ทราบตัวตนลูกค้าในการสนทนานี้');
+
+  const image = isImage(attachment.mimeType);
+  let messageId: string;
+  try {
+    if (page.platform === 'line') {
+      if (!image) {
+        throw AppError.badRequest(
+          'LINE ส่งไฟล์เอกสารไม่ได้ (รองรับแค่รูป/วิดีโอ/เสียง) — ส่งเป็นรูปหรือส่งลิงก์แทน',
+        );
+      }
+      await line.pushImage(page.accessToken, conv.customerId, publicUrl);
+      messageId = `line_out_${Date.now()}`;
+    } else {
+      const sent = await fb.sendAttachment(
+        conv.customerId,
+        publicUrl,
+        image ? 'image' : 'file',
+        page.accessToken,
+      );
+      messageId = sent.message_id || `fb_out_${Date.now()}`;
+    }
+  } catch (err) {
+    if (err instanceof AppError) throw err; // ข้อความที่เราตั้งเองอยู่แล้ว
+    throw AppError.badRequest(sendErrorMessage(err));
+  }
+
+  const message: Message = {
+    id: messageId,
+    text: '',
+    fromId: page.id,
+    fromName: page.name,
+    isFromPage: true,
+    createdTime: new Date().toISOString(),
+    attachments: [
+      image
+        ? { imageUrl: publicUrl, name: attachment.name, mimeType: attachment.mimeType }
+        : { fileUrl: publicUrl, name: attachment.name, mimeType: attachment.mimeType },
+    ],
+  };
+  try {
+    const target = (await repository.getConversationsForPage(page.id)).find(
+      (c) => c.id === conv.id,
+    );
+    if (target) {
+      target.messages.push(message);
+      target.updatedTime = message.createdTime;
+      await repository.saveConversation(target);
+    }
+  } catch (err) {
+    logger.error({ err, conversationId }, 'ส่งไฟล์สำเร็จ แต่บันทึกลง storage ไม่ได้');
   }
   return message;
 }

@@ -5,6 +5,8 @@ import type {
   CompetitorPost,
   CompetitorSyncRun,
   Conversation,
+  CaseEvent,
+  StoredAttachment,
   Forward,
   PageConfig,
   Project,
@@ -38,6 +40,7 @@ export type TagsMap = Record<string, string[]>;
 export type RemarksMap = Record<string, string>;
 export type StatusMap = Record<string, UrgencyLevel | string>;
 export type ForwardsMap = Record<string, Forward[]>;
+export type CaseEventsMap = Record<string, CaseEvent[]>;
 export type PageConfigMapStored = Record<string, PageConfig>;
 export type ProfilePicCache = Record<string, ProfilePicEntry>;
 
@@ -110,6 +113,14 @@ export interface StorageRepository {
   // ---- Forwards (ส่งต่อเคสภายในทีม — เก็บแยกจาก messages เด็ดขาด) ----
   getForwards(): Promise<ForwardsMap>;
   addForward(conversationId: string, entry: Forward): Promise<Forward>;
+
+  // ---- สถานะเคส: ปิดเคส / รอคำตอบ (เก็บแยกจาก messages เหมือน forwards) ----
+  getCaseEvents(): Promise<CaseEventsMap>;
+  addCaseEvent(conversationId: string, entry: CaseEvent): Promise<CaseEvent>;
+
+  // ---- ไฟล์แนบที่ส่งให้ลูกค้า (เก็บตัวไฟล์ไว้เอง เพราะ FB/LINE ต้องได้ URL สาธารณะ) ----
+  saveAttachment(meta: StoredAttachment, data: Buffer): Promise<StoredAttachment>;
+  getAttachment(id: string): Promise<{ meta: StoredAttachment; data: Buffer } | null>;
 
   // ---- Competitors ----
   getCompetitors(): Promise<Competitor[]>;

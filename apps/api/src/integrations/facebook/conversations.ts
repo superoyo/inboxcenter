@@ -103,6 +103,32 @@ export async function sendMessage(
   return json as SendMessageResult;
 }
 
+/**
+ * ส่งไฟล์แนบให้ลูกค้าโดยให้ Facebook ไปดึงจาก URL ของเรา
+ * type: 'image' รูป · 'file' เอกสาร (Facebook ดึงเองจึงต้องเป็น URL สาธารณะ)
+ */
+export async function sendAttachment(
+  recipientPsid: string,
+  url: string,
+  type: 'image' | 'file',
+  pageAccessToken: string,
+): Promise<SendMessageResult> {
+  const api = new URL(`${GRAPH_BASE}/me/messages`);
+  api.searchParams.set('access_token', pageAccessToken);
+  const res = await fetch(api, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      recipient: { id: recipientPsid },
+      messaging_type: 'RESPONSE',
+      message: { attachment: { type, payload: { url, is_reusable: false } } },
+    }),
+  });
+  const json = await res.json();
+  throwIfGraphError(json, 'Send API error');
+  return json as SendMessageResult;
+}
+
 /** เพจเท่าที่ normalizeConversation ต้องรู้ */
 export interface PageRef {
   id: string;
