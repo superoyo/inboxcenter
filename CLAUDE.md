@@ -36,5 +36,9 @@ frontend เรียก API แบบ absolute path `/api/...` — ฝั่ง
   แล้ว auth.js เด้งกลับ login (พฤติกรรมปกติ ไม่ใช่บั๊ก)
 - LINE OA = "เพจ" ที่ `platform: 'line'` (id ขึ้นต้น `line_`) รับข้อความผ่าน webhook
   `/api/line/webhook/:channelId` (ยืนยันลายเซ็น HMAC ไม่ผ่าน requireAuth) — sync ข้ามเพจ LINE เสมอ
+- หน้า Content: dropdown เพจ + คู่แข่ง อ่านจาก Product Group ของ Agency Intelligence
+  (`/api/product-groups` → proxy ไป `/app-api/v1/report-feed/*` ด้วย `REPORT_SERVICE_KEY`
+  ⚠️ คีย์อยู่ฝั่ง server เท่านั้น) · ไม่ตั้ง `AGENCY_BASE_URL`+`REPORT_SERVICE_KEY` หรือ feed ล่ม
+  → ถอยไปใช้ `/api/pages` + คู่แข่งที่กรอกในเมนู Admin แบบเดิมโดยอัตโนมัติ
 - ข้อความส่งต่อภายใน (forward) เก็บแยกจาก messages โดยสิ้นเชิง — ห้าม merge เข้า messages
   เพราะเส้นทางตอบลูกค้า (`/reply`) อ่านจาก messages เท่านั้น

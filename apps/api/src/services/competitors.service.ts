@@ -127,6 +127,40 @@ async function ownersFromPageConfigs(): Promise<Map<string, CompetitorOwner[]>> 
   return owners;
 }
 
+/**
+ * แปลง "URL + ชื่อ" ที่มาจากที่อื่นให้เป็นเพจคู่แข่งของเรา สร้างแถวที่ยังไม่มีให้ด้วย
+ *
+ * ใช้กับคู่แข่งที่มาจาก Product Group ของ Agency Intelligence — ต้องมีแถวจริงในระบบ
+ * ก่อน ผู้ใช้จึงกดดึงโพสต์ (Apify) และเปิดปฏิทินของเพจนั้นได้ · แถวที่มีอยู่แล้วไม่ถูก
+ * เขียนทับ เพื่อไม่ให้ช่วงข้อมูลที่ดึงมาแล้ว (coveredFrom/To) หาย
+ * URL ที่ไม่ใช่เพจ Facebook ถูกข้ามเงียบ ๆ เหมือน ownersFromPageConfigs
+ */
+export async function ensureCompetitorsByUrl(
+  refs: { url: string; name?: string }[],
+): Promise<Competitor[]> {
+  const existing = await repository.getCompetitors();
+  const byId = new Map(existing.map((c) => [c.id, c]));
+  const out: Competitor[] = [];
+  const seen = new Set<string>();
+
+  for (const ref of refs) {
+    const handle = competitorHandle(String(ref.url || ''));
+    if (!handle) continue;
+    const id = idFromHandle(handle);
+    if (seen.has(id)) continue; // กรอก URL เดียวกันสองแถวในกลุ่มเดียว
+    seen.add(id);
+
+    let competitor = byId.get(id);
+    if (!competitor) {
+      competitor = newCompetitor(handle, ref.name);
+      await repository.saveCompetitor(competitor);
+      byId.set(id, competitor);
+    }
+    out.push(competitor);
+  }
+  return out;
+}
+
 export async function listCompetitors(): Promise<CompetitorListResponse> {
   const owners = await ownersFromPageConfigs();
   const list = await repository.getCompetitors();

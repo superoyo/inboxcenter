@@ -343,6 +343,25 @@
     .pg-dd-item:hover { background: var(--bg); }
     .pg-dd-item.active { background: #e7f0fe; color: var(--primary); font-weight: 600; }
     .pg-dd-item span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    /* หัวกลุ่มใน dropdown = ชื่อ Product Group ของ Agency Intelligence */
+    .pg-dd-grp {
+      font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+      color: var(--muted); padding: 9px 10px 3px;
+    }
+    .pg-dd-grp:first-child { padding-top: 3px; }
+    /* เพจที่ปักหมุดไว้แต่ยังไม่ได้เชื่อมในระบบเรา — ไม่มี token ดึงโพสต์ไม่ได้ */
+    .pg-dd-item.off { cursor: not-allowed; opacity: .55; }
+    .pg-dd-item.off:hover { background: none; }
+    .pg-dd-item .tag {
+      margin-left: auto; flex-shrink: 0; font-size: 10px; font-weight: 700;
+      color: var(--muted); background: var(--bg); border: 1px solid var(--border);
+      border-radius: 999px; padding: 1px 7px; text-transform: none; letter-spacing: 0;
+    }
+    .pg-dd-note { padding: 8px 10px; font-size: 12px; color: var(--muted); line-height: 1.5; }
+    /* คอลัมน์ซ้ายแคบ แต่ชื่อเพจ + ป้ายสถานะยาว — ให้เมนูกว้างเกินคอลัมน์ได้ ไม่ต้องตัดชื่อทิ้ง */
+    .cm-brand-pick .pg-dd-menu {
+      right: auto; min-width: 100%; width: max-content; max-width: min(340px, 80vw);
+    }
     .pg-ava, .pg-ava-fb {
       width: 24px; height: 24px; border-radius: 50%; object-fit: cover; flex-shrink: 0;
       display: flex; align-items: center; justify-content: center; color: #fff; font-size: 12px; font-weight: 700;
@@ -455,7 +474,20 @@
     let dayPostSel = {}; // dayKey -> postId ที่เลือกแสดงในวันที่มีหลายโพสต์
     // แหล่งที่มาของปฏิทินที่กำลังดู — เพจของเราเอง หรือเพจคู่แข่งรายหนึ่ง
     let activeSource = null;   // { kind: 'page' | 'competitor', id, name }
-    let rivals = [];           // คู่แข่งของเพจที่เลือก (มาจากที่กรอกในเมนู Admin)
+    let rivals = [];           // คู่แข่งของเพจที่เลือก
+    /**
+     * Product Group จาก Agency Intelligence — แหล่งหลักของ "เพจเรา + คู่แข่ง"
+     *
+     * dropdown เอาเพจที่ปักหมุดของทุกกลุ่มมาแสดงรวมกัน (คั่นด้วยหัวชื่อกลุ่ม)
+     * และคู่แข่งที่โชว์ใต้เพจ = แบรนด์ที่เหลือในกลุ่มเดียวกันนั้น
+     * ต่อ feed ไม่ได้/ยังไม่ตั้ง env → groupMode = false แล้วถอยไปใช้เพจที่เชื่อมไว้
+     * กับคู่แข่งที่กรอกในเมนู Admin แบบเดิม (ไม่งั้นหน้านี้ว่างเปล่าใช้งานไม่ได้เลย)
+     */
+    let groups = [];
+    let groupMode = false;
+    let groupError = '';
+    let selectedGroup = null;
+    let selectedGroupId = '';
     let calMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 
     function toast(msg) {
@@ -504,27 +536,120 @@
         onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">${fallback}`;
     }
 
-    async function loadPages() {
-      pages = await fetch('/api/pages').then((r) => r.json());
-      pages.sort((a, b) => a.name.localeCompare(b.name, 'th'));
-      $('pgDdMenu').innerHTML = pages.map((p) => `
-        <div class="pg-dd-item ${selectedPage && selectedPage.id === p.id ? 'active' : ''}" onclick="selectPage('${esc(p.id)}')">
-          ${pgAvatarHtml(p)}
-          <span>${esc(p.name)}</span>
-        </div>`).join('');
-      // เพจที่เลือกไว้จากแท็บอื่นก่อน ไม่งั้นค่อยเอาเพจแรก
-      if (!selectedPage && pages.length)
-        selectPage(pages.some((p) => p.id === window.SelectedPageId) ? window.SelectedPageId : pages[0].id);
+    /**
+     * โหลดแหล่งที่มาของเพจ — Product Group ก่อน ถ้าใช้ไม่ได้ค่อยถอยไปเพจที่เชื่อมไว้
+     *
+     * เพจที่ปักหมุดของแต่ละกลุ่มมาแสดงรวมกันใน dropdown เดียว โดยยัง "แบน" เป็น
+     * รายการเพจ (ตัวแปร pages) เหมือนเดิม เพื่อให้ selectPage/ปฏิทิน/คอมเมนต์
+     * ทำงานต่อได้โดยไม่ต้องรู้ว่าเพจมาจากกลุ่มไหน
+     */
+    async function loadPageSources() {
+      try {
+        const feed = await fetch('/api/product-groups').then((r) => r.json());
+        groupMode = Boolean(feed.ready) && (feed.items || []).length > 0;
+        groupError = feed.error || '';
+        groups = feed.items || [];
+      } catch {
+        groupMode = false;
+        groups = [];
+      }
+
+      if (groupMode) {
+        // เพจเดียวถูกล็อกให้หลายกลุ่มได้ — เก็บกลุ่มแรกที่เจอไว้เป็นเจ้าของ
+        pages = [];
+        const seen = new Set();
+        for (const g of groups) {
+          for (const pg of g.pages) {
+            if (!pg.pageId || seen.has(pg.pageId)) continue;
+            seen.add(pg.pageId);
+            pages.push({
+              id: pg.pageId, name: pg.name, pictureUrl: pg.pictureUrl,
+              connected: pg.connected, groupId: g.id,
+            });
+          }
+        }
+      } else {
+        pages = await fetch('/api/pages').then((r) => r.json());
+        pages.sort((a, b) => a.name.localeCompare(b.name, 'th'));
+        pages.forEach((p) => { p.connected = true; });
+      }
+
+      renderPgMenu();
+      // เพจที่เลือกไว้จากแท็บอื่นก่อน ไม่งั้นค่อยเอาเพจแรกที่กดได้จริง
+      if (!selectedPage) {
+        const usable = pages.filter((p) => p.connected);
+        if (usable.length) {
+          const pre = usable.some((p) => p.id === window.SelectedPageId);
+          selectPage(pre ? window.SelectedPageId : usable[0].id);
+        } else {
+          renderBrands();
+        }
+      }
     }
 
-    function selectPage(id) {
+    /** รายการใน dropdown — โหมดกลุ่มคั่นด้วยหัวชื่อ Product Group */
+    function renderPgMenu() {
+      const menu = $('pgDdMenu');
+      /**
+       * groupId = กลุ่มที่บรรทัดนี้อยู่ (โหมดกลุ่มเท่านั้น)
+       *
+       * ต้องส่งไปกับการกดด้วย เพราะเพจเดียวถูกล็อกให้หลายกลุ่มได้ — ถ้าดูจาก
+       * pageId อย่างเดียว กดบรรทัดใต้กลุ่ม B แล้วจะได้คู่แข่งของกลุ่ม A ที่เจอก่อน
+       */
+      const item = (p, groupId) => {
+        const on = selectedPage && selectedPage.id === p.id
+          && (!groupMode || selectedGroupId === groupId);
+        // เพจที่ยังไม่ได้เชื่อม กดไม่ได้ — ไม่มี token จึงดึงโพสต์/คอมเมนต์ไม่ได้
+        if (!p.connected) {
+          return `
+            <div class="pg-dd-item off" title="เพจนี้ปักหมุดไว้ใน Agency Intelligence แต่ยังไม่ได้เชื่อมใน Inbox Center">
+              ${pgAvatarHtml(p)}
+              <span>${esc(p.name)}</span>
+              <span class="tag">ยังไม่ได้เชื่อม</span>
+            </div>`;
+        }
+        return `
+          <div class="pg-dd-item ${on ? 'active' : ''}"
+               onclick="selectPage('${esc(p.id)}'${groupId ? `, '${esc(groupId)}'` : ''})">
+            ${pgAvatarHtml(p)}
+            <span>${esc(p.name)}</span>
+          </div>`;
+      };
+
+      if (!groupMode) {
+        // ต่อ feed ไม่ได้แต่ยังมีเพจให้ใช้ = ทำงานต่อได้ด้วยของเดิม แต่ต้องบอกว่าทำไม
+        // ไม่เห็นกลุ่มสินค้า ไม่ใช่เงียบไปเฉย ๆ แล้วให้ผู้ใช้เดาว่าคู่แข่งหายไปไหน
+        const warn = groupError
+          ? `<div class="pg-dd-note">⚠️ ${esc(groupError)}<br>กำลังใช้เพจที่เชื่อมไว้และคู่แข่งจากเมนู Admin แทน</div>`
+          : '';
+        menu.innerHTML = warn + (pages.length
+          ? pages.map((p) => item(p, '')).join('')
+          : `<div class="pg-dd-note">ยังไม่มีเพจในระบบ — เชื่อมเพจได้ที่เมนู Connect</div>`);
+        return;
+      }
+
+      menu.innerHTML = groups.map((g) => {
+        const rows = g.pages.map((pg) => (
+          // ไม่มี pageId = กลุ่มนั้นยังไม่ได้เลือกเพจใน Agency Intelligence
+          pg.pageId
+            ? item({ ...pg, id: pg.pageId }, g.id)
+            : item({ id: g.id, name: pg.name, pictureUrl: '', connected: false }, g.id)
+        )).join('');
+        return `<div class="pg-dd-grp">${esc(g.name)}</div>`
+          + (rows || '<div class="pg-dd-note">กลุ่มนี้ยังไม่ได้ปักหมุดเพจ</div>');
+      }).join('');
+    }
+
+    function selectPage(id, groupId) {
       selectedPage = pages.find((p) => p.id === id);
-      if (!selectedPage) return;
+      if (!selectedPage || selectedPage.connected === false) return;
+      // กลุ่มที่ผู้ใช้กดชนะ groupId ที่ติดมากับเพจ (เพจเดียวอยู่ได้หลายกลุ่ม)
+      selectedGroupId = groupId || selectedPage.groupId || '';
       if (window.setSelectedPageId) window.setSelectedPageId(id);
       $('pgDdLabel').textContent = selectedPage.name;
       $('pgDdAvaWrap').innerHTML = pgAvatarHtml(selectedPage);
       $('pgDdMenu').classList.remove('open');
-      loadPages(); // อัปเดต active ในเมนู
+      renderPgMenu(); // อัปเดต active ในเมนู
       activeSource = { kind: 'page', id: selectedPage.id, name: selectedPage.name };
       renderCalBrand();
       loadSyncStrip();
@@ -535,6 +660,22 @@
     // ---------- คอลัมน์แบรนด์: เพจเรา + คู่แข่งของเพจนั้น ----------
     async function loadRivals() {
       renderBrands(); // วาดเพจเราไว้ก่อน ไม่ต้องรอ API
+
+      // โหมดกลุ่ม: คู่แข่ง = แบรนด์ที่เหลือในกลุ่มเดียวกับเพจที่เลือก (มาพร้อม feed แล้ว)
+      if (groupMode) {
+        selectedGroup = groups.find((g) => g.id === selectedGroupId) || null;
+        rivals = selectedGroup
+          ? selectedGroup.competitors
+              .slice()
+              .sort((a, b) => String(a.name).localeCompare(String(b.name), 'th'))
+          : [];
+        renderBrands();
+        renderCalBrand();
+        loadSyncStrip();
+        return;
+      }
+
+      selectedGroup = null;
       try {
         const data = await fetch('/api/competitors').then((r) => r.json());
         // เอาเฉพาะคู่แข่งที่ผูกกับเพจที่เลือกอยู่ (owners มาจากช่องคู่แข่งในเมนู Admin)
@@ -572,7 +713,10 @@
             kind: 'competitor', id: c.id, name: c.name || c.handle,
             pictureUrl: c.pictureUrl, postCount: c.postCount,
           })).join('')
-        : '<div class="none">ยังไม่มีคู่แข่งของเพจนี้ — กรอกได้ในเมนู Admin</div>';
+        // ชี้ไปที่ที่กรอกจริงตามโหมดที่ใช้อยู่ ไม่ใช่บอกที่เดียวตายตัว
+        : `<div class="none">${groupMode
+            ? 'ยังไม่มีคู่แข่งในกลุ่มนี้ — เพิ่มได้ที่หน้า Brand &amp; Competitors ของ Agency Intelligence'
+            : 'ยังไม่มีคู่แข่งของเพจนี้ — กรอกได้ในเมนู Admin'}</div>`;
       el.innerHTML = `<div class="grp">เพจของเรา</div>${mine}<div class="grp">คู่แข่ง</div>${rivalHtml}`;
     }
 
@@ -1340,7 +1484,7 @@
     });
 
     $('syncStrip').addEventListener('click', onSyncStripClick);
-    loadPages();
+    loadPageSources();
     loadSyncStrip();
   </script>
   <script src="https://agencyitelligence-production.up.railway.app/global-menu.js" defer></script>

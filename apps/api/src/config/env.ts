@@ -40,6 +40,13 @@ const schema = z.object({
   FDA_BASE_URL: z.string().default('https://fdavalidation-production.up.railway.app'),
   FDA_API_KEY: z.string().optional(),
 
+  // ---- Agency Intelligence (feed Product Group + คู่แข่ง) ----
+  // ⚠️ key อยู่ฝั่ง server เท่านั้น หน้าเว็บเรียกผ่าน /api/product-groups ของเรา
+  /** เช่น https://agencyintelligence.fareastfameline.com (ไม่ต้องมี /app-api ต่อท้าย) */
+  AGENCY_BASE_URL: z.string().optional(),
+  /** shared secret ที่ต้องตรงกับ REPORT_SERVICE_KEY ฝั่ง Agency Intelligence */
+  REPORT_SERVICE_KEY: z.string().optional(),
+
   APIFY_TOKEN: z.string().optional(),
   APIFY_API_TOKEN: z.string().optional(),
   APIFY_FB_ACTOR: z.string().default('apify~facebook-posts-scraper'),
@@ -67,6 +74,8 @@ export const env = {
   apifyReady: Boolean(raw.APIFY_TOKEN || raw.APIFY_API_TOKEN),
   /** ตั้ง FDA_API_KEY แล้วหรือยัง (ส่งให้หน้าเว็บผ่าน /api/config เพื่อซ่อน/แสดงปุ่ม) */
   fdaReady: Boolean(raw.FDA_API_KEY),
+  /** อ่าน Product Group จาก Agency Intelligence ได้หรือยัง (ต้องมีทั้ง URL และคีย์) */
+  agencyFeedReady: Boolean(raw.AGENCY_BASE_URL && raw.REPORT_SERVICE_KEY),
   /** เปิดทางเข้าแบบ SSO ให้หน้าเว็บหรือยัง */
   ssoEnabled: /^(1|true|yes)$/i.test(raw.IAM_SSO_ENABLED ?? ''),
   /** มี secret แล้ว → requireAuth verify ลายเซ็น token ได้ */
