@@ -18,7 +18,7 @@ export interface ProductGroupPage {
 
 /** คู่แข่งของกลุ่ม — map เข้ากับเพจคู่แข่งของเราแล้ว (id เดียวกับ /api/competitors) */
 export interface ProductGroupCompetitor {
-  /** cmp_<handle> — ตรงกับ id ใน /api/competitors เสมอ */
+  /** cmp_<handle> — ตรงกับ id ใน /api/competitors · ว่างเมื่อ linked = false */
   id: string;
   name: string;
   url: string;
@@ -29,6 +29,12 @@ export interface ProductGroupCompetitor {
   lastSyncAt: string | null;
   coveredFrom: string | null;
   coveredTo: string | null;
+  /**
+   * false = ติ๊กเข้า Content Analysis ไว้แต่ยังไม่มีลิงก์ Facebook ใน Agency Intelligence
+   * ยังต้องแสดงในรายการ (ผู้ใช้ติ๊กไว้ ต้องเห็นว่าอยู่ในขอบเขต) แต่กดดูปฏิทินไม่ได้
+   * เพราะไม่มีเพจให้ดึงโพสต์
+   */
+  linked: boolean;
 }
 
 export interface ProductGroup {

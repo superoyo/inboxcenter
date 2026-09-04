@@ -53,6 +53,10 @@
     }
     .brand-item:hover { background: var(--bg); }
     .brand-item.active { background: #e7f0fe; border-color: var(--primary); }
+    /* ติ๊กเข้า Content Analysis ไว้แต่ยังไม่มีลิงก์ Facebook — ไม่มีเพจให้กดดู */
+    .brand-item.off { cursor: not-allowed; opacity: .55; }
+    .brand-item.off:hover { background: none; }
+    .brand-item .warn { flex-shrink: 0; font-size: 11px; }
     .brand-item .ava {
       width: 28px; height: 28px; border-radius: 50%; object-fit: cover; flex-shrink: 0;
       display: flex; align-items: center; justify-content: center;
@@ -653,10 +657,13 @@
     /** คู่แข่ง = แบรนด์ที่เหลือในกลุ่มเดียวกับเพจที่เลือก (มาพร้อม feed แล้ว ไม่ต้องยิงต่อ) */
     function loadRivals() {
       selectedGroup = groups.find((g) => g.id === selectedGroupId) || null;
+      // กดได้ขึ้นก่อน ที่ยังไม่มีลิงก์ไปท้าย — แต่ละกองเรียงตามชื่อ
       rivals = selectedGroup
         ? selectedGroup.competitors
             .slice()
-            .sort((a, b) => String(a.name).localeCompare(String(b.name), 'th'))
+            .sort((a, b) =>
+              (a.linked === false) - (b.linked === false)
+              || String(a.name).localeCompare(String(b.name), 'th'))
         : [];
       renderBrands();
       renderCalBrand(); // รูป/ชื่อคู่แข่งพร้อมแล้ว
@@ -667,7 +674,17 @@
       const on = activeSource && activeSource.kind === o.kind && activeSource.id === o.id;
       const ava = o.pictureUrl
         ? `<img class="ava" src="${esc(o.pictureUrl)}" alt="">`
-        : `<span class="ava" style="background:${avatarColor(o.id)}">${esc((o.name || '?')[0].toUpperCase())}</span>`;
+        : `<span class="ava" style="background:${avatarColor(o.id || o.name)}">${esc((o.name || '?')[0].toUpperCase())}</span>`;
+      // ติ๊กไว้แต่ยังไม่มีลิงก์ Facebook — โชว์ให้เห็นว่าอยู่ในขอบเขต แต่กดดูปฏิทินไม่ได้
+      if (o.linked === false) {
+        return `
+          <div class="brand-item off"
+               title="ติ๊กเข้า Content Analysis ไว้แล้ว แต่ยังไม่ได้กรอกลิงก์ Facebook ในหน้า Brand &amp; Competitors">
+            ${ava}
+            <span class="nm">${esc(o.name)}</span>
+            <span class="warn" aria-label="ยังไม่มีลิงก์ Facebook">⚠️</span>
+          </div>`;
+      }
       return `
         <div class="brand-item ${on ? 'active' : ''}" title="${esc(o.name)}"
              onclick="pickSource('${o.kind}','${esc(o.id)}')">
@@ -686,7 +703,7 @@
       const rivalHtml = rivals.length
         ? rivals.map((c) => brandItemHtml({
             kind: 'competitor', id: c.id, name: c.name || c.handle,
-            pictureUrl: c.pictureUrl, postCount: c.postCount,
+            pictureUrl: c.pictureUrl, postCount: c.postCount, linked: c.linked,
           })).join('')
         : '<div class="none">ยังไม่มีคู่แข่งในกลุ่มนี้ — เพิ่มได้ที่หน้า Brand &amp; Competitors ของ Agency Intelligence</div>';
       el.innerHTML = `<div class="grp">เพจของเรา</div>${mine}<div class="grp">คู่แข่ง</div>${rivalHtml}`;

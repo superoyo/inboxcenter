@@ -18,6 +18,8 @@ export interface FeedGroup {
   facebookBrands: number;
   /** page id ของเพจเราที่ล็อกไว้ให้กลุ่มนี้ — ก้อนว่าง = ยังไม่ได้เลือกเพจ */
   pageIds: string[];
+  /** ชื่อคู่แข่งที่ติ๊กเข้า Content Analysis ไว้แล้วแต่ยังไม่ได้กรอกลิงก์ Facebook */
+  analysisNoLink?: string[];
 }
 
 /** แบรนด์หนึ่งรายในกลุ่ม — `owned: true` = เพจที่ปักหมุด (ของเราเอง) ไม่ใช่คู่แข่ง */

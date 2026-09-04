@@ -96,7 +96,10 @@ async function pageScope(query: ListProductGroupsQuery): Promise<{
   };
 }
 
-async function toCompetitors(brands: agency.FeedBrand[]): Promise<ProductGroupCompetitor[]> {
+async function toCompetitors(
+  brands: agency.FeedBrand[],
+  noLink: string[],
+): Promise<ProductGroupCompetitor[]> {
   const rivals = brands.filter((b) => !b.owned);
   const rows = await ensureCompetitorsByUrl(rivals.map((b) => ({ url: b.url, name: b.name })));
 
@@ -109,7 +112,7 @@ async function toCompetitors(brands: agency.FeedBrand[]): Promise<ProductGroupCo
     if (handle) nameFromFeed.set(handle.toLowerCase(), b.name);
   }
 
-  return Promise.all(
+  const usable = await Promise.all(
     rows.map(async (c) => ({
       id: c.id,
       // ชื่อที่ทีมพิมพ์ไว้ฝั่ง Agency Intelligence เป็นตัวหลัก — เป็นชื่อที่เขาดูแลอยู่จริง
@@ -122,8 +125,27 @@ async function toCompetitors(brands: agency.FeedBrand[]): Promise<ProductGroupCo
       lastSyncAt: c.lastSyncAt,
       coveredFrom: c.coveredFrom,
       coveredTo: c.coveredTo,
+      linked: true,
     })),
   );
+
+  // ติ๊กไว้แต่ยังไม่มีลิงก์ Facebook — ต่อท้ายรายการ ผู้ใช้จะได้เห็นครบตามที่ติ๊ก
+  // ไม่มี id เพราะยังไม่มีเพจให้ผูก (สร้างแถวคู่แข่งจากชื่อเปล่า ๆ ไม่ได้)
+  return [
+    ...usable,
+    ...noLink.map((name) => ({
+      id: '',
+      name,
+      url: '',
+      handle: '',
+      pictureUrl: '',
+      postCount: 0,
+      lastSyncAt: null,
+      coveredFrom: null,
+      coveredTo: null,
+      linked: false,
+    })),
+  ];
 }
 
 /**
@@ -175,7 +197,7 @@ export async function listProductGroups(
       pinnedName: pinned?.name ?? '',
       pinnedUrl: pinned?.url ?? '',
       pages: groupPages,
-      competitors: await toCompetitors(brands),
+      competitors: await toCompetitors(brands, g.analysisNoLink ?? []),
     });
   }
   return { items, ready };
