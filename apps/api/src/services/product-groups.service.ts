@@ -17,7 +17,7 @@ import * as agency from '../integrations/agency';
 import { repository } from '../repositories';
 import { logger } from '../config/logger';
 import { AppError } from '../utils/app-error';
-import { ensureCompetitorsByUrl } from './competitors.service';
+import { competitorHandle, ensureCompetitorsByUrl } from './competitors.service';
 import { toPublicPage } from './pages.service';
 import { projectPageIds } from './projects.service';
 
@@ -99,14 +99,22 @@ async function pageScope(query: ListProductGroupsQuery): Promise<{
 async function toCompetitors(brands: agency.FeedBrand[]): Promise<ProductGroupCompetitor[]> {
   const rivals = brands.filter((b) => !b.owned);
   const rows = await ensureCompetitorsByUrl(rivals.map((b) => ({ url: b.url, name: b.name })));
+
+  // จับคู่ด้วย handle ไม่ใช่ URL — URL ที่เราเก็บถูกสร้างใหม่เป็น facebook.com/<handle>
+  // จึงไม่เท่ากับที่ feed ส่งมาแบบตัวอักษร (มี // ปิดท้าย, www, ตัวพิมพ์ต่างกัน)
+  // เทียบด้วย URL ตรง ๆ จะพลาดทุกรายแล้วตกไปใช้ชื่อเก่าที่ค้างในระบบเรา
   const nameFromFeed = new Map<string, string>();
-  for (const b of rivals) nameFromFeed.set(b.url.trim().toLowerCase(), b.name);
+  for (const b of rivals) {
+    const handle = competitorHandle(b.url);
+    if (handle) nameFromFeed.set(handle.toLowerCase(), b.name);
+  }
 
   return Promise.all(
     rows.map(async (c) => ({
       id: c.id,
       // ชื่อที่ทีมพิมพ์ไว้ฝั่ง Agency Intelligence เป็นตัวหลัก — เป็นชื่อที่เขาดูแลอยู่จริง
-      name: nameFromFeed.get(c.url.trim().toLowerCase()) || c.name || c.handle,
+      // (ชื่อในระบบเราอาจค้างมาจากตอนที่ยังกรอกคู่แข่งในเมนู Admin)
+      name: nameFromFeed.get(c.handle.toLowerCase()) || c.name || c.handle,
       url: c.url,
       handle: c.handle,
       pictureUrl: c.pictureUrl,
