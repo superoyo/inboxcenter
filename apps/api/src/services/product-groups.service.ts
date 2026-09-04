@@ -19,6 +19,7 @@ import { logger } from '../config/logger';
 import { AppError } from '../utils/app-error';
 import { ensureCompetitorsByUrl } from './competitors.service';
 import { toPublicPage } from './pages.service';
+import { projectPageIds } from './projects.service';
 
 /**
  * รูปโปรไฟล์เพจที่ยังไม่ได้เชื่อม — เส้น /{page-id}/picture ของ Graph เปิดสาธารณะ
@@ -54,6 +55,47 @@ function toPages(
   });
 }
 
+export interface ListProductGroupsQuery {
+  project?: string;
+  /** ล็อกเพจ — รับได้ทั้ง "123" และหลายเพจคั่นคอมมา "123,456" (เหมือน /api/pages) */
+  pageId?: string;
+}
+
+/**
+ * ขอบเขตเพจที่ผู้เรียกมีสิทธิ์เห็น — โปรเจกต์ที่เปิดอยู่ และโหมดล็อกเพจ (?page=)
+ *
+ * ต้องกรองที่นี่ด้วย ไม่ใช่พึ่ง /api/pages อย่างเดียว เพราะ feed ของ Agency
+ * Intelligence ให้มาทุกกลุ่มที่ enable ไว้ ไม่รู้จัก project/เพจที่ล็อกของเรา
+ * — Agency Intelligence ฝังหน้านี้รายแบรนด์ด้วย ?embed=1&page=xxx ถ้าไม่กรอง
+ * ผู้ใช้จะเห็นเพจของแบรนด์อื่นใน dropdown (ดู CLAUDE.md ข้อ 7)
+ */
+async function pageScope(query: ListProductGroupsQuery): Promise<{
+  filtering: boolean;
+  keep: (page: ProductGroupPage) => boolean;
+}> {
+  const inProject = await projectPageIds(query.project);
+  const locked = query.pageId
+    ? new Set(
+        String(query.pageId)
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean),
+      )
+    : null;
+  const filtering = Boolean(inProject || locked);
+  return {
+    filtering,
+    keep: (page) => {
+      if (!filtering) return true;
+      // บรรทัด "กลุ่มยังไม่ได้เลือกเพจ" (pageId ว่าง) จับคู่กับเพจที่ล็อกไม่ได้อยู่แล้ว
+      if (!page.pageId) return false;
+      if (inProject && !inProject.has(page.pageId)) return false;
+      if (locked && !locked.has(page.pageId)) return false;
+      return true;
+    },
+  };
+}
+
 async function toCompetitors(brands: agency.FeedBrand[]): Promise<ProductGroupCompetitor[]> {
   const rivals = brands.filter((b) => !b.owned);
   const rows = await ensureCompetitorsByUrl(rivals.map((b) => ({ url: b.url, name: b.name })));
@@ -82,7 +124,9 @@ async function toCompetitors(brands: agency.FeedBrand[]): Promise<ProductGroupCo
  * ต่อ feed ไม่ได้ = คืน `error` ไม่ใช่โยน 500 — หน้า Content ต้องบอกผู้ใช้ได้ว่า
  * "อ่านจาก Agency Intelligence ไม่ได้" แทนที่จะแสดง dropdown ว่างเปล่าโดยไม่มีเหตุผล
  */
-export async function listProductGroups(): Promise<ProductGroupListResponse> {
+export async function listProductGroups(
+  query: ListProductGroupsQuery = {},
+): Promise<ProductGroupListResponse> {
   const ready = agency.isConfigured();
   if (!ready) return { items: [], ready };
 
@@ -99,6 +143,7 @@ export async function listProductGroups(): Promise<ProductGroupListResponse> {
   const connected = new Map(
     pages.map((p) => [p.id, { name: p.name, pictureUrl: p.pictureUrl }] as const),
   );
+  const scope = await pageScope(query);
 
   const items: ProductGroup[] = [];
   for (const g of groups) {
@@ -111,6 +156,9 @@ export async function listProductGroups(): Promise<ProductGroupListResponse> {
       continue;
     }
     const pinned = brands.find((b) => b.owned);
+    const groupPages = toPages(g.pageIds, pinned?.name ?? '', connected).filter(scope.keep);
+    // ถูกกรองจนไม่เหลือเพจ = กลุ่มนี้ไม่เกี่ยวกับ project/เพจที่ล็อกอยู่ ไม่ต้องโชว์
+    if (scope.filtering && !groupPages.length) continue;
     items.push({
       id: g.id,
       name: g.name,
@@ -118,7 +166,7 @@ export async function listProductGroups(): Promise<ProductGroupListResponse> {
       logoUrl: g.logoUrl,
       pinnedName: pinned?.name ?? '',
       pinnedUrl: pinned?.url ?? '',
-      pages: toPages(g.pageIds, pinned?.name ?? '', connected),
+      pages: groupPages,
       competitors: await toCompetitors(brands),
     });
   }
