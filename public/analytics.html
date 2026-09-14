@@ -294,7 +294,7 @@
     <h2 style="margin: 22px 0 10px; font-size: 16px;">🛡 ตัวชี้วัดกันพลาด (Human Error Guard)</h2>
     <div class="an-grid cols-3g">
       <div class="an-card">
-        <h3>⏳ ห้องที่ยังไม่ได้ตอบ แยกตามเวลารอ</h3>
+        <h3>⏳ ห้องที่ยังไม่ได้ตอบ แยกตามเวลารอ <span class="muted" style="font-size:11px; font-weight:400;">(เวลาทำการ)</span></h3>
         <div id="agingChart"></div>
         <div class="foot">คลิกแต่ละช่วงเพื่อเปิดรายการและตอบแชท — เกิน 24 ชม. จะส่งข้อความปกติไม่ได้แล้ว (กฎ Facebook)</div>
       </div>
@@ -504,8 +504,12 @@
       const periodText = a.period.from === a.period.to
         ? fmtDay(a.period.from)
         : `${fmtDay(a.period.from)} – ${fmtDay(a.period.to)}`;
+      // ระบุให้ชัดว่าตัวเลขความเร็วในการตอบนับเฉพาะเวลาทำการ ไม่ใช่นาฬิกา 24 ชม.
+      // ไม่งั้นตัวเลขต่างจากที่คนคุ้นเคยแล้วไม่มีอะไรอธิบายว่าทำไม
+      const wh = a.workHours;
       $('scopeSub').textContent = (pageId ? `เพจ: ${selectedPageName}` : 'ภาพรวมทุกเพจ')
-        + ` · ${currentPeriodLabel} (${periodText})`;
+        + ` · ${currentPeriodLabel} (${periodText})`
+        + (wh ? ` · เวลาตอบนับเฉพาะเวลาทำการ ${wh.label}` : '');
       $('dailyTitle').textContent = `📈 ปริมาณข้อความ · ${currentPeriodLabel}`;
       $('hourTitle').textContent = `🕐 ช่วงเวลาที่ลูกค้าทัก · ${currentPeriodLabel}`;
       $('genAt').textContent = 'คำนวณเมื่อ ' + new Date(a.generatedAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.';
@@ -652,12 +656,12 @@
         </div>
         <div class="an-card">
           <div class="stat-value">${fmtDur(a.response.avgHumanMs)}</div>
-          <div class="stat-label">เวลาตอบเฉลี่ยโดยคน</div>
+          <div class="stat-label">เวลาตอบเฉลี่ยโดยคน <span class="muted" style="font-size:11px;">(เวลาทำการ)</span></div>
           <div class="foot">ตอบด้วยคน ${a.response.humanCount.toLocaleString()} ครั้ง · bot เฉลี่ย ${fmtDur(a.response.avgBotMs)}</div>
         </div>
         <div class="an-card">
           <div class="stat-value" style="color:${sla != null && sla < 0.5 ? 'var(--st-critical)' : 'var(--ink-1)'}">${fmtPct(sla)}</div>
-          <div class="stat-label">SLA: คนตอบภายใน 1 ชม.</div>
+          <div class="stat-label">SLA: คนตอบภายใน 1 ชม. <span class="muted" style="font-size:11px;">(เวลาทำการ)</span></div>
           <div class="progress"><div style="width:${Math.round((sla || 0) * 100)}%; background:${sla != null && sla < 0.5 ? 'var(--st-critical)' : 'var(--st-good)'}"></div></div>
         </div>
         <div class="an-card clickable" data-wpopen onclick="openWaitingPanel()" title="คลิกเพื่อเปิดรายการห้องค้างและตอบแชทได้ทันที">

@@ -5,6 +5,7 @@ const apify = require('./lib/apify');
 const store = require('./lib/store');
 const urgency = require('./lib/urgency');
 const keywords = require('./lib/keywords');
+const businessHours = require('./lib/business-hours');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -81,6 +82,9 @@ app.get('/api/analytics', async (req, res) => {
   const tzMin = parseInt(req.query.tz, 10);
   const offsetMs = (Number.isFinite(tzMin) ? tzMin : 0) * 60000;
   const dayKey = dayKeyFactory(tzMin);
+  // ทุกตัวเลข "ความเร็วในการตอบ" นับเฉพาะเวลาทำการ 09:00–18:00 ตามเวลาผู้ดู
+  // ไม่ใช่เวลานาฬิกา 24 ชม. — ข้อความนอกเวลาเริ่มจับเวลาตอนเปิดทำการรอบถัดไป
+  const businessMs = businessHours.businessMsFactory(offsetMs);
   const now = Date.now();
   const todayKey = dayKey(now);
   const HOUR = 3600e3;
@@ -181,7 +185,7 @@ app.get('/api/analytics', async (req, res) => {
         const bot = isBot(c.pageId, m.text);
         if (inPeriod(k)) { if (bot) hasBotP = true; else hasHumanP = true; }
         if (pending !== null) {
-          const d = t - pending;
+          const d = businessMs(pending, t);
           if (inPeriod(k)) {
             if (bot) botDeltas.push(d);
             else { humanDeltas.push(d); pp.humanDeltas.push(d); }
@@ -224,7 +228,7 @@ app.get('/api/analytics', async (req, res) => {
     const lastMsgKey = lastMsg ? dayKey(new Date(lastMsg.createdTime).getTime()) : null;
     const handled = caseHandled(caseMap[c.id], c.messages);
     if (lastMsg && !lastMsg.isFromPage && inPeriod(lastMsgKey) && !handled) {
-      const waitedMs = now - new Date(lastMsg.createdTime).getTime();
+      const waitedMs = businessMs(new Date(lastMsg.createdTime).getTime(), now);
       waiting.push({
         id: c.id, customerName: c.customerName, pageName: c.pageName,
         customerId: c.customerId, customerPic: c.customerPic || '',
@@ -326,6 +330,15 @@ app.get('/api/analytics', async (req, res) => {
   res.json({
     generatedAt: new Date(now).toISOString(),
     scope: pageId || 'all',
+    // หน้าเว็บเอาไปบอกผู้ใช้ว่าตัวเลขเวลาวัดจากอะไร — ตั้งค่าอยู่ที่ lib/business-hours.js
+    workHours: {
+      startHour: businessHours.WORK_START_H,
+      endHour: businessHours.WORK_END_H,
+      label: `${String(businessHours.WORK_START_H).padStart(2, '0')}:00–`
+        + `${String(businessHours.WORK_END_H).padStart(2, '0')}:00`,
+      days: [...businessHours.WORK_DAYS].sort(),
+      msPerDay: businessHours.WORK_MS_PER_DAY,
+    },
     period: { from: fromKey, to: toKey, days: nDays },
     totals: {
       conversations: convs.length,
