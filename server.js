@@ -334,8 +334,7 @@ app.get('/api/analytics', async (req, res) => {
     workHours: {
       startHour: businessHours.WORK_START_H,
       endHour: businessHours.WORK_END_H,
-      label: `${String(businessHours.WORK_START_H).padStart(2, '0')}:00–`
-        + `${String(businessHours.WORK_END_H).padStart(2, '0')}:00`,
+      label: businessHours.workLabel(),
       days: [...businessHours.WORK_DAYS].sort(),
       msPerDay: businessHours.WORK_MS_PER_DAY,
     },
